@@ -1,42 +1,55 @@
 # Interactions entre Plantes
 
+## Zones et compétition
+
+Chaque plante a deux zones (voir 03-perception.md) :
+
+- **Zone de place** : cellules physiquement occupées. Exclusive — une seule plante par cellule.
+- **Zone d'influence** : zone élargie d'absorption et d'interaction. Le rayon scale avec la biomasse et l'investissement en racines (output `canopy_vs_roots`, voir 03-perception.md). Peut se superposer avec celle d'autres plantes.
+
+Quand les zones d'influence de deux plantes se chevauchent, elles sont en **compétition passive** pour les ressources (carbone, azote, humidité) dans la zone de recouvrement. Pas besoin d'invasion — l'absorption est partagée, la plus efficace gagne.
+
 ## Exsudats racinaires (coopération publique)
 
-Chaque plante peut injecter des nutriments dans le sol autour de ses racines via l'output `exudate_rate`. C'est une contribution au bien commun : n'importe quelle plante à proximité en bénéficie via l'absorption normale.
+Chaque plante peut injecter des ressources dans le sol autour de ses racines via l'output `exudate_rate`. Le **type exsudé** (carbone ou azote) est un **trait génétique** (`exudate_type`), pas une décision par tick. Les fixatrices d'azote émergent par évolution.
 
 | Aspect | Détail |
 |---|---|
-| Mécanisme | La plante injecte exudate_rate × 2.0 nutriments/tick dans les cellules de ses racines |
+| Mécanisme | La plante injecte exudate_rate × 2.0 de carbone OU d'azote (selon `exudate_type`) par tick dans les cellules de sa zone de place |
 | Coût | Énergie : exudate_rate × 1.5 /tick |
 | Diffusion | Les exsudats diffusent aux cellules adjacentes, décroissent de 20%/tick |
-| Bénéficiaires | Toute plante dont les racines chevauchent les cellules enrichies |
+| Bénéficiaires | Toute plante dont la zone d'influence chevauche les cellules enrichies |
 | Visuel | Halo doré/ambré semi-transparent autour des racines émettrices |
 
-**Ce qui émerge :** une plante généreuse (exudate élevé) crée un gradient de nutriments qui attire les racines voisines. Les voisins poussent vers elle → contact racinaire → connexion directe possible. La coopération attire la coopération. À l'inverse, un parasite (exudate 0 mais absorption forte) crée un puits de nutriments — gradient négatif autour de lui.
+**Ce qui émerge :** une fixatrice d'azote (exudate_type = azote) crée un gradient d'azote qui attire les plantes voisines carencées. Les voisins poussent vers elle → zones d'influence se croisent → lien mycorhizien possible. La coopération attire la coopération. À l'inverse, un parasite (exudate 0 mais absorption forte) crée un puits — gradient négatif autour de lui.
 
 ## Connexion mycorhizienne (coopération privée)
 
-Quand deux systèmes racinaires se touchent (cellules adjacentes), les plantes peuvent former un **lien direct** — modélisant le réseau de champignons mycorhiziens.
+Quand les **zones d'influence** de deux plantes se superposent, elles peuvent former un **lien direct** — modélisant le réseau de champignons mycorhiziens.
 
-1. **Proximité** : cellules de A et B adjacentes (distance ≤ 2).
-2. **Accord mutuel** : connect_signal > 0.5 des deux côtés.
+1. **Superposition** : les zones d'influence de A et B se chevauchent.
+2. **Accord mutuel** : `connect_signal > 0.5` des deux côtés.
 3. **Lien établi** : filament doré visible entre les deux plantes.
-4. **Transfert** : chaque tick, transfert proportionnel à connect_generosity. La plante la plus riche donne à la plus pauvre.
-5. **Rupture** : si les racines ne se touchent plus, ou si une plante tente d'envahir l'autre.
+4. **Échange C↔N** : chaque tick, chaque plante connectée donne son **surplus** de carbone ou d'azote, proportionnellement à `connect_generosity`. L'échange est bidirectionnel — une plante riche en carbone donne du carbone et reçoit de l'azote, et inversement.
+5. **Rupture** : si les zones d'influence ne se chevauchent plus, ou si une plante envahit la zone de place de l'autre.
 
-**Parasitisme :** une plante peut avoir connect_signal > 0.5 (accepter le lien) mais connect_generosity ≈ 0 (ne rien donner). Elle reçoit sans contribuer. Stratégie viable à court terme, mais la victime finit par mourir → plus de source.
+### Parasitisme mycorhizien
+
+Une plante peut avoir `connect_signal > 0.5` (accepter le lien) mais `connect_generosity ≈ 0` (ne rien donner en retour). Elle reçoit le surplus de l'autre sans contribuer. Stratégie viable à court terme, mais la victime s'affaiblit → produit moins de surplus → le parasite y perd aussi.
+
+Avec l'échange C↔N, le parasitisme est plus nuancé : une plante peut être généreuse en carbone (qu'elle produit facilement via photosynthèse) mais avare en azote (qu'elle fixe et garde). L'évolution explore ces stratégies mixtes.
 
 ## Invasion = croissance agressive
 
-Il n'y a pas de « mode invasion ». L'invasion est simplement le résultat de la **croissance dans une cellule occupée**. Quand une plante essaie d'ajouter une cellule et que cette cellule appartient à un voisin plus faible (énergie inférieure), elle la prend.
+Il n'y a pas de « mode invasion ». L'invasion est le résultat de la **croissance dans la zone de place d'un autre**. Quand une plante essaie d'ajouter une cellule et que cette cellule appartient à la zone de place d'un voisin plus faible, elle la prend.
 
 | Condition | Détail |
 |---|---|
-| Déclenchement | La plante pousse (grow_intensity > 0) et la cellule cible est occupée |
+| Déclenchement | La plante pousse (`grow_intensity > 0`) et la cellule cible est dans la zone de place d'une autre plante |
 | Réussite | Si énergie attaquant > énergie défenseur + 10 |
-| Défense | Si defense > 0.5 chez le défenseur : le seuil passe à +20 au lieu de +10. Coûte 3 énergie/tick. |
+| Défense | Si `defense > 0.5` chez le défenseur : le seuil passe à +20 au lieu de +10. Coûte 3 énergie/tick. |
 | Coût | 12 énergie (au lieu de 8 pour une cellule libre) |
-| Rupture symbiose | Si A envahit B, tout lien mycorhizien entre A et B est rompu |
+| Rupture symbiose | Si A envahit la zone de place de B, tout lien mycorhizien entre A et B est rompu |
 | Perte pour la victime | -3 vitalité + perte de la cellule. Si 0 cellules : mort. |
 
 ## Équilibre écosystémique
@@ -44,8 +57,9 @@ Il n'y a pas de « mode invasion ». L'invasion est simplement le résultat de l
 | Stratégie | Forces | Faiblesses |
 |---|---|---|
 | Invasion pure | Gains rapides en territoire | Épuisement (énergie), sol détruit, isolée |
-| Exsudats généreux | Attire les voisins, enrichit le sol | Coût énergétique, profite aussi aux parasites |
-| Connexion symbiotique | Transfert efficace, résilience collective | Vulnérable au parasitisme |
-| Parasitisme | Ressources gratuites | Les victimes meurent → plus de source |
+| Fixatrice d'azote | Attire les voisins, indispensable à l'écosystème | Coût énergétique des exsudats |
+| Exsudats carbone | Enrichit le sol, favorise la décomposition rapide | Profite aussi aux parasites |
+| Connexion symbiotique C↔N | Échange efficace, résilience collective | Vulnérable au parasitisme |
+| Parasitisme mycorhizien | Ressources gratuites à court terme | La victime meurt → plus de source |
 | Défense pure | Résiste aux invasions | Coût énergétique permanent, pas de croissance |
 | **Mixte (adaptée)** | **Flexible, durable** | **Plus complexe à évoluer** |
