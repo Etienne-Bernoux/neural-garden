@@ -6,6 +6,7 @@
 - Pas de `unwrap()` dans le code de production (sauf `unreachable!`).
 - Commentaires en français dans le code, docs en français.
 - Noms de tests en français (snake_case) : `#[test] fn la_plante_meurt_quand_vitalite_atteint_zero()`.
+- Un fichier = une responsabilité. Si un fichier dépasse ~300 lignes, le découper en modules. Le fichier d'orchestration ne garde que les appels, la logique va dans des modules dédiés.
 
 ## JavaScript (web viewer)
 
