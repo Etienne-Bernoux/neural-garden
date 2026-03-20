@@ -82,21 +82,19 @@ Brainstorm → Plan → Work → Review → Compound → Repeat
 ```
 garden-core/src/
 ├── domain/           # Cœur métier — zéro dépendance externe
-│   ├── plant.rs      # Entity Plant, value objects (Vitality, Energy, Biomass)
-│   ├── brain.rs      # Entity Brain, forward pass
-│   ├── world.rs      # Entity World, Grid, Cell
-│   ├── species.rs    # Value object Species
-│   ├── symbiosis.rs  # Liens mycorhiziens, exsudats
-│   └── events.rs     # Domain events (Grew, Died, Invaded, Linked...)
+│   ├── mod.rs
+│   ├── rng.rs        # Trait Rng pour l'injection de l'aléatoire
+│   ├── plant.rs      # BoundedF32, Vitality, Energy, Biomass, Lineage, GeneticTraits, Entity Plant
+│   ├── brain.rs      # Entity Brain, forward pass 18→H→H→8
+│   ├── world.rs      # Entity World, Grid 128×128, Cell
+│   ├── island.rs     # Île : topographie, masque terre/mer
+│   ├── symbiosis.rs  # Liens mycorhiziens, échanges C↔N
+│   └── events.rs     # Domain events (Grew, Died, Born, Invaded, Linked...)
 ├── application/      # Cas d'usage, orchestration
-│   ├── sim.rs        # Use case : run_tick, run_simulation
-│   ├── evolution.rs  # Use case : run_generation, evaluate_fitness
-│   └── perception.rs # Service : calcul des gradients
+│   └── mod.rs        # (vide — Phase 2)
 ├── infra/            # Sérialisation, I/O, config
-│   ├── replay.rs     # Event sourcing → JSON
-│   ├── config.rs     # Désérialisation TOML
-│   └── persistence.rs # Sauvegarde/chargement populations
-└── lib.rs            # Ré-exports publics
+│   └── mod.rs        # (vide — Phase 3)
+└── lib.rs
 ```
 
 Voir `.claude/rules/ddd.md` pour les règles de dépendances entre couches.
@@ -104,3 +102,5 @@ Voir `.claude/rules/ddd.md` pour les règles de dépendances entre couches.
 Voir `.claude/rules/tests.md` pour la stratégie de tests (unitaires, Gherkin, Playwright).
 
 Voir `.claude/rules/conventions-code.md` pour les conventions Rust, JS et Git.
+
+Voir `.claude/rules/workflow.md` pour les gardes de workflow (ordre strict, pas de phase sautée).

@@ -73,6 +73,8 @@ Plage : de 252 paramètres (H=6) à 724 paramètres (H=14).
 
 ## Propagation
 
+> **Note** : l'implémentation utilise des vecteurs plats (`Vec<f32>`) pour chaque couche de poids, pas des vecteurs imbriqués. Voir `crates/garden-core/src/domain/brain.rs`.
+
 Le forward pass est un simple produit matrice-vecteur par couche, suivi de l'activation. Implémenté en Rust pur :
 
 ```rust

@@ -2,7 +2,9 @@
 
 ## Phases
 
-### Phase 1 — Domain pur (garden-core/domain/)
+### Phase 1 — Domain pur (garden-core/domain/) ✅ Terminée
+
+> 57 tests unitaires, zéro dépendance externe, clippy strict.
 
 Le cœur métier sans aucune dépendance externe. Tout se teste unitairement.
 
