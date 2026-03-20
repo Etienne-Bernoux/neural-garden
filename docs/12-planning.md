@@ -20,7 +20,9 @@ Le cœur métier sans aucune dépendance externe. Tout se teste unitairement.
 
 **Done quand** : `cargo test` passe, zéro dépendance externe dans domain/, couverture des entities et value objects.
 
-### Phase 2 — Application (garden-core/application/)
+### Phase 2 — Application (garden-core/application/) ✅ Terminée
+
+> 101 tests, game loop complet (5 phases), neuroévolution, perception par gradients, saisons.
 
 Les use cases et services. Orchestration du domain.
 

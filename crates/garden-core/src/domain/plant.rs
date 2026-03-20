@@ -1,5 +1,7 @@
 // Value objects de l'entite Plant.
 
+use super::events::DomainEvent;
+
 /// Flottant borne dans [0.0, cap]. Base commune pour Vitalite et Energie.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundedF32(f32);
@@ -169,6 +171,7 @@ pub enum PlantState {
     Stressed,
     Dying,
     Dead,
+    Decomposing,
 }
 
 /// Position sur la grille 2D.
@@ -256,6 +259,9 @@ pub struct Plant {
     roots: Vec<Pos>,
     genetics: GeneticTraits,
     lineage: Lineage,
+    decomposition_remaining: u32,
+    carbon_to_release: f32,
+    nitrogen_to_release: f32,
 }
 
 impl Plant {
@@ -275,6 +281,9 @@ impl Plant {
             roots: vec![position],
             genetics,
             lineage,
+            decomposition_remaining: 0,
+            carbon_to_release: 0.0,
+            nitrogen_to_release: 0.0,
         }
     }
 
@@ -319,7 +328,7 @@ impl Plant {
     }
 
     pub fn is_dead(&self) -> bool {
-        self.state == PlantState::Dead
+        self.state == PlantState::Dead || self.state == PlantState::Decomposing
     }
 
     /// Avance l'age d'un tick.
@@ -327,18 +336,21 @@ impl Plant {
         self.age += 1;
     }
 
-    /// Tente de germer. Retourne true si la plante etait une graine et pousse maintenant.
-    pub fn germinate(&mut self) -> bool {
+    /// Tente de germer. Retourne l'evenement Germinated si la plante etait une graine.
+    pub fn germinate(&mut self) -> Option<DomainEvent> {
         if self.state == PlantState::Seed {
             self.state = PlantState::Growing;
-            true
+            Some(DomainEvent::Germinated {
+                plant_id: self.id,
+                position: self.canopy[0],
+            })
         } else {
-            false
+            None
         }
     }
 
-    /// Pousse dans une nouvelle cellule. La croissance de canopee augmente aussi la biomasse.
-    pub fn grow(&mut self, cell: Pos, is_canopy: bool) {
+    /// Pousse dans une nouvelle cellule. Retourne l'evenement Grew.
+    pub fn grow(&mut self, cell: Pos, is_canopy: bool) -> DomainEvent {
         if is_canopy {
             self.canopy.push(cell);
             self.biomass = self.biomass.add(1, self.genetics.max_size());
@@ -350,26 +362,40 @@ impl Plant {
         let e_cap = energy_cap(&self.biomass, self.genetics.energy_factor());
         self.vitality = self.vitality.clamp_to(v_cap);
         self.energy = self.energy.clamp_to(e_cap);
+        DomainEvent::Grew {
+            plant_id: self.id,
+            cell,
+            is_canopy,
+        }
     }
 
     /// Retrecit en retirant la derniere cellule de canopee (garde au moins 1).
-    pub fn shrink(&mut self) {
+    /// Retourne l'evenement Shrank si une cellule a ete retiree.
+    pub fn shrink(&mut self) -> Option<DomainEvent> {
         if self.canopy.len() > 1 {
-            self.canopy.pop();
+            let removed_cell = self.canopy.pop().expect("canopy non vide");
             self.biomass = self.biomass.sub(1);
             // Re-clamper les stats aux nouveaux plafonds
             let v_cap = vitality_cap(&self.biomass, self.genetics.vitality_factor());
             let e_cap = energy_cap(&self.biomass, self.genetics.energy_factor());
             self.vitality = self.vitality.clamp_to(v_cap);
             self.energy = self.energy.clamp_to(e_cap);
+            Some(DomainEvent::Shrank {
+                plant_id: self.id,
+                cell: removed_cell,
+            })
+        } else {
+            None
         }
     }
 
     /// Transition d'etat basee sur la vitalite et la biomasse actuelles.
-    pub fn update_state(&mut self) {
+    /// Retourne un evenement si l'etat change (StateChanged ou Died).
+    pub fn update_state(&mut self) -> Option<DomainEvent> {
         if self.state == PlantState::Seed {
-            return;
+            return None;
         }
+        let old_state = self.state;
         let v_cap = vitality_cap(&self.biomass, self.genetics.vitality_factor());
         let current = self.vitality.value();
         if current == 0.0 {
@@ -382,6 +408,23 @@ impl Plant {
             self.state = PlantState::Mature;
         } else {
             self.state = PlantState::Growing;
+        }
+        if self.state == old_state {
+            return None;
+        }
+        if self.state == PlantState::Dead {
+            Some(DomainEvent::Died {
+                plant_id: self.id,
+                position: self.canopy[0],
+                age: self.age,
+                biomass: self.biomass.value(),
+            })
+        } else {
+            Some(DomainEvent::StateChanged {
+                plant_id: self.id,
+                from: old_state,
+                to: self.state,
+            })
         }
     }
 
@@ -401,6 +444,51 @@ impl Plant {
     pub fn heal(&mut self, amount: f32) {
         let cap = vitality_cap(&self.biomass, self.genetics.vitality_factor());
         self.vitality = self.vitality.add(amount, cap);
+    }
+
+    /// Retire une cellule de canopee specifique. Retourne true si retiree.
+    /// Ne retire pas si c'est la derniere cellule de canopee.
+    pub fn remove_canopy_cell(&mut self, pos: &Pos) -> bool {
+        if self.canopy.len() <= 1 {
+            return false;
+        }
+        if let Some(idx) = self.canopy.iter().position(|p| p == pos) {
+            self.canopy.swap_remove(idx);
+            self.biomass = self.biomass.sub(1);
+            let v_cap = vitality_cap(&self.biomass, self.genetics.vitality_factor());
+            let e_cap = energy_cap(&self.biomass, self.genetics.energy_factor());
+            self.vitality = self.vitality.clamp_to(v_cap);
+            self.energy = self.energy.clamp_to(e_cap);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Demarre la decomposition progressive. Passe en etat Decomposing.
+    /// Calcule les ressources a liberer sur la duree de decomposition.
+    pub fn start_decomposition(&mut self, decomposition_ticks: u32) {
+        self.state = PlantState::Decomposing;
+        self.carbon_to_release = self.biomass.value() as f32 * 0.01;
+        self.nitrogen_to_release = self.age as f32 * 0.001;
+        self.decomposition_remaining = decomposition_ticks;
+    }
+
+    /// Avance la decomposition d'un tick. Retourne (carbone, azote) liberes ce tick.
+    pub fn decompose_tick(&mut self, decomposition_ticks: u32) -> (f32, f32) {
+        if self.decomposition_remaining > 0 {
+            let carbon = self.carbon_to_release / decomposition_ticks as f32;
+            let nitrogen = self.nitrogen_to_release / decomposition_ticks as f32;
+            self.decomposition_remaining -= 1;
+            (carbon, nitrogen)
+        } else {
+            (0.0, 0.0)
+        }
+    }
+
+    /// Indique si la plante a termine sa decomposition.
+    pub fn is_fully_decomposed(&self) -> bool {
+        self.decomposition_remaining == 0 && self.state == PlantState::Decomposing
     }
 }
 
@@ -485,17 +573,17 @@ mod tests {
     #[test]
     fn la_plante_germe() {
         let mut p = test_plant();
-        assert!(p.germinate());
+        assert!(p.germinate().is_some());
         assert_eq!(p.state(), PlantState::Growing);
         // Ne peut pas germer deux fois
-        assert!(!p.germinate());
+        assert!(p.germinate().is_none());
     }
 
     #[test]
     fn la_plante_fait_pousser_la_canopee() {
         let mut p = test_plant();
-        p.germinate();
-        p.grow(Pos { x: 6, y: 5 }, true);
+        let _ = p.germinate();
+        let _ = p.grow(Pos { x: 6, y: 5 }, true);
         assert_eq!(p.canopy().len(), 2);
         assert_eq!(p.biomass().value(), 2);
     }
@@ -503,8 +591,8 @@ mod tests {
     #[test]
     fn la_plante_fait_pousser_les_racines() {
         let mut p = test_plant();
-        p.germinate();
-        p.grow(Pos { x: 6, y: 5 }, false);
+        let _ = p.germinate();
+        let _ = p.grow(Pos { x: 6, y: 5 }, false);
         assert_eq!(p.roots().len(), 2);
         // La biomasse ne change pas pour la croissance racinaire
         assert_eq!(p.biomass().value(), 1);
@@ -513,10 +601,10 @@ mod tests {
     #[test]
     fn la_plante_retrecit() {
         let mut p = test_plant();
-        p.germinate();
-        p.grow(Pos { x: 6, y: 5 }, true);
+        let _ = p.germinate();
+        let _ = p.grow(Pos { x: 6, y: 5 }, true);
         assert_eq!(p.biomass().value(), 2);
-        p.shrink();
+        assert!(p.shrink().is_some());
         assert_eq!(p.canopy().len(), 1);
         assert_eq!(p.biomass().value(), 1);
     }
@@ -524,10 +612,10 @@ mod tests {
     #[test]
     fn la_plante_meurt_quand_vitalite_a_zero() {
         let mut p = test_plant();
-        p.germinate();
+        let _ = p.germinate();
         // plafond vitalite = 1 * 10.0 = 10.0
         p.damage(10.0);
-        p.update_state();
+        let _ = p.update_state();
         assert_eq!(p.state(), PlantState::Dead);
         assert!(p.is_dead());
     }
@@ -535,48 +623,48 @@ mod tests {
     #[test]
     fn la_plante_devient_stressee() {
         let mut p = test_plant();
-        p.germinate();
+        let _ = p.germinate();
         // plafond vitalite = 10.0, seuil stress = 50% = 5.0
         // Degats pour amener la vitalite a 4.0 (< 50% mais >= 20%)
         p.damage(6.0);
-        p.update_state();
+        let _ = p.update_state();
         assert_eq!(p.state(), PlantState::Stressed);
     }
 
     #[test]
     fn la_plante_devient_mourante() {
         let mut p = test_plant();
-        p.germinate();
+        let _ = p.germinate();
         // plafond vitalite = 10.0, seuil mourant = 20% = 2.0
         // Degats pour amener la vitalite a 1.0 (< 20%)
         p.damage(9.0);
-        p.update_state();
+        let _ = p.update_state();
         assert_eq!(p.state(), PlantState::Dying);
     }
 
     #[test]
     fn la_plante_atteint_la_maturite() {
         let mut p = test_plant();
-        p.germinate();
+        let _ = p.germinate();
         // max_size = 20, 80% = 16. Biomasse >= 16 requise.
         // Commence a 1, pousse 15 cellules de canopee en plus.
         for i in 0..15 {
-            p.grow(Pos { x: 6 + i, y: 5 }, true);
+            let _ = p.grow(Pos { x: 6 + i, y: 5 }, true);
         }
         assert_eq!(p.biomass().value(), 16);
         // Soigner a fond pour que la vitalite passe le check
         p.heal(1000.0);
-        p.update_state();
+        let _ = p.update_state();
         assert_eq!(p.state(), PlantState::Mature);
     }
 
     #[test]
     fn la_plante_clampe_les_stats_au_retrecissement() {
         let mut p = test_plant();
-        p.germinate();
+        let _ = p.germinate();
         // Pousse jusqu'a biomasse 3 → plafond vitalite = 30.0, plafond energie = 15.0
-        p.grow(Pos { x: 6, y: 5 }, true);
-        p.grow(Pos { x: 7, y: 5 }, true);
+        let _ = p.grow(Pos { x: 6, y: 5 }, true);
+        let _ = p.grow(Pos { x: 7, y: 5 }, true);
         // Soigner/gagner pour remplir les plafonds a biomasse 3
         p.heal(100.0);
         p.gain_energy(100.0);
@@ -584,7 +672,7 @@ mod tests {
         assert_eq!(p.energy().value(), 15.0);
 
         // Retrecir a biomasse 2 → plafond vitalite = 20.0, plafond energie = 10.0
-        p.shrink();
+        let _ = p.shrink();
         assert_eq!(p.vitality().value(), 20.0);
         assert_eq!(p.energy().value(), 10.0);
     }
@@ -630,5 +718,156 @@ mod tests {
         let l = Lineage::new(42, 7);
         assert_eq!(l.id(), 42);
         assert_eq!(l.generation(), 7);
+    }
+
+    // --- Tests de retour d'events ---
+
+    #[test]
+    fn germinate_retourne_evenement_germination() {
+        let mut p = test_plant();
+        let event = p.germinate();
+        assert_eq!(
+            event,
+            Some(DomainEvent::Germinated {
+                plant_id: 1,
+                position: Pos { x: 5, y: 5 },
+            })
+        );
+    }
+
+    #[test]
+    fn grow_retourne_evenement_croissance() {
+        let mut p = test_plant();
+        let _ = p.germinate();
+        let event = p.grow(Pos { x: 6, y: 5 }, true);
+        assert_eq!(
+            event,
+            DomainEvent::Grew {
+                plant_id: 1,
+                cell: Pos { x: 6, y: 5 },
+                is_canopy: true,
+            }
+        );
+        // Croissance racinaire
+        let event = p.grow(Pos { x: 4, y: 5 }, false);
+        assert_eq!(
+            event,
+            DomainEvent::Grew {
+                plant_id: 1,
+                cell: Pos { x: 4, y: 5 },
+                is_canopy: false,
+            }
+        );
+    }
+
+    #[test]
+    fn shrink_retourne_evenement_retrecissement() {
+        let mut p = test_plant();
+        let _ = p.germinate();
+        let _ = p.grow(Pos { x: 6, y: 5 }, true);
+        let event = p.shrink();
+        assert_eq!(
+            event,
+            Some(DomainEvent::Shrank {
+                plant_id: 1,
+                cell: Pos { x: 6, y: 5 },
+            })
+        );
+        // Ne peut pas retrecir en dessous de 1
+        assert!(p.shrink().is_none());
+    }
+
+    #[test]
+    fn update_state_retourne_evenement_changement_etat() {
+        let mut p = test_plant();
+        let _ = p.germinate();
+        // Infliger des degats pour passer en Stressed
+        p.damage(6.0);
+        let event = p.update_state();
+        assert_eq!(
+            event,
+            Some(DomainEvent::StateChanged {
+                plant_id: 1,
+                from: PlantState::Growing,
+                to: PlantState::Stressed,
+            })
+        );
+    }
+
+    #[test]
+    fn update_state_retourne_evenement_mort() {
+        let mut p = test_plant();
+        let _ = p.germinate();
+        p.damage(10.0);
+        let event = p.update_state();
+        assert_eq!(
+            event,
+            Some(DomainEvent::Died {
+                plant_id: 1,
+                position: Pos { x: 5, y: 5 },
+                age: 0,
+                biomass: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn la_plante_demarre_la_decomposition() {
+        // Tuer la plante puis demarrer la decomposition
+        let mut p = test_plant();
+        let _ = p.germinate();
+        p.damage(10.0);
+        let _ = p.update_state();
+        assert_eq!(p.state(), PlantState::Dead);
+
+        p.start_decomposition(50);
+        assert_eq!(p.state(), PlantState::Decomposing);
+    }
+
+    #[test]
+    fn la_decomposition_libere_des_ressources() {
+        // Plante avec de la biomasse et de l'age pour avoir des ressources a liberer
+        let mut p = test_plant();
+        let _ = p.germinate();
+        // Pousser pour augmenter la biomasse
+        for i in 0..5 {
+            let _ = p.grow(Pos { x: 6 + i, y: 5 }, true);
+        }
+        // Avancer l'age pour que nitrogen_to_release > 0
+        for _ in 0..100 {
+            p.tick();
+        }
+        p.damage(1000.0);
+        let _ = p.update_state();
+        p.start_decomposition(50);
+
+        let (carbon, nitrogen) = p.decompose_tick(50);
+        // biomass = 6, carbon_to_release = 6 * 0.01 = 0.06, par tick = 0.06/50
+        assert!(carbon > 0.0, "le carbone libere doit etre > 0");
+        // age = 100, nitrogen_to_release = 100 * 0.001 = 0.1, par tick = 0.1/50
+        assert!(nitrogen > 0.0, "l'azote libere doit etre > 0");
+    }
+
+    #[test]
+    fn la_plante_est_completement_decomposee() {
+        // Apres N ticks de decomposition, is_fully_decomposed doit etre true
+        let mut p = test_plant();
+        let _ = p.germinate();
+        p.damage(1000.0);
+        let _ = p.update_state();
+
+        let ticks = 10;
+        p.start_decomposition(ticks);
+        assert!(!p.is_fully_decomposed());
+
+        // Faire tourner tous les ticks de decomposition
+        for _ in 0..ticks {
+            let _ = p.decompose_tick(ticks);
+        }
+        assert!(
+            p.is_fully_decomposed(),
+            "la plante devrait etre entierement decomposee apres {} ticks",
+            ticks
+        );
     }
 }

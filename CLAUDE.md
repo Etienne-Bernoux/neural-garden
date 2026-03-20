@@ -91,7 +91,16 @@ garden-core/src/
 │   ├── symbiosis.rs  # Liens mycorhiziens, échanges C↔N
 │   └── events.rs     # Domain events (Grew, Died, Born, Invaded, Linked...)
 ├── application/      # Cas d'usage, orchestration
-│   └── mod.rs        # (vide — Phase 2)
+│   ├── mod.rs
+│   ├── config.rs     # SimConfig — paramètres de simulation
+│   ├── sim.rs        # SimState, run_tick — orchestration du game loop
+│   ├── environment.rs # Phase environnement (pluie, ombrage, décomposition)
+│   ├── actions.rs    # Phase actions (croissance, invasion, défense, exsudats, symbiose)
+│   ├── lifecycle.rs  # Phase vie/mort (reproduction, germination, pluie de graines, GC)
+│   ├── perception.rs # Service : calcul des 18 inputs (gradients sur racines)
+│   ├── evolution.rs  # Banque de graines, fitness, crossover, mutations
+│   ├── season.rs     # Cycle saisonnier (4 saisons, 250 ticks chacune)
+│   └── highlights.rs # Détection des moments clés pour le replay
 ├── infra/            # Sérialisation, I/O, config
 │   └── mod.rs        # (vide — Phase 3)
 └── lib.rs

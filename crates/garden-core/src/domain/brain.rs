@@ -5,6 +5,7 @@ pub const MAX_HIDDEN_SIZE: u8 = 14;
 
 /// Petit reseau de neurones feedforward (18 → cache → cache → 8).
 /// Pilote le comportement des plantes : le "cerveau" de chaque plante.
+#[derive(Debug, Clone)]
 pub struct Brain {
     hidden_size: u8,
     weights_ih: Vec<f32>,
@@ -112,6 +113,125 @@ impl Brain {
             + self.biases_h2.len()
             + self.biases_o.len()
     }
+
+    /// Retourne tous les poids et biais en un seul Vec plat.
+    /// Ordre : weights_ih, weights_hh, weights_ho, biases_h1, biases_h2, biases_o.
+    pub fn weights(&self) -> Vec<f32> {
+        let mut w = Vec::with_capacity(self.total_weights());
+        w.extend_from_slice(&self.weights_ih);
+        w.extend_from_slice(&self.weights_hh);
+        w.extend_from_slice(&self.weights_ho);
+        w.extend_from_slice(&self.biases_h1);
+        w.extend_from_slice(&self.biases_h2);
+        w.extend_from_slice(&self.biases_o);
+        w
+    }
+
+    /// Reconstruit un Brain depuis un Vec plat de poids.
+    /// Ordre attendu : weights_ih, weights_hh, weights_ho, biases_h1, biases_h2, biases_o.
+    pub fn from_weights(hidden_size: u8, weights: Vec<f32>) -> Self {
+        let hs = hidden_size.clamp(MIN_HIDDEN_SIZE, MAX_HIDDEN_SIZE);
+        let h = hs as usize;
+        let mut offset = 0;
+
+        let weights_ih = weights[offset..offset + INPUT_SIZE * h].to_vec();
+        offset += INPUT_SIZE * h;
+
+        let weights_hh = weights[offset..offset + h * h].to_vec();
+        offset += h * h;
+
+        let weights_ho = weights[offset..offset + h * OUTPUT_SIZE].to_vec();
+        offset += h * OUTPUT_SIZE;
+
+        let biases_h1 = weights[offset..offset + h].to_vec();
+        offset += h;
+
+        let biases_h2 = weights[offset..offset + h].to_vec();
+        offset += h;
+
+        let biases_o = weights[offset..offset + OUTPUT_SIZE].to_vec();
+
+        Self {
+            hidden_size: hs,
+            weights_ih,
+            weights_hh,
+            weights_ho,
+            biases_h1,
+            biases_h2,
+            biases_o,
+        }
+    }
+
+    /// Redimensionne le cerveau a une nouvelle taille cachee.
+    /// Ajoute des poids a 0 si la taille augmente, tronque si elle diminue.
+    pub fn resize(self, new_hidden_size: u8) -> Brain {
+        let new_hs = new_hidden_size.clamp(MIN_HIDDEN_SIZE, MAX_HIDDEN_SIZE);
+        if new_hs == self.hidden_size {
+            return self;
+        }
+        let old_h = self.hidden_size as usize;
+        let new_h = new_hs as usize;
+
+        // Redimensionne une matrice (rows x old_cols) → (rows x new_cols)
+        let resize_matrix =
+            |src: &[f32], rows: usize, old_cols: usize, new_cols: usize| -> Vec<f32> {
+                let mut dst = vec![0.0; rows * new_cols];
+                let cols = old_cols.min(new_cols);
+                for r in 0..rows {
+                    for c in 0..cols {
+                        dst[r * new_cols + c] = src[r * old_cols + c];
+                    }
+                }
+                dst
+            };
+
+        // weights_ih : INPUT_SIZE x hidden
+        let weights_ih = resize_matrix(&self.weights_ih, INPUT_SIZE, old_h, new_h);
+        // weights_hh : hidden x hidden
+        let weights_hh = resize_matrix(&self.weights_hh, old_h.min(new_h), old_h, new_h);
+        let weights_hh = if new_h > old_h {
+            let mut full = vec![0.0; new_h * new_h];
+            full[..weights_hh.len()].copy_from_slice(&weights_hh);
+            full
+        } else {
+            weights_hh
+        };
+        // weights_ho : hidden x OUTPUT_SIZE
+        let weights_ho =
+            resize_matrix(&self.weights_ho, old_h.min(new_h), OUTPUT_SIZE, OUTPUT_SIZE);
+        let weights_ho = if new_h > old_h {
+            let mut full = vec![0.0; new_h * OUTPUT_SIZE];
+            for (i, v) in weights_ho.iter().enumerate() {
+                full[i] = *v;
+            }
+            full
+        } else {
+            let mut truncated = vec![0.0; new_h * OUTPUT_SIZE];
+            truncated.copy_from_slice(&weights_ho[..new_h * OUTPUT_SIZE]);
+            truncated
+        };
+
+        // Biais : redimensionner en tronquant ou ajoutant des 0
+        let resize_bias = |src: &[f32], new_len: usize| -> Vec<f32> {
+            let mut dst = vec![0.0; new_len];
+            let copy_len = src.len().min(new_len);
+            dst[..copy_len].copy_from_slice(&src[..copy_len]);
+            dst
+        };
+
+        let biases_h1 = resize_bias(&self.biases_h1, new_h);
+        let biases_h2 = resize_bias(&self.biases_h2, new_h);
+
+        Self {
+            hidden_size: new_hs,
+            weights_ih,
+            weights_hh,
+            weights_ho,
+            biases_h1,
+            biases_h2,
+            biases_o: self.biases_o,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -189,5 +309,37 @@ mod tests {
         let mut rng = MockRng(0.0);
         let brain_large = Brain::new(14, &mut rng);
         assert_ne!(brain_small.total_weights(), brain_large.total_weights());
+    }
+
+    #[test]
+    fn le_cerveau_resize_augmente_la_taille() {
+        // Creer un cerveau de taille 8, le redimensionner a 10
+        let mut rng = MockRng(0.0);
+        let brain = Brain::new(8, &mut rng);
+        let brain = brain.resize(10);
+        assert_eq!(brain.hidden_size(), 10);
+        let h = 10_usize;
+        let expected = INPUT_SIZE * h + h * h + h * OUTPUT_SIZE + h + h + OUTPUT_SIZE;
+        assert_eq!(brain.total_weights(), expected);
+    }
+
+    #[test]
+    fn le_cerveau_resize_diminue_la_taille() {
+        // Creer un cerveau de taille 10, le redimensionner a 8
+        let mut rng = MockRng(0.0);
+        let brain = Brain::new(10, &mut rng);
+        let brain = brain.resize(8);
+        assert_eq!(brain.hidden_size(), 8);
+    }
+
+    #[test]
+    fn le_cerveau_roundtrip_weights() {
+        // Verifier que brain → weights() → from_weights() → weights() donne le meme vecteur
+        let mut rng = MockRng(0.5);
+        let brain = Brain::new(8, &mut rng);
+        let w1 = brain.weights();
+        let brain2 = Brain::from_weights(8, w1.clone());
+        let w2 = brain2.weights();
+        assert_eq!(w1, w2);
     }
 }

@@ -1,5 +1,7 @@
 # Perception par Gradients Chimiques
 
+> **Note d'implémentation** : la zone d'influence est définie par les cellules racines physiques de la plante (pas un rayon calculé). Les gradients sont calculés sur les racines, le barycentre est celui des racines. Une graine (1 racine) a des gradients nuls.
+
 ## Principe
 
 Les plantes réelles ne « voient » pas leurs voisines. Elles perçoivent des **gradients chimiques** dans le sol (carbone, azote, signaux allomonés) et des **gradients lumineux** (ombre portée). Neural Garden reproduit ce modèle.
