@@ -1,3 +1,8 @@
 /target
 *.swp
 .DS_Store
+
+# Fichiers generes par le CLI
+garden.toml
+saves/
+replays/
