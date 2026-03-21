@@ -78,7 +78,7 @@ impl Default for SimConfig {
             exudate_energy_cost_rate: 0.015,
             absorption_rate: 0.03,     // 0.02 → 0.03 plus d'absorption
             photosynthesis_rate: 0.08, // 0.05 → 0.08 plus de photosynthese
-            maintenance_rate: 0.02,    // 0.005 → 0.02 entretien 4x plus cher (carrying capacity)
+            maintenance_rate: 0.02,    // revenu a 0.02 — le cap de pluie de graines regule la pop
 
             reproduction_energy_min: 50.0, // 40.0 → 50.0 reproduction plus couteuse
             reproduction_biomass_min: 6,   // 5 → 6
@@ -88,7 +88,7 @@ impl Default for SimConfig {
             seed_rain_interval: 30, // 50 → 30 plus de brassage genetique
             germination_carbon_min: 0.1,  // 0.3 → 0.1 (germer plus facilement)
             germination_nitrogen_min: 0.08, // 0.2 → 0.08
-            dormancy_timeout: 200,
+            dormancy_timeout: 80,  // 200 → 80 (les graines meurent plus vite si le sol est pauvre)
 
             aging_base_rate: 0.5, // 0.3 → 0.5 vieillissement accelere (carrying capacity)
             starvation_threshold: 0.1,
