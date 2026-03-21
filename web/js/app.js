@@ -39,6 +39,10 @@ const timeline = new Timeline();
 let terrainGroup = null;
 let selectedPlantId = null;
 
+// Controle de vitesse d'affichage (throttle cote viewer)
+let displaySpeed = 1;
+let tickCounter = 0;
+
 // --- Detection du mode ---
 // Le viewer peut fonctionner en mode replay (JSON) ou live (WebSocket)
 const urlParams = new URLSearchParams(window.location.search);
@@ -131,6 +135,10 @@ function initLive(wsUrl) {
                 exploreCamera.setTerrainHeights(simState.terrainHeights, simState.gridSize);
                 particleSystem.setGridSize(simState.gridSize);
             } else if (data.type === 'tick') {
+                // Throttle : ne traiter qu'un tick sur N selon la vitesse
+                tickCounter++;
+                if (tickCounter % Math.max(1, Math.round(1 / displaySpeed)) !== 0) return;
+
                 // Events incrementaux
                 if (data.events) {
                     for (const e of data.events) {
@@ -198,6 +206,16 @@ document.getElementById('btn-next')?.addEventListener('click', () => {
 
 document.getElementById('scrub')?.addEventListener('input', (e) => {
     timeline.scrubTo(e.target.value / 100);
+});
+
+// Controles de vitesse d'affichage
+document.getElementById('btn-faster')?.addEventListener('click', () => {
+    displaySpeed = Math.min(displaySpeed * 2, 8);
+    document.getElementById('speed-display').textContent = displaySpeed + 'x';
+});
+document.getElementById('btn-slower')?.addEventListener('click', () => {
+    displaySpeed = Math.max(displaySpeed / 2, 0.25);
+    document.getElementById('speed-display').textContent = displaySpeed + 'x';
 });
 
 // Selection de plante par clic

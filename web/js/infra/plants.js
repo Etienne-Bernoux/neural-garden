@@ -106,17 +106,29 @@ export class PlantRenderer {
         const baseZ = cell[1] - this.gridSize / 2;
         const baseY = this._getHeight(cell);
 
-        // État Seed : petit cube lumineux
+        // État Seed : cube lumineux + halo visible
         if (state === 'Seed') {
             const color = plantColor(plant.lineage_id, plant.vitality, 100);
-            const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+            const seedSize = 0.8;
+            const geo = new THREE.BoxGeometry(seedSize, seedSize, seedSize);
             const mat = new THREE.MeshLambertMaterial({
-                color: color.clone().multiplyScalar(0.6),
-                emissive: color.clone().multiplyScalar(0.3),
+                color: color.clone().multiplyScalar(0.8),
+                emissive: color.clone().multiplyScalar(0.4),
             });
             const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.set(baseX, baseY + 0.2, baseZ);
+            mesh.position.set(baseX, baseY + seedSize / 2, baseZ);
             group.add(mesh);
+
+            // Halo autour de la graine
+            const haloGeo = new THREE.SphereGeometry(seedSize * 1.5, 8, 8);
+            const haloMat = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.15,
+            });
+            const halo = new THREE.Mesh(haloGeo, haloMat);
+            halo.position.copy(mesh.position);
+            group.add(halo);
             return;
         }
 

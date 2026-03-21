@@ -62,6 +62,23 @@ body { background: #1a1a2e; color: #e0e0e0; font-family: 'Courier New', monospac
     margin-top: 4px;
 }
 
+#speed-controls {
+    margin: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85em;
+}
+#speed-controls button {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #53d769;
+    padding: 2px 8px;
+    cursor: pointer;
+}
+#speed-controls button:hover { background: #53d769; color: #1a1a2e; }
+#speed-display { color: #53d769; min-width: 30px; text-align: center; }
+
 #brain-viz-container {
     margin-top: 12px;
     border-top: 1px solid #0f3460;

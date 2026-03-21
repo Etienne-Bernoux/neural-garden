@@ -32,6 +32,43 @@ export class LightingManager {
         this.ambientLight = new THREE.AmbientLight(0x404040);
         scene.add(this.ambientLight);
 
+        // Soleil visible (1 mesh)
+        const sunGeo = new THREE.SphereGeometry(3, 16, 16);
+        const sunMat = new THREE.MeshBasicMaterial({
+            color: 0xffdd44,
+            transparent: true,
+            opacity: 0.8,
+        });
+        this.sun = new THREE.Mesh(sunGeo, sunMat);
+        this.sun.position.copy(this.dirLight.position);
+        scene.add(this.sun);
+
+        // Nuages (max 8 plans semi-transparents)
+        this.clouds = [];
+        for (let i = 0; i < 8; i++) {
+            const cloudGeo = new THREE.PlaneGeometry(
+                15 + Math.random() * 20,
+                8 + Math.random() * 10
+            );
+            const cloudMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.15 + Math.random() * 0.15,
+                side: THREE.DoubleSide,
+            });
+            const cloud = new THREE.Mesh(cloudGeo, cloudMat);
+            cloud.rotation.x = -Math.PI / 2;  // horizontal
+            cloud.position.set(
+                (Math.random() - 0.5) * 150,
+                40 + Math.random() * 20,
+                (Math.random() - 0.5) * 150
+            );
+            cloud.userData.speed = 0.005 + Math.random() * 0.01;
+            cloud.userData.targetOpacity = cloudMat.opacity;
+            scene.add(cloud);
+            this.clouds.push(cloud);
+        }
+
         this.currentSeason = 'Spring';
 
         // Cibles pour l'interpolation
@@ -58,6 +95,12 @@ export class LightingManager {
         this.targetFogColor = config.fog ? new THREE.Color(config.fog.color) : null;
         this.targetFogNear = config.fog?.near || 0;
         this.targetFogFar = config.fog?.far || 0;
+
+        // Opacite des nuages selon la saison
+        const cloudOpacity = season === 'Winter' ? 0.3 : season === 'Autumn' ? 0.2 : 0.12;
+        for (const cloud of this.clouds) {
+            cloud.userData.targetOpacity = cloudOpacity + Math.random() * 0.05;
+        }
     }
 
     /**
@@ -72,6 +115,24 @@ export class LightingManager {
         // Interpoler les couleurs
         this.dirLight.color.lerp(this.targetColor, s);
         this.ambientLight.color.lerp(this.targetAmbient, s);
+
+        // Rotation lente du soleil
+        const time = Date.now() * 0.00005;
+        const sunRadius = 120;
+        this.dirLight.position.set(
+            Math.cos(time) * sunRadius,
+            60 + Math.sin(time * 0.5) * 20,
+            Math.sin(time) * sunRadius
+        );
+        this.sun.position.copy(this.dirLight.position);
+
+        // Derive des nuages
+        for (const cloud of this.clouds) {
+            cloud.position.x += cloud.userData.speed;
+            if (cloud.position.x > 100) cloud.position.x = -100;
+            // Interpoler l'opacite vers la cible saisonniere
+            cloud.material.opacity += (cloud.userData.targetOpacity - cloud.material.opacity) * s;
+        }
 
         // Interpoler le brouillard
         if (this.targetFogColor) {
