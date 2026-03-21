@@ -9,3 +9,5 @@ replays/
 
 # Web viewer
 web/node_modules/
+web/.features-gen/
+web/test-results/
