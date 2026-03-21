@@ -129,9 +129,15 @@ impl Brain {
 
     /// Reconstruit un Brain depuis un Vec plat de poids.
     /// Ordre attendu : weights_ih, weights_hh, weights_ho, biases_h1, biases_h2, biases_o.
-    pub fn from_weights(hidden_size: u8, weights: Vec<f32>) -> Self {
+    /// Retourne None si la taille du vecteur ne correspond pas a la taille attendue.
+    pub fn from_weights(hidden_size: u8, weights: Vec<f32>) -> Option<Self> {
         let hs = hidden_size.clamp(MIN_HIDDEN_SIZE, MAX_HIDDEN_SIZE);
         let h = hs as usize;
+        let expected = INPUT_SIZE * h + h * h + h * OUTPUT_SIZE + h + h + OUTPUT_SIZE;
+        if weights.len() != expected {
+            return None;
+        }
+
         let mut offset = 0;
 
         let weights_ih = weights[offset..offset + INPUT_SIZE * h].to_vec();
@@ -151,7 +157,7 @@ impl Brain {
 
         let biases_o = weights[offset..offset + OUTPUT_SIZE].to_vec();
 
-        Self {
+        Some(Self {
             hidden_size: hs,
             weights_ih,
             weights_hh,
@@ -159,7 +165,7 @@ impl Brain {
             biases_h1,
             biases_h2,
             biases_o,
-        }
+        })
     }
 
     /// Redimensionne le cerveau a une nouvelle taille cachee.
@@ -238,18 +244,11 @@ impl Brain {
 mod tests {
     use super::*;
 
-    struct MockRng(f32);
-    impl super::super::rng::Rng for MockRng {
-        fn next_f32(&mut self) -> f32 {
-            let v = self.0;
-            self.0 = (self.0 + 0.1) % 1.0;
-            v
-        }
-    }
+    use crate::domain::rng::test_utils::MockRng;
 
     #[test]
     fn creation_cerveau_avec_taille_cachee_min() {
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.1);
         let brain = Brain::new(MIN_HIDDEN_SIZE, &mut rng);
         let hs = MIN_HIDDEN_SIZE as usize;
         let expected = INPUT_SIZE * hs + hs * hs + hs * OUTPUT_SIZE + hs + hs + OUTPUT_SIZE;
@@ -259,7 +258,7 @@ mod tests {
 
     #[test]
     fn creation_cerveau_avec_taille_cachee_max() {
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.1);
         let brain = Brain::new(MAX_HIDDEN_SIZE, &mut rng);
         let hs = MAX_HIDDEN_SIZE as usize;
         let expected = INPUT_SIZE * hs + hs * hs + hs * OUTPUT_SIZE + hs + hs + OUTPUT_SIZE;
@@ -269,18 +268,18 @@ mod tests {
 
     #[test]
     fn le_cerveau_borne_la_taille_cachee() {
-        let mut rng = MockRng(0.5);
+        let mut rng = MockRng::new(0.5, 0.1);
         let brain_low = Brain::new(3, &mut rng);
         assert_eq!(brain_low.hidden_size(), MIN_HIDDEN_SIZE);
 
-        let mut rng = MockRng(0.5);
+        let mut rng = MockRng::new(0.5, 0.1);
         let brain_high = Brain::new(20, &mut rng);
         assert_eq!(brain_high.hidden_size(), MAX_HIDDEN_SIZE);
     }
 
     #[test]
     fn forward_pass_retourne_des_sorties_valides() {
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.1);
         let brain = Brain::new(8, &mut rng);
         let inputs = [0.5_f32; INPUT_SIZE];
         let outputs = brain.forward(&inputs);
@@ -294,7 +293,7 @@ mod tests {
 
     #[test]
     fn forward_pass_est_deterministe() {
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.1);
         let brain = Brain::new(10, &mut rng);
         let inputs = [0.2_f32; INPUT_SIZE];
         let out1 = brain.forward(&inputs);
@@ -304,9 +303,9 @@ mod tests {
 
     #[test]
     fn tailles_cachees_differentes_donnent_nombres_poids_differents() {
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.1);
         let brain_small = Brain::new(6, &mut rng);
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.1);
         let brain_large = Brain::new(14, &mut rng);
         assert_ne!(brain_small.total_weights(), brain_large.total_weights());
     }
@@ -314,7 +313,7 @@ mod tests {
     #[test]
     fn le_cerveau_resize_augmente_la_taille() {
         // Creer un cerveau de taille 8, le redimensionner a 10
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.1);
         let brain = Brain::new(8, &mut rng);
         let brain = brain.resize(10);
         assert_eq!(brain.hidden_size(), 10);
@@ -326,7 +325,7 @@ mod tests {
     #[test]
     fn le_cerveau_resize_diminue_la_taille() {
         // Creer un cerveau de taille 10, le redimensionner a 8
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.1);
         let brain = Brain::new(10, &mut rng);
         let brain = brain.resize(8);
         assert_eq!(brain.hidden_size(), 8);
@@ -335,11 +334,32 @@ mod tests {
     #[test]
     fn le_cerveau_roundtrip_weights() {
         // Verifier que brain → weights() → from_weights() → weights() donne le meme vecteur
-        let mut rng = MockRng(0.5);
+        let mut rng = MockRng::new(0.5, 0.1);
         let brain = Brain::new(8, &mut rng);
         let w1 = brain.weights();
         let brain2 = Brain::from_weights(8, w1.clone());
-        let w2 = brain2.weights();
+        assert!(
+            brain2.is_some(),
+            "from_weights devrait reussir avec un vecteur valide"
+        );
+        let w2 = brain2.unwrap().weights();
         assert_eq!(w1, w2);
+    }
+
+    #[test]
+    fn from_weights_refuse_vecteur_invalide() {
+        // Un vecteur trop court doit retourner None
+        let result = Brain::from_weights(8, vec![0.0; 10]);
+        assert!(
+            result.is_none(),
+            "from_weights devrait refuser un vecteur de taille invalide"
+        );
+
+        // Un vecteur vide aussi
+        let result = Brain::from_weights(8, vec![]);
+        assert!(
+            result.is_none(),
+            "from_weights devrait refuser un vecteur vide"
+        );
     }
 }

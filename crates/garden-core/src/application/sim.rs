@@ -1,5 +1,7 @@
 // Game loop — orchestration du tick de simulation.
 
+use std::collections::HashMap;
+
 use super::actions::phase_actions;
 use super::config::SimConfig;
 use super::environment::{phase_decomposition, phase_environment};
@@ -20,12 +22,12 @@ pub struct SimState {
     pub world: World,
     pub island: Island,
     pub plants: Vec<Plant>,
-    pub brains: Vec<(u64, Brain)>,
+    pub brains: HashMap<u64, Brain>,
     pub symbiosis: SymbiosisNetwork,
     pub seed_bank: SeedBank,
     pub season_cycle: SeasonCycle,
     pub generation_counter: GenerationCounter,
-    pub plant_stats: Vec<(u64, PlantStats)>,
+    pub plant_stats: HashMap<u64, PlantStats>,
     pub next_plant_id: u64,
     pub tick_count: u32,
     pub config: SimConfig,
@@ -48,7 +50,7 @@ impl SimState {
 
         // Enrichir le sol initial des cellules terrestres
         let land_cells = island.land_cells();
-        for pos in &land_cells {
+        for pos in land_cells {
             if let Some(cell) = world.get_mut(pos) {
                 cell.set_carbon(0.5);
                 cell.set_nitrogen(0.4);
@@ -60,8 +62,8 @@ impl SimState {
         seed_bank.initialize(config.seed_bank_capacity, rng);
 
         let mut plants = Vec::new();
-        let mut brains = Vec::new();
-        let mut plant_stats = Vec::new();
+        let mut brains = HashMap::new();
+        let mut plant_stats = HashMap::new();
         let mut next_plant_id = 1_u64;
 
         for i in 0..config.initial_population {
@@ -82,8 +84,8 @@ impl SimState {
             let genome = seed_bank.produce_seed(rng);
             let lineage = Lineage::new(i as u64, 0);
             let plant = Plant::new(next_plant_id, pos, genome.traits, lineage);
-            brains.push((next_plant_id, genome.brain));
-            plant_stats.push((next_plant_id, PlantStats::default()));
+            brains.insert(next_plant_id, genome.brain);
+            plant_stats.insert(next_plant_id, PlantStats::default());
             plants.push(plant);
             next_plant_id += 1;
         }
@@ -106,18 +108,12 @@ impl SimState {
 
     /// Trouve le brain associe a un plant_id.
     pub(crate) fn find_brain(&self, plant_id: u64) -> Option<&Brain> {
-        self.brains
-            .iter()
-            .find(|(id, _)| *id == plant_id)
-            .map(|(_, b)| b)
+        self.brains.get(&plant_id)
     }
 
     /// Trouve les stats associees a un plant_id (mutable).
     pub(crate) fn find_stats_mut(&mut self, plant_id: u64) -> Option<&mut PlantStats> {
-        self.plant_stats
-            .iter_mut()
-            .find(|(id, _)| *id == plant_id)
-            .map(|(_, s)| s)
+        self.plant_stats.get_mut(&plant_id)
     }
 }
 
@@ -175,14 +171,7 @@ fn phase_perception_decision(state: &SimState) -> Vec<(u64, [f32; 8])> {
 mod tests {
     use super::*;
 
-    struct MockRng(f32);
-    impl Rng for MockRng {
-        fn next_f32(&mut self) -> f32 {
-            let v = self.0;
-            self.0 = (self.0 + 0.07) % 1.0;
-            v
-        }
-    }
+    use crate::domain::rng::test_utils::MockRng;
 
     fn make_state(rng: &mut dyn Rng) -> SimState {
         SimState::new(0.5, 5, rng)
@@ -190,14 +179,14 @@ mod tests {
 
     #[test]
     fn un_tick_ne_crashe_pas() {
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let mut state = make_state(&mut rng);
         let _events = run_tick(&mut state, &mut rng);
     }
 
     #[test]
     fn les_plantes_vieillissent() {
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let mut state = make_state(&mut rng);
         let _events = run_tick(&mut state, &mut rng);
 
@@ -214,7 +203,7 @@ mod tests {
 
     #[test]
     fn les_saisons_changent() {
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let mut state = make_state(&mut rng);
 
         let initial_season = state.season_cycle.current_season();
@@ -231,7 +220,7 @@ mod tests {
 
     #[test]
     fn une_graine_germe_sur_sol_riche() {
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let mut state = SimState::new(0.5, 0, &mut rng);
 
         // Placer une graine manuellement sur du sol riche
@@ -250,8 +239,8 @@ mod tests {
         let genome = state.seed_bank.produce_seed(&mut rng);
         let lineage = Lineage::new(0, 0);
         let plant = Plant::new(1, pos, genome.traits, lineage);
-        state.brains.push((1, genome.brain));
-        state.plant_stats.push((1, PlantStats::default()));
+        state.brains.insert(1, genome.brain);
+        state.plant_stats.insert(1, PlantStats::default());
         state.plants.push(plant);
 
         // La plante est une graine
@@ -269,7 +258,7 @@ mod tests {
 
     #[test]
     fn la_photosynthese_donne_de_lenergie() {
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let mut state = SimState::new(0.5, 0, &mut rng);
 
         let land_cells = state.island.land_cells();
@@ -293,8 +282,8 @@ mod tests {
         // Vider l'energie pour mesurer le gain
         plant.consume_energy(plant.energy().value());
 
-        state.brains.push((1, genome.brain));
-        state.plant_stats.push((1, PlantStats::default()));
+        state.brains.insert(1, genome.brain);
+        state.plant_stats.insert(1, PlantStats::default());
         state.plants.push(plant);
 
         let _events = run_tick(&mut state, &mut rng);
@@ -310,7 +299,7 @@ mod tests {
     #[test]
     fn la_decomposition_enrichit_le_sol() {
         // Creer une plante, la tuer, verifier que le sol s'enrichit apres des ticks
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let mut state = SimState::new(0.5, 0, &mut rng);
 
         let land_cells = state.island.land_cells();
@@ -339,8 +328,8 @@ mod tests {
         let _ = plant.update_state();
         plant.start_decomposition(state.config.decomposition_ticks);
 
-        state.brains.push((1, genome.brain));
-        state.plant_stats.push((1, PlantStats::default()));
+        state.brains.insert(1, genome.brain);
+        state.plant_stats.insert(1, PlantStats::default());
         state.plants.push(plant);
 
         // Mesurer le carbone initial sous la plante
@@ -366,7 +355,7 @@ mod tests {
     fn la_pluie_de_graines_ajoute_une_plante() {
         // Faire tourner la simulation au-dela de seed_rain_interval (50 ticks)
         // et verifier que de nouvelles plantes apparaissent
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let mut state = SimState::new(0.5, 5, &mut rng);
 
         let initial_count = state.plants.len();
@@ -394,7 +383,7 @@ mod tests {
         // Note : le setup exact de reproduction depend de beaucoup de facteurs (position,
         // terrain libre, seuils d'energie/biomasse). On verifie indirectement en faisant
         // tourner la simulation avec des plantes bien nourries.
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.07);
         let config = super::super::config::SimConfig {
             // Seuils de reproduction tres bas pour faciliter le test
             reproduction_energy_min: 1.0,
@@ -415,7 +404,7 @@ mod tests {
         for i in 0..state.plants.len() {
             // Trouver une cellule adjacente libre sur terre
             let base = state.plants[i].canopy()[0];
-            for lc in &land_cells {
+            for lc in land_cells {
                 if lc.x == base.x + 1 && lc.y == base.y {
                     let pos = *lc;
                     state.plants[i].grow(pos, true);

@@ -7,6 +7,7 @@ use super::world::{World, GRID_SIZE};
 /// Topographie de l'ile : determine quelles cellules sont terre ou mer.
 pub struct Island {
     land_mask: Vec<bool>,
+    land_cells: Vec<Pos>,
     sea_level: f32,
 }
 
@@ -16,6 +17,7 @@ impl Island {
     pub fn generate(world: &mut World, sea_level: f32, rng: &mut dyn Rng) -> Self {
         let size = GRID_SIZE as usize * GRID_SIZE as usize;
         let mut land_mask = Vec::with_capacity(size);
+        let mut land_cells = Vec::new();
 
         for y in 0..GRID_SIZE {
             for x in 0..GRID_SIZE {
@@ -24,12 +26,17 @@ impl Island {
                 if let Some(cell) = world.get_mut(&pos) {
                     cell.set_altitude(altitude);
                 }
-                land_mask.push(altitude > sea_level);
+                let is_land = altitude > sea_level;
+                land_mask.push(is_land);
+                if is_land {
+                    land_cells.push(pos);
+                }
             }
         }
 
         Self {
             land_mask,
+            land_cells,
             sea_level,
         }
     }
@@ -53,23 +60,14 @@ impl Island {
         self.sea_level
     }
 
-    /// Retourne toutes les positions terrestres.
-    pub fn land_cells(&self) -> Vec<Pos> {
-        let mut result = Vec::new();
-        for y in 0..GRID_SIZE {
-            for x in 0..GRID_SIZE {
-                let index = y as usize * GRID_SIZE as usize + x as usize;
-                if self.land_mask[index] {
-                    result.push(Pos { x, y });
-                }
-            }
-        }
-        result
+    /// Retourne toutes les positions terrestres (cache a la generation).
+    pub fn land_cells(&self) -> &[Pos] {
+        &self.land_cells
     }
 
     /// Retourne le nombre de cellules terrestres.
     pub fn land_count(&self) -> usize {
-        self.land_mask.iter().filter(|&&v| v).count()
+        self.land_cells.len()
     }
 }
 
@@ -77,19 +75,12 @@ impl Island {
 mod tests {
     use super::*;
 
-    struct MockRng(f32);
-    impl crate::domain::rng::Rng for MockRng {
-        fn next_f32(&mut self) -> f32 {
-            let v = self.0;
-            self.0 = (self.0 + 0.07) % 1.0;
-            v
-        }
-    }
+    use crate::domain::rng::test_utils::MockRng;
 
     #[test]
     fn ile_a_terre_et_mer() {
         let mut world = World::new();
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.07);
         let island = Island::generate(&mut world, 0.5, &mut rng);
 
         let land = island.land_count();
@@ -101,7 +92,7 @@ mod tests {
     #[test]
     fn masque_terre_coherent_avec_altitude() {
         let mut world = World::new();
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.07);
         let island = Island::generate(&mut world, 0.5, &mut rng);
 
         for y in 0..GRID_SIZE {
@@ -120,7 +111,7 @@ mod tests {
     #[test]
     fn hors_limites_est_mer() {
         let mut world = World::new();
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.07);
         let island = Island::generate(&mut world, 0.5, &mut rng);
 
         let pos = Pos { x: 200, y: 200 };
@@ -131,7 +122,7 @@ mod tests {
     #[test]
     fn land_count_correspond_a_land_cells() {
         let mut world = World::new();
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.07);
         let island = Island::generate(&mut world, 0.5, &mut rng);
 
         assert_eq!(island.land_count(), island.land_cells().len());
@@ -140,7 +131,7 @@ mod tests {
     #[test]
     fn accesseur_niveau_mer() {
         let mut world = World::new();
-        let mut rng = MockRng(0.0);
+        let mut rng = MockRng::new(0.0, 0.07);
         let island = Island::generate(&mut world, 0.42, &mut rng);
 
         assert!((island.sea_level() - 0.42).abs() < f32::EPSILON);

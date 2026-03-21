@@ -62,11 +62,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
 
         // Reproduction vivante : cloner le genome du parent et appliquer des mutations
         let parent_id = state.plants[*plant_idx].id();
-        let parent_brain = state
-            .brains
-            .iter()
-            .find(|(id, _)| *id == parent_id)
-            .map(|(_, b)| b.clone());
+        let parent_brain = state.brains.get(&parent_id).cloned();
         let parent_brain = match parent_brain {
             Some(b) => b,
             None => continue,
@@ -113,8 +109,8 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
     for (child, brain) in new_plants {
         let child_id = child.id();
         state.plants.push(child);
-        state.brains.push((child_id, brain));
-        state.plant_stats.push((child_id, PlantStats::default()));
+        state.brains.insert(child_id, brain);
+        state.plant_stats.insert(child_id, PlantStats::default());
     }
 
     // b) Verifier les morts
@@ -147,20 +143,10 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
             }
 
             // Evaluer la fitness et tenter d'inserer dans la banque
-            if let Some(stats) = state
-                .plant_stats
-                .iter()
-                .find(|(id, _)| *id == *dead_id)
-                .map(|(_, s)| s.clone())
-            {
+            if let Some(stats) = state.plant_stats.get(dead_id).cloned() {
                 let fitness = evaluate_fitness(&stats);
                 // Reconstruire le genome
-                if let Some(brain) = state
-                    .brains
-                    .iter()
-                    .find(|(id, _)| *id == *dead_id)
-                    .map(|(_, b)| b.clone())
-                {
+                if let Some(brain) = state.brains.get(dead_id).cloned() {
                     let genome = Genome {
                         brain,
                         traits: genetics,
@@ -207,8 +193,8 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
 
                 let child = Plant::new(child_id, pos, genome.traits, lineage.clone());
                 state.plants.push(child);
-                state.brains.push((child_id, genome.brain));
-                state.plant_stats.push((child_id, PlantStats::default()));
+                state.brains.insert(child_id, genome.brain);
+                state.plant_stats.insert(child_id, PlantStats::default());
 
                 events.push(DomainEvent::Born {
                     plant_id: child_id,
@@ -264,8 +250,8 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
 
         for id in &fully_decomposed_ids {
             state.plants.retain(|p| p.id() != *id);
-            state.brains.retain(|(bid, _)| *bid != *id);
-            state.plant_stats.retain(|(sid, _)| *sid != *id);
+            state.brains.remove(id);
+            state.plant_stats.remove(id);
         }
     }
 

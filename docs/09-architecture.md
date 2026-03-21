@@ -20,7 +20,7 @@ neural-garden/
 │   │   │   │   ├── brain.rs                # Entity Brain, forward pass 18→H→H→8
 │   │   │   │   ├── world.rs                # Entity World, Grid, Cell, Altitude
 │   │   │   │   ├── island.rs               # Île : topographie, bassins versants, mares
-│   │   │   │   ├── species.rs              # Value object Lineage, traits génétiques
+│   │   │   │   ├── # Note : Lineage et GeneticTraits vivent dans plant.rs (pas de species.rs séparé)
 │   │   │   │   ├── symbiosis.rs            # Liens mycorhiziens, échanges C↔N
 │   │   │   │   └── events.rs               # Domain events (Grew, Died, Invaded, Linked, Flood...)
 │   │   │   ├── application/                # Cas d'usage, orchestration

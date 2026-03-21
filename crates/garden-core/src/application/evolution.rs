@@ -161,6 +161,7 @@ impl SeedBank {
 }
 
 /// Crossover uniforme de deux cerveaux de meme hidden_size.
+/// Retourne un clone du parent A si la reconstruction echoue (ne devrait pas arriver).
 fn crossover_brains(a: &Brain, b: &Brain, rng: &mut dyn Rng) -> Brain {
     let weights_a = a.weights();
     let weights_b = b.weights();
@@ -169,7 +170,7 @@ fn crossover_brains(a: &Brain, b: &Brain, rng: &mut dyn Rng) -> Brain {
         .zip(weights_b.iter())
         .map(|(&wa, &wb)| if rng.next_f32() < 0.5 { wa } else { wb })
         .collect();
-    Brain::from_weights(a.hidden_size(), child_weights)
+    Brain::from_weights(a.hidden_size(), child_weights).unwrap_or_else(|| a.clone())
 }
 
 /// Crossover des traits genetiques (meme hidden_size requis).
@@ -211,7 +212,9 @@ pub fn mutate_genome(genome: &mut Genome, rng: &mut dyn Rng) {
             *w += gaussian(rng, 0.2);
         }
     }
-    genome.brain = Brain::from_weights(genome.brain.hidden_size(), weights);
+    if let Some(new_brain) = Brain::from_weights(genome.brain.hidden_size(), weights) {
+        genome.brain = new_brain;
+    }
 
     // Mutation de carbon_nitrogen_ratio
     if rng.next_f32() < 0.3 {
@@ -305,14 +308,7 @@ impl Default for GenerationCounter {
 mod tests {
     use super::*;
 
-    struct MockRng(f32);
-    impl crate::domain::rng::Rng for MockRng {
-        fn next_f32(&mut self) -> f32 {
-            let v = self.0;
-            self.0 = (self.0 + 0.13) % 1.0;
-            v
-        }
-    }
+    use crate::domain::rng::test_utils::MockRng;
 
     fn make_genome(rng: &mut dyn Rng) -> Genome {
         let traits = GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 5.0);
@@ -350,7 +346,7 @@ mod tests {
     #[test]
     fn la_banque_sinsere_et_trie() {
         let mut bank = SeedBank::new(10);
-        let mut rng = MockRng(0.1);
+        let mut rng = MockRng::new(0.1, 0.13);
         let g1 = make_genome(&mut rng);
         let g2 = make_genome(&mut rng);
         let g3 = make_genome(&mut rng);
@@ -367,7 +363,7 @@ mod tests {
     #[test]
     fn la_banque_remplace_le_pire() {
         let mut bank = SeedBank::new(2);
-        let mut rng = MockRng(0.2);
+        let mut rng = MockRng::new(0.2, 0.13);
         let g1 = make_genome(&mut rng);
         let g2 = make_genome(&mut rng);
         let g3 = make_genome(&mut rng);
@@ -386,7 +382,7 @@ mod tests {
     #[test]
     fn la_banque_refuse_les_mauvais() {
         let mut bank = SeedBank::new(2);
-        let mut rng = MockRng(0.3);
+        let mut rng = MockRng::new(0.3, 0.13);
         let g1 = make_genome(&mut rng);
         let g2 = make_genome(&mut rng);
         let g3 = make_genome(&mut rng);
@@ -404,7 +400,7 @@ mod tests {
     #[test]
     fn produce_seed_retourne_un_genome() {
         let mut bank = SeedBank::new(10);
-        let mut rng = MockRng(0.4);
+        let mut rng = MockRng::new(0.4, 0.13);
         bank.initialize(5, &mut rng);
         assert_eq!(bank.len(), 5);
 
@@ -425,7 +421,7 @@ mod tests {
 
     #[test]
     fn la_mutation_modifie_les_poids() {
-        let mut rng = MockRng(0.1);
+        let mut rng = MockRng::new(0.1, 0.13);
         let genome_original = make_genome(&mut rng);
         let weights_before = genome_original.brain.weights();
 

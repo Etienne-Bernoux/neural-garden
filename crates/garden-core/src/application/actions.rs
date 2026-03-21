@@ -238,13 +238,53 @@ pub fn phase_actions(
             }
         }
 
+        // g) Creation de liens mycorhiziens
+        // Si deux plantes ont leurs racines sur une meme cellule et connect_signal > 0.5 des deux cotes
+        if connect_signal > 0.5 {
+            let root_cells_for_link: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
+
+            // Collecter les candidats a la liaison avant de modifier state
+            let mut link_candidates: Vec<u64> = Vec::new();
+            for root_pos in &root_cells_for_link {
+                for other_plant in &state.plants {
+                    if other_plant.id() == plant_id
+                        || other_plant.is_dead()
+                        || other_plant.state() == crate::domain::plant::PlantState::Seed
+                    {
+                        continue;
+                    }
+                    if other_plant.roots().contains(root_pos) {
+                        // Verifier le connect_signal de l'autre plante
+                        let other_connect = decisions
+                            .iter()
+                            .find(|(id, _)| *id == other_plant.id())
+                            .map(|(_, o)| o[6])
+                            .unwrap_or(0.0);
+                        if other_connect > 0.5 {
+                            link_candidates.push(other_plant.id());
+                        }
+                    }
+                }
+            }
+
+            // Creer les liens (create_link retourne false si deja existant)
+            for other_id in link_candidates {
+                if state.symbiosis.create_link(plant_id, other_id) {
+                    events.push(DomainEvent::Linked {
+                        plant_a: plant_id,
+                        plant_b: other_id,
+                    });
+                }
+            }
+        }
+
         // Mettre a jour les stats de symbiose
         let symbiotic_count = state.symbiosis.links_of(plant_id).len() as u32;
         if let Some(stats) = state.find_stats_mut(plant_id) {
             stats.symbiotic_connections = symbiotic_count;
         }
 
-        // g) Maintenance : consommer maintenance_rate * biomass energie
+        // h) Maintenance : consommer maintenance_rate * biomass energie
         let biomass = state.plants[plant_idx].biomass().value() as f32;
         state.plants[plant_idx].consume_energy(state.config.maintenance_rate * biomass);
 
@@ -261,6 +301,32 @@ pub fn phase_actions(
                 stats.max_biomass = b;
             }
             stats.lifetime = age;
+        }
+
+        // Calcul penalite monoculture : si > 80% des cellules voisines sont de la meme lignee
+        let plant_lineage_id = state.plants[plant_idx].lineage().id();
+        let root_cells_mono: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
+        if root_cells_mono.len() > 1 {
+            let mut same_lineage_count = 0usize;
+            let mut total_occupied = 0usize;
+            for pos in &root_cells_mono {
+                for other in &state.plants {
+                    if other.id() == plant_id || other.is_dead() {
+                        continue;
+                    }
+                    if other.canopy().contains(pos) || other.roots().contains(pos) {
+                        total_occupied += 1;
+                        if other.lineage().id() == plant_lineage_id {
+                            same_lineage_count += 1;
+                        }
+                    }
+                }
+            }
+            if total_occupied > 0 && (same_lineage_count as f32 / total_occupied as f32) > 0.8 {
+                if let Some(stats) = state.find_stats_mut(plant_id) {
+                    stats.monoculture_penalty += 1.0;
+                }
+            }
         }
     }
 

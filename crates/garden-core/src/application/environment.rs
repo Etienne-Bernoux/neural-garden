@@ -74,6 +74,10 @@ pub fn phase_environment(state: &mut SimState) {
 /// Decomposition progressive des plantes mortes — restitution des nutriments au sol.
 pub fn phase_decomposition(state: &mut SimState) {
     let decomposition_ticks = state.config.decomposition_ticks;
+
+    // Collecter les mises a jour de stats (on ne peut pas acceder aux stats pendant l'iteration mutable)
+    let mut decomposition_updates: Vec<(u64, f32, f32)> = Vec::new();
+
     for plant in state.plants.iter_mut() {
         if plant.state() == PlantState::Decomposing {
             let (carbon, nitrogen) = plant.decompose_tick(decomposition_ticks);
@@ -86,6 +90,14 @@ pub fn phase_decomposition(state: &mut SimState) {
                     cell.set_nitrogen(n + nitrogen);
                 }
             }
+            decomposition_updates.push((plant.id(), carbon, nitrogen));
+        }
+    }
+
+    // Mettre a jour soil_enriched apres la boucle
+    for (plant_id, total_carbon, total_nitrogen) in decomposition_updates {
+        if let Some(stats) = state.find_stats_mut(plant_id) {
+            stats.soil_enriched += total_carbon + total_nitrogen;
         }
     }
 }
