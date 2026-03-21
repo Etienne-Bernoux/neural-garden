@@ -125,12 +125,17 @@ function initLive(wsUrl) {
                         simState.applyEvent(e);
                     }
                 }
-                if (data.season) simState.season = data.season;
+                if (data.season && data.season !== simState.season) {
+                    simState.season = data.season;
+                    lighting.setSeason(simState.season);
+                }
                 if (data.best_fitness !== undefined) simState.bestFitness = data.best_fitness;
             }
 
-            // Mettre a jour le rendu
-            lighting.setSeason(simState.season);
+            // Mettre a jour le rendu (eclairage seulement sur snapshot)
+            if (data.type === 'snapshot') {
+                lighting.setSeason(simState.season);
+            }
             plantRenderer.update(simState.getAlivePlants());
             interactionRenderer.updateLinks(simState.links, simState.terrainHeights);
             panel.updateStats(simState);
@@ -231,6 +236,7 @@ function animate() {
 
     // Avancer la timeline (mode replay)
     if (!liveWs) {
+        const prevSeason = simState.season;
         const events = timeline.advance();
         for (const event of events) {
             simState.applyEvent(event);
@@ -247,7 +253,9 @@ function animate() {
         }
 
         if (events.length > 0) {
-            lighting.setSeason(simState.season);
+            if (simState.season !== prevSeason) {
+                lighting.setSeason(simState.season);
+            }
             plantRenderer.update(simState.getAlivePlants());
             interactionRenderer.updateLinks(simState.links, simState.terrainHeights);
             panel.updateStats(simState);

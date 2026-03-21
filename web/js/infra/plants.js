@@ -92,7 +92,7 @@ export class PlantRenderer {
 
         if (isSeed) {
             // Graine : petit cube lumineux
-            const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+            const geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
             const mat = new THREE.MeshLambertMaterial({
                 color: color.clone().multiplyScalar(0.6),
                 emissive: color.clone().multiplyScalar(0.2),
@@ -113,7 +113,7 @@ export class PlantRenderer {
             const baseHeight = this._getHeight(cells[0]);
 
             for (let h = 0; h < trunkHeight; h++) {
-                const geo = new THREE.BoxGeometry(0.3, 1, 0.3);
+                const geo = new THREE.BoxGeometry(0.5, 1, 0.5);
                 const trunkColor = isDying ? new THREE.Color(0x4a3520) : new THREE.Color(0x5d4e37);
                 const mat = new THREE.MeshLambertMaterial({ color: trunkColor });
                 const block = new THREE.Mesh(geo, mat);
@@ -127,7 +127,7 @@ export class PlantRenderer {
 
             // Canopée : blocs autour du sommet
             const canopyY = baseHeight + trunkHeight;
-            const canopySize = Math.max(1, Math.floor(Math.sqrt(biomass)));
+            const canopySize = Math.max(2, Math.floor(Math.sqrt(biomass) * 1.5));
             const canopyColor = isDying ? color.clone().multiplyScalar(0.4) : color;
 
             for (let dx = -canopySize; dx <= canopySize; dx++) {
@@ -135,13 +135,13 @@ export class PlantRenderer {
                     for (let dy = 0; dy < Math.max(1, canopySize - Math.abs(dx) - Math.abs(dz)); dy++) {
                         if (dx*dx + dz*dz + dy*dy > canopySize*canopySize + 1) continue;
 
-                        const geo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+                        const geo = new THREE.BoxGeometry(1.0, 1.0, 1.0);
                         const mat = new THREE.MeshLambertMaterial({ color: canopyColor.clone() });
                         const block = new THREE.Mesh(geo, mat);
                         block.position.set(
-                            cells[0][0] - gridSize/2 + dx * 0.9,
-                            canopyY + dy * 0.9,
-                            cells[0][1] - gridSize/2 + dz * 0.9
+                            cells[0][0] - gridSize/2 + dx * 1.0,
+                            canopyY + dy * 1.0,
+                            cells[0][1] - gridSize/2 + dz * 1.0
                         );
                         group.add(block);
                     }
@@ -158,7 +158,7 @@ export class PlantRenderer {
                 const flower = new THREE.Mesh(flowerGeo, flowerMat);
                 flower.position.set(
                     cells[0][0] - gridSize/2,
-                    canopyY + canopySize * 0.9 + 0.3,
+                    canopyY + canopySize * 1.0 + 0.3,
                     cells[0][1] - gridSize/2
                 );
                 group.add(flower);

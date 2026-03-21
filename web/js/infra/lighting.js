@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 
 const SEASON_CONFIG = {
-    Spring: { intensity: 0.8, color: 0xffd700, ambient: 0x404040, fog: null },
-    Summer: { intensity: 1.0, color: 0xffffff, ambient: 0x505050, fog: null },
-    Autumn: { intensity: 0.6, color: 0xff8c00, ambient: 0x353535, fog: null },
-    Winter: { intensity: 0.3, color: 0x87ceeb, ambient: 0x252535, fog: { color: 0xccccdd, near: 50, far: 200 } },
+    Spring: { intensity: 1.0, color: 0xfff5e0, ambient: 0x606060, fog: null },
+    Summer: { intensity: 1.2, color: 0xffffff, ambient: 0x707070, fog: null },
+    Autumn: { intensity: 0.9, color: 0xffe0c0, ambient: 0x505050, fog: null },
+    Winter: { intensity: 0.6, color: 0xe0e8ff, ambient: 0x404050, fog: { color: 0xccccdd, near: 100, far: 300 } },
 };
 
 /**
