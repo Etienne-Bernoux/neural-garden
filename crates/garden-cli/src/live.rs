@@ -260,10 +260,14 @@ struct LivePlant {
     id: u64,
     lineage_id: u64,
     cells: Vec<[u16; 2]>,
+    roots: Vec<[u16; 2]>,
     vitality: f32,
     energy: f32,
     biomass: u16,
     state: String,
+    max_size: u16,
+    exudate_type: String,
+    hidden_size: u8,
 }
 
 #[derive(serde::Serialize)]
@@ -310,10 +314,14 @@ fn build_initial_snapshot(state: &SimState) -> InitialSnapshot {
             id: p.id(),
             lineage_id: p.lineage().id(),
             cells: p.canopy().iter().map(|pos| [pos.x, pos.y]).collect(),
+            roots: p.roots().iter().map(|pos| [pos.x, pos.y]).collect(),
             vitality: p.vitality().value(),
             energy: p.energy().value(),
             biomass: p.biomass().value(),
             state: format!("{:?}", p.state()),
+            max_size: p.genetics().max_size(),
+            exudate_type: format!("{:?}", p.genetics().exudate_type()),
+            hidden_size: p.genetics().hidden_size(),
         })
         .collect();
 

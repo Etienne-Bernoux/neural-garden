@@ -172,7 +172,11 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
     }
 
     // c) Pluie de graines (tous les seed_rain_interval ticks)
+    // Seulement si la population totale (plantes + graines) est sous le seuil
+    let total_alive = state.plants.iter().filter(|p| !p.is_dead()).count();
+    let population_cap = state.config.initial_population * 3;  // seuil = 3x la population initiale
     if state.tick_count > 0
+        && total_alive < population_cap
         && state
             .tick_count
             .is_multiple_of(state.config.seed_rain_interval)

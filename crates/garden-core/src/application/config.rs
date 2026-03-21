@@ -86,8 +86,8 @@ impl Default for SimConfig {
             reproduction_min_distance: 3,
             reproduction_max_distance: 9,
             seed_rain_interval: 30, // 50 → 30 plus de brassage genetique
-            germination_carbon_min: 0.3,
-            germination_nitrogen_min: 0.2,
+            germination_carbon_min: 0.1,  // 0.3 → 0.1 (germer plus facilement)
+            germination_nitrogen_min: 0.08, // 0.2 → 0.08
             dormancy_timeout: 200,
 
             aging_base_rate: 0.5, // 0.3 → 0.5 vieillissement accelere (carrying capacity)
