@@ -65,10 +65,10 @@ impl Default for SimConfig {
             exudate_decay: 0.8,
             canopy_light: 0.3,
 
-            growth_threshold: 0.3,
-            growth_energy_cost: 8.0,
-            growth_carbon_cost: 0.1,
-            growth_nitrogen_cost: 0.1,
+            growth_threshold: 0.1,
+            growth_energy_cost: 5.0,       // 8.0 → 5.0 croissance moins chere
+            growth_carbon_cost: 0.05,      // 0.1 → 0.05
+            growth_nitrogen_cost: 0.05,    // 0.1 → 0.05
             invasion_energy_threshold: 10.0,
             invasion_defense_threshold: 20.0,
             invasion_energy_cost: 12.0,
@@ -76,28 +76,28 @@ impl Default for SimConfig {
             defense_energy_cost: 3.0,
             exudate_output_rate: 0.02,
             exudate_energy_cost_rate: 0.015,
-            absorption_rate: 0.02,
-            photosynthesis_rate: 0.05,
-            maintenance_rate: 0.01,
+            absorption_rate: 0.03,        // 0.02 → 0.03 plus d'absorption
+            photosynthesis_rate: 0.08,     // 0.05 → 0.08 plus de photosynthese
+            maintenance_rate: 0.005,       // 0.01 → 0.005 entretien moins cher
 
-            reproduction_energy_min: 60.0,
-            reproduction_biomass_min: 8,
-            reproduction_energy_cost: 30.0,
+            reproduction_energy_min: 40.0,  // 60.0 → 40.0 reproduction plus facile
+            reproduction_biomass_min: 5,     // 8 → 5
+            reproduction_energy_cost: 20.0,  // 30.0 → 20.0
             reproduction_min_distance: 3,
             reproduction_max_distance: 9,
-            seed_rain_interval: 50,
+            seed_rain_interval: 30,       // 50 → 30 plus de brassage genetique
             germination_carbon_min: 0.3,
             germination_nitrogen_min: 0.2,
             dormancy_timeout: 200,
 
-            aging_base_rate: 0.05,
+            aging_base_rate: 0.15,         // 0.05 → 0.15 vieillissement 3x plus rapide
             starvation_threshold: 0.1,
-            starvation_drain_rate: 2.0,
+            starvation_drain_rate: 3.0,    // 2.0 → 3.0 famine plus severe
 
             decomposition_ticks: 50,
 
-            seed_bank_capacity: 50,
-            initial_population: 30,
+            seed_bank_capacity: 100,
+            initial_population: 80,
 
             ticks_per_season: 250,
         }

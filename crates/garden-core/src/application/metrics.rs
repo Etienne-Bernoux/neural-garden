@@ -131,6 +131,7 @@ pub fn detect_highlights(
         metrics.alive_count,
         best_fitness,
         season_changed,
+        &metrics.lineage_distribution,
     );
     metrics.recent_highlights = highlights;
 }

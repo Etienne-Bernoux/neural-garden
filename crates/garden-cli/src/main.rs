@@ -246,11 +246,13 @@ fn run_headless(mut state: SimState, mut rng: SeededRng) -> Result<(), String> {
             let season = state.season_cycle.current_season();
             let year = state.season_cycle.year();
             println!(
-                "[tick {}] annee {} | {:?} | pop: {} | best fitness: {:.1}",
+                "[tick {}] annee {} | {:?} | pop: {} | symbiose: {} | lignees: {} | best fitness: {:.1}",
                 state.tick_count,
                 year,
                 season,
                 state.metrics.alive_count,
+                state.metrics.symbiosis_count,
+                state.metrics.lineage_count,
                 state.seed_bank.best_fitness()
             );
         }

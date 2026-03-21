@@ -7,8 +7,7 @@ use super::sim::SimState;
 use crate::domain::events::DomainEvent;
 use crate::domain::plant::{energy_cap, ExudateType, Plant, Pos};
 use crate::domain::rng::Rng;
-use crate::domain::symbiosis::calculate_exchange;
-use crate::domain::world::GRID_SIZE;
+use crate::domain::world::{Cell, World, GRID_SIZE};
 
 /// Phase 3 : execution des actions decidees par les plantes.
 /// Orchestre les sous-fonctions dans l'ordre pour chaque plante.
@@ -209,8 +208,16 @@ fn action_growth(
         if can_grow {
             let event = state.plants[plant_idx].grow(target_pos, is_canopy);
             events.push(event);
-            state.plants[plant_idx]
-                .consume_energy(state.config.growth_energy_cost / modifiers.growth);
+
+            // Cout : les racines sont gratuites, la canopee coute de l'energie
+            if is_canopy {
+                state.plants[plant_idx]
+                    .consume_energy(state.config.growth_energy_cost / modifiers.growth);
+            }
+
+            // Bonus croissance : la plante qui grandit gagne de l'energie
+            let growth_bonus = 2.0;
+            state.plants[plant_idx].gain_energy(growth_bonus);
 
             canopy_map.insert(target_pos, plant_id);
 
@@ -318,7 +325,7 @@ fn action_symbiosis(
 ) -> Vec<DomainEvent> {
     let mut events = Vec::new();
 
-    // f) Echanges mycorhiziens existants
+    // f) Echanges mycorhiziens existants — transfert bidirectionnel C/N via le sol
     let links = state.symbiosis.links_of(plant_id);
     let link_data: Vec<(u64, u64)> = links.iter().map(|l| (l.plant_a(), l.plant_b())).collect();
 
@@ -331,24 +338,60 @@ fn action_symbiosis(
         if connect_signal > 0.5 && other_connect > 0.5 {
             let other_generosity = other_decisions.map(|(_, o)| o[7]).unwrap_or(0.0);
             let avg_generosity = (connect_generosity + other_generosity) / 2.0;
+            let transfer_rate = avg_generosity * 0.02; // taux de transfert par tick
 
-            let my_energy = state.plants[plant_idx].energy().value();
+            // Calculer les ressources moyennes sous les racines de chaque plante
+            let my_roots: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
             let other_idx = state.plants.iter().position(|p| p.id() == other_id);
-            if let Some(oi) = other_idx {
-                let other_energy = state.plants[oi].energy().value();
-                let (a_to_b, b_to_a) =
-                    calculate_exchange(my_energy, other_energy, avg_generosity * 0.1);
 
-                if a_to_b > 0.0 {
-                    state.plants[plant_idx].consume_energy(a_to_b);
-                    state.plants[oi].gain_energy(a_to_b);
-                } else if b_to_a > 0.0 {
-                    state.plants[oi].consume_energy(b_to_a);
-                    state.plants[plant_idx].gain_energy(b_to_a);
+            if let Some(oi) = other_idx {
+                let other_roots: Vec<Pos> = state.plants[oi].roots().to_vec();
+
+                // Carbone moyen sous mes racines vs les siennes
+                let my_carbon = avg_resource(&state.world, &my_roots, Cell::carbon);
+                let other_carbon = avg_resource(&state.world, &other_roots, Cell::carbon);
+
+                // Azote moyen sous mes racines vs les siennes
+                let my_nitrogen = avg_resource(&state.world, &my_roots, Cell::nitrogen);
+                let other_nitrogen = avg_resource(&state.world, &other_roots, Cell::nitrogen);
+
+                // Echange C : du plus riche vers le plus pauvre
+                let c_diff = my_carbon - other_carbon;
+                let c_transfer = c_diff * transfer_rate;
+
+                // Echange N : du plus riche vers le plus pauvre
+                let n_diff = my_nitrogen - other_nitrogen;
+                let n_transfer = n_diff * transfer_rate;
+
+                // Appliquer les transferts dans le sol
+                if c_transfer.abs() > 0.001 {
+                    apply_transfer(
+                        &mut state.world,
+                        &my_roots,
+                        &other_roots,
+                        c_transfer,
+                        Cell::carbon,
+                        Cell::set_carbon,
+                    );
+                }
+                if n_transfer.abs() > 0.001 {
+                    apply_transfer(
+                        &mut state.world,
+                        &my_roots,
+                        &other_roots,
+                        n_transfer,
+                        Cell::nitrogen,
+                        Cell::set_nitrogen,
+                    );
                 }
 
+                // Gain d'energie via l'echange (l'echange nourrit les deux plantes)
+                let total_exchanged = c_transfer.abs() + n_transfer.abs();
+                state.plants[plant_idx].gain_energy(total_exchanged * 0.5);
+                state.plants[oi].gain_energy(total_exchanged * 0.5);
+
                 if let Some(stats) = state.find_stats_mut(plant_id) {
-                    stats.cn_exchanges += a_to_b + b_to_a;
+                    stats.cn_exchanges += total_exchanged;
                 }
             }
         }
@@ -415,8 +458,14 @@ fn action_maintenance(
     let config = &state.config;
 
     // h) Maintenance : consommer maintenance_rate * biomass energie
+    // Les plantes matures ont un cout de maintenance reduit
+    let maintenance_multiplier = if state.plants[plant_idx].state() == crate::domain::plant::PlantState::Mature {
+        0.5
+    } else {
+        1.0
+    };
     let biomass = state.plants[plant_idx].biomass().value() as f32;
-    state.plants[plant_idx].consume_energy(config.maintenance_rate * biomass);
+    state.plants[plant_idx].consume_energy(config.maintenance_rate * biomass * maintenance_multiplier);
 
     // i) Vieillissement : drain de vitalite proportionnel a l'age
     let age = state.plants[plant_idx].age() as f32;
@@ -527,4 +576,55 @@ pub fn find_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> 
     }
 
     best.map(|(pos, _)| pos)
+}
+
+/// Moyenne d'une ressource sur les cellules racines.
+fn avg_resource(world: &World, roots: &[Pos], getter: fn(&Cell) -> f32) -> f32 {
+    if roots.is_empty() {
+        return 0.0;
+    }
+    let sum: f32 = roots
+        .iter()
+        .filter_map(|pos| world.get(pos))
+        .map(getter)
+        .sum();
+    sum / roots.len() as f32
+}
+
+/// Transfere une ressource du sol d'un groupe de cellules vers un autre.
+/// transfer > 0 : de `from_roots` vers `to_roots`
+/// transfer < 0 : de `to_roots` vers `from_roots`
+fn apply_transfer(
+    world: &mut World,
+    from_roots: &[Pos],
+    to_roots: &[Pos],
+    transfer: f32,
+    getter: fn(&Cell) -> f32,
+    setter: fn(&mut Cell, f32),
+) {
+    if from_roots.is_empty() || to_roots.is_empty() {
+        return;
+    }
+
+    let (donors, receivers) = if transfer > 0.0 {
+        (from_roots, to_roots)
+    } else {
+        (to_roots, from_roots)
+    };
+
+    let per_cell_donor = transfer.abs() / donors.len() as f32;
+    let per_cell_receiver = transfer.abs() / receivers.len() as f32;
+
+    for pos in donors {
+        if let Some(cell) = world.get_mut(pos) {
+            let current = getter(cell);
+            setter(cell, current - per_cell_donor);
+        }
+    }
+    for pos in receivers {
+        if let Some(cell) = world.get_mut(pos) {
+            let current = getter(cell);
+            setter(cell, current + per_cell_receiver);
+        }
+    }
 }

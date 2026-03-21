@@ -1,6 +1,8 @@
 // Phase vie et mort — reproduction, mortalite, pluie de graines, germination et GC.
 
-use crate::application::evolution::{evaluate_fitness, mutate_genome, Genome, PlantStats};
+use crate::application::evolution::{
+    evaluate_fitness, mutate_genome, Genome, PlantStats, SeedBank,
+};
 use crate::domain::events::DomainEvent;
 use crate::domain::plant::{Lineage, Plant, PlantState, Pos};
 use crate::domain::rng::Rng;
@@ -84,6 +86,9 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
 
         state.plants[*plant_idx].consume_energy(state.config.reproduction_energy_cost);
 
+        // La plante qui se reproduit gagne un boost de vitalite
+        state.plants[*plant_idx].heal(5.0);
+
         events.push(DomainEvent::Born {
             plant_id: child_id,
             parent_id: Some(parent_id),
@@ -166,19 +171,52 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         }
     }
 
-    // c) Pluie de graines (tous les 50 ticks)
+    // c) Pluie de graines (tous les seed_rain_interval ticks)
     if state.tick_count > 0
         && state
             .tick_count
             .is_multiple_of(state.config.seed_rain_interval)
-        && !state.seed_bank.is_empty()
     {
-        let genome = state.seed_bank.produce_seed(rng);
+        // 10% du temps : graine fraiche (genome aleatoire), sinon depuis la banque
+        let genome = if rng.next_f32() < 0.1 || state.seed_bank.is_empty() {
+            SeedBank::produce_fresh_seed(rng)
+        } else {
+            state.seed_bank.produce_seed(rng)
+        };
+
         let land_cells = state.island.land_cells();
         if !land_cells.is_empty() {
-            let idx = (rng.next_f32() * land_cells.len() as f32) as usize;
-            let idx = idx.min(land_cells.len() - 1);
-            let pos = land_cells[idx];
+            // 80% : placer pres d'une plante existante, 20% : position aleatoire
+            let pos = if rng.next_f32() < 0.8 && !state.plants.is_empty() {
+                let alive: Vec<&Plant> = state.plants.iter().filter(|p| !p.is_dead()).collect();
+                if alive.is_empty() {
+                    random_land_pos(land_cells, rng)
+                } else {
+                    let parent_idx = (rng.next_f32() * alive.len() as f32) as usize;
+                    let parent = alive[parent_idx.min(alive.len() - 1)];
+                    let base_pos = parent.canopy()[0];
+                    // Position a 3-8 cellules de distance
+                    let angle = rng.next_f32() * 2.0 * core::f32::consts::PI;
+                    let distance = 3.0 + rng.next_f32() * 5.0;
+                    let tx = (base_pos.x as f32 + angle.cos() * distance).round();
+                    let ty = (base_pos.y as f32 + angle.sin() * distance).round();
+                    if tx >= 0.0 && tx < GRID_SIZE as f32 && ty >= 0.0 && ty < GRID_SIZE as f32 {
+                        let target = Pos {
+                            x: tx as u16,
+                            y: ty as u16,
+                        };
+                        if state.island.is_land(&target) {
+                            target
+                        } else {
+                            random_land_pos(land_cells, rng)
+                        }
+                    } else {
+                        random_land_pos(land_cells, rng)
+                    }
+                }
+            } else {
+                random_land_pos(land_cells, rng)
+            };
 
             let occupied = state
                 .plants
@@ -256,4 +294,11 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
     }
 
     events
+}
+
+/// Choisit une position aleatoire parmi les cellules terrestres.
+fn random_land_pos(land_cells: &[Pos], rng: &mut dyn Rng) -> Pos {
+    let idx = (rng.next_f32() * land_cells.len() as f32) as usize;
+    let idx = idx.min(land_cells.len() - 1);
+    land_cells[idx]
 }

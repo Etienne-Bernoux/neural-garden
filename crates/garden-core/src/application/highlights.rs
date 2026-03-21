@@ -3,7 +3,7 @@
 use crate::application::season::Season;
 use crate::domain::events::DomainEvent;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Type de moment cle detecte.
 #[derive(Debug, Clone, PartialEq)]
@@ -48,6 +48,7 @@ pub struct HighlightDetector {
     has_initial_population: bool,
     min_population_seen: usize,
     population_history: VecDeque<usize>,
+    previous_lineages: HashSet<u64>,
 }
 
 impl HighlightDetector {
@@ -60,6 +61,7 @@ impl HighlightDetector {
             has_initial_population: false,
             min_population_seen: 0,
             population_history: VecDeque::new(),
+            previous_lineages: HashSet::new(),
         }
     }
 
@@ -71,6 +73,7 @@ impl HighlightDetector {
         population: usize,
         best_fitness: f32,
         season_changed: Option<Season>,
+        lineage_distribution: &HashMap<u64, usize>,
     ) -> Vec<Highlight> {
         let mut highlights = Vec::new();
 
@@ -136,7 +139,20 @@ impl HighlightDetector {
             }
         }
 
-        // 3. LineageExtinction — placeholder, skip pour l'instant
+        // 3. LineageExtinction — detecter les lignees disparues
+        let current_lineages: HashSet<u64> = lineage_distribution.keys().copied().collect();
+        if self.has_initial_population {
+            for &lineage_id in &self.previous_lineages {
+                if !current_lineages.contains(&lineage_id) {
+                    highlights.push(Highlight {
+                        tick,
+                        highlight_type: HighlightType::LineageExtinction { lineage_id },
+                        score: 0.6,
+                    });
+                }
+            }
+        }
+        self.previous_lineages = current_lineages;
 
         // 4. NewLineage
         for event in events {
@@ -231,7 +247,7 @@ mod tests {
             plant_b: 2,
         }];
 
-        let highlights = detector.detect(&events, 10, 5, 0.0, None);
+        let highlights = detector.detect(&events, 10, 5, 0.0, None, &HashMap::new());
 
         assert_eq!(highlights.len(), 1);
         assert_eq!(highlights[0].highlight_type, HighlightType::FirstSymbiosis);
@@ -247,7 +263,7 @@ mod tests {
         }];
 
         // Premiere detection
-        let highlights = detector.detect(&events, 10, 5, 0.0, None);
+        let highlights = detector.detect(&events, 10, 5, 0.0, None, &HashMap::new());
         assert!(highlights
             .iter()
             .any(|h| h.highlight_type == HighlightType::FirstSymbiosis));
@@ -257,7 +273,7 @@ mod tests {
             plant_a: 3,
             plant_b: 4,
         }];
-        let highlights2 = detector.detect(&events2, 20, 5, 0.0, None);
+        let highlights2 = detector.detect(&events2, 20, 5, 0.0, None, &HashMap::new());
         assert!(!highlights2
             .iter()
             .any(|h| h.highlight_type == HighlightType::FirstSymbiosis));
@@ -274,7 +290,7 @@ mod tests {
             })
             .collect();
 
-        let highlights = detector.detect(&events, 10, 20, 0.0, None);
+        let highlights = detector.detect(&events, 10, 20, 0.0, None, &HashMap::new());
 
         let invasion = highlights
             .iter()
@@ -295,20 +311,20 @@ mod tests {
         let mut detector = HighlightDetector::new();
 
         // Premier appel avec fitness 10 → record
-        let highlights = detector.detect(&[], 10, 5, 10.0, None);
+        let highlights = detector.detect(&[], 10, 5, 10.0, None, &HashMap::new());
         let record = highlights
             .iter()
             .find(|h| matches!(h.highlight_type, HighlightType::FitnessRecord { .. }));
         assert!(record.is_some());
 
         // Deuxieme appel avec fitness 10 → pas de record
-        let highlights2 = detector.detect(&[], 20, 5, 10.0, None);
+        let highlights2 = detector.detect(&[], 20, 5, 10.0, None, &HashMap::new());
         assert!(!highlights2
             .iter()
             .any(|h| matches!(h.highlight_type, HighlightType::FitnessRecord { .. })));
 
         // Troisieme appel avec fitness 15 → nouveau record
-        let highlights3 = detector.detect(&[], 30, 5, 15.0, None);
+        let highlights3 = detector.detect(&[], 30, 5, 15.0, None, &HashMap::new());
         let record3 = highlights3
             .iter()
             .find(|h| matches!(h.highlight_type, HighlightType::FitnessRecord { .. }));
@@ -322,7 +338,7 @@ mod tests {
     fn changement_saison_detecte() {
         let mut detector = HighlightDetector::new();
 
-        let highlights = detector.detect(&[], 250, 10, 0.0, Some(Season::Summer));
+        let highlights = detector.detect(&[], 250, 10, 0.0, Some(Season::Summer), &HashMap::new());
 
         let season_change = highlights
             .iter()
@@ -349,7 +365,7 @@ mod tests {
             })
             .collect();
 
-        let highlights = detector.detect(&events, 10, 10, 0.0, None);
+        let highlights = detector.detect(&events, 10, 10, 0.0, None, &HashMap::new());
 
         let mass_death = highlights
             .iter()
@@ -364,5 +380,49 @@ mod tests {
             assert_eq!(*population_before, 20);
         }
         assert!((mass_death.unwrap().score - 0.9).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn extinction_de_lignee_detectee() {
+        let mut detector = HighlightDetector::new();
+
+        // Premier appel avec lignees 1 et 2
+        let lineages_1: HashMap<u64, usize> = [(1, 2), (2, 1)].into_iter().collect();
+        let _ = detector.detect(&[], 10, 3, 0.0, None, &lineages_1);
+
+        // Deuxieme appel : lignee 2 a disparu
+        let lineages_2: HashMap<u64, usize> = [(1, 2)].into_iter().collect();
+        let highlights = detector.detect(&[], 20, 2, 0.0, None, &lineages_2);
+
+        let extinction = highlights
+            .iter()
+            .find(|h| matches!(h.highlight_type, HighlightType::LineageExtinction { .. }));
+        assert!(
+            extinction.is_some(),
+            "l'extinction de la lignee 2 devrait etre detectee"
+        );
+        if let HighlightType::LineageExtinction { lineage_id } =
+            &extinction.expect("extinction presente").highlight_type
+        {
+            assert_eq!(*lineage_id, 2);
+        }
+        assert!((extinction.expect("extinction presente").score - 0.6).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn pas_dextinction_si_lignee_toujours_presente() {
+        let mut detector = HighlightDetector::new();
+
+        // Deux appels avec les memes lignees
+        let lineages: HashMap<u64, usize> = [(1, 2), (2, 1)].into_iter().collect();
+        let _ = detector.detect(&[], 10, 3, 0.0, None, &lineages);
+        let highlights = detector.detect(&[], 20, 3, 0.0, None, &lineages);
+
+        assert!(
+            !highlights
+                .iter()
+                .any(|h| matches!(h.highlight_type, HighlightType::LineageExtinction { .. })),
+            "aucune extinction ne devrait etre detectee quand les lignees sont stables"
+        );
     }
 }

@@ -3,6 +3,7 @@
 use crate::domain::brain::Brain;
 use crate::domain::plant::{ExudateType, GeneticTraits};
 use crate::domain::rng::Rng;
+use std::collections::HashMap;
 
 /// Taux de crossover : probabilite de combiner les poids des deux parents
 /// plutot que de cloner le meilleur.
@@ -33,22 +34,40 @@ pub struct PlantStats {
 
 /// Calcule la fitness d'une plante a sa mort.
 pub fn evaluate_fitness(stats: &PlantStats) -> f32 {
-    let fitness = stats.max_biomass as f32 * 2.0
-        + stats.lifetime as f32 * 1.0
-        + stats.max_territory as f32 * 1.5
-        + stats.symbiotic_connections as f32 * 4.0
-        + stats.exudates_emitted * 2.0
-        + stats.cn_exchanges * 1.5
-        + stats.seeds_produced as f32 * 3.0
+    let fitness = stats.max_biomass as f32 * 3.0      // recompenser la croissance
+        + stats.lifetime as f32 * 0.3                  // reduire le poids de la survie pure
+        + stats.max_territory as f32 * 2.0             // expansion territoriale
+        + stats.symbiotic_connections as f32 * 8.0     // doubler le bonus cooperation
+        + stats.exudates_emitted * 3.0                 // exsudats valorises
+        + stats.cn_exchanges * 4.0                     // tripler les echanges C/N
+        + stats.seeds_produced as f32 * 5.0            // recompenser la reproduction
         + stats.soil_enriched * 2.0
         - stats.soil_depleted * 2.0
         - stats.monoculture_penalty * 1.5;
     fitness.max(0.0)
 }
 
-/// Banque de graines contenant les meilleurs genomes.
+/// Cle de compartiment : (hidden_size, is_carbon)
+/// is_carbon = true pour ExudateType::Carbon, false pour Nitrogen
+type CompartmentKey = (u8, bool);
+
+/// Convertit un ExudateType en bool pour la cle de compartiment.
+fn exudate_to_bool(e: ExudateType) -> bool {
+    matches!(e, ExudateType::Carbon)
+}
+
+/// Extrait la cle de compartiment d'un genome.
+fn compartment_key(genome: &Genome) -> CompartmentKey {
+    (
+        genome.traits.hidden_size(),
+        exudate_to_bool(genome.traits.exudate_type()),
+    )
+}
+
+/// Banque de graines compartimentee par (hidden_size, exudate_type).
+/// Maintient la diversite genetique en repartissant les genomes dans des compartiments.
 pub struct SeedBank {
-    entries: Vec<(Genome, f32)>,
+    compartments: HashMap<CompartmentKey, Vec<(Genome, f32)>>,
     capacity: usize,
 }
 
@@ -56,7 +75,7 @@ impl SeedBank {
     /// Cree une banque vide avec la capacite donnee.
     pub fn new(capacity: usize) -> Self {
         Self {
-            entries: Vec::new(),
+            compartments: HashMap::new(),
             capacity,
         }
     }
@@ -64,81 +83,169 @@ impl SeedBank {
     /// Remplit la banque avec `count` genomes aleatoires, fitness initiale 0.
     pub fn initialize(&mut self, count: usize, rng: &mut dyn Rng) {
         for _ in 0..count {
-            let hidden_size = 6 + (rng.next_f32() * 9.0) as u8;
-            let max_size = 15 + (rng.next_f32() * 26.0) as u16;
-            let carbon_nitrogen_ratio = 0.3 + rng.next_f32() * 0.6;
-            let exudate_type = if rng.next_f32() < 0.5 {
-                ExudateType::Carbon
-            } else {
-                ExudateType::Nitrogen
-            };
-            let vitality_factor = 8.0 + rng.next_f32() * 4.0;
-            let energy_factor = 4.0 + rng.next_f32() * 4.0;
-
-            let brain = Brain::new(hidden_size, rng);
-
-            // Biais de survie : forcer grow_intensity (output[0]) positif par defaut
-            let hs = hidden_size as usize;
-            let bias_o_start = 18 * hs + hs * hs + hs * 8 + hs + hs;
-            let mut weights = brain.weights();
-            if bias_o_start < weights.len() {
-                weights[bias_o_start] = weights[bias_o_start].abs() + 0.5;
-            }
-            let brain = Brain::from_weights(hidden_size, weights).unwrap_or(brain);
-
-            let traits = GeneticTraits::new(
-                max_size,
-                carbon_nitrogen_ratio,
-                exudate_type,
-                hidden_size,
-                vitality_factor,
-                energy_factor,
-            );
-
-            self.entries.push((Genome { brain, traits }, 0.0));
+            let genome = Self::produce_fresh_seed(rng);
+            let key = compartment_key(&genome);
+            self.compartments
+                .entry(key)
+                .or_default()
+                .push((genome, 0.0));
         }
+    }
+
+    /// Produit un genome totalement aleatoire avec le biais grow_intensity.
+    pub fn produce_fresh_seed(rng: &mut dyn Rng) -> Genome {
+        let hidden_size = 6 + (rng.next_f32() * 9.0) as u8;
+        let max_size = 15 + (rng.next_f32() * 26.0) as u16;
+        let carbon_nitrogen_ratio = 0.3 + rng.next_f32() * 0.6;
+        let exudate_type = if rng.next_f32() < 0.5 {
+            ExudateType::Carbon
+        } else {
+            ExudateType::Nitrogen
+        };
+        let vitality_factor = 8.0 + rng.next_f32() * 4.0;
+        let energy_factor = 4.0 + rng.next_f32() * 4.0;
+
+        let brain = Brain::new(hidden_size, rng);
+
+        // Biais de survie : forcer grow_intensity (output[0]) positif par defaut
+        let hs = hidden_size as usize;
+        let bias_o_start = 18 * hs + hs * hs + hs * 8 + hs + hs;
+        let mut weights = brain.weights();
+        if bias_o_start + 6 < weights.len() {
+            // Biais de survie : grow_intensity (output[0]) positif
+            weights[bias_o_start] = weights[bias_o_start].abs() + 0.5;
+            // Biais de cooperation : connect_signal (output[6]) positif
+            weights[bias_o_start + 6] = weights[bias_o_start + 6].abs() + 0.5;
+        }
+        let brain = Brain::from_weights(hidden_size, weights).unwrap_or(brain);
+
+        let traits = GeneticTraits::new(
+            max_size,
+            carbon_nitrogen_ratio,
+            exudate_type,
+            hidden_size,
+            vitality_factor,
+            energy_factor,
+        );
+
+        Genome { brain, traits }
     }
 
     /// Tente d'inserer un genome avec sa fitness.
-    /// Retourne true si l'insertion a eu lieu.
+    /// Si la capacite totale est depassee, evince le pire du compartiment le plus peuple.
+    /// Retourne true (insere toujours).
     pub fn try_insert(&mut self, genome: Genome, fitness: f32) -> bool {
-        if self.entries.len() < self.capacity {
-            self.entries.push((genome, fitness));
-            self.entries
-                .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
-            return true;
+        let key = compartment_key(&genome);
+        self.compartments
+            .entry(key)
+            .or_default()
+            .push((genome, fitness));
+
+        // Si depassement de capacite, evincer le pire du compartiment le plus peuple
+        if self.len() > self.capacity {
+            self.evict_worst_from_largest();
         }
-        // La banque est pleine, verifier si meilleur que le pire
-        if let Some(last) = self.entries.last() {
-            if fitness > last.1 {
-                self.entries.pop();
-                self.entries.push((genome, fitness));
-                self.entries
-                    .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
-                return true;
-            }
-        }
-        false
+        true
     }
 
-    /// Produit une graine en combinant deux parents de la banque.
-    pub fn produce_seed(&self, rng: &mut dyn Rng) -> Genome {
-        let idx_a = (rng.next_f32() * self.entries.len() as f32) as usize;
-        let mut idx_b = (rng.next_f32() * self.entries.len() as f32) as usize;
-        // Eviter de tirer le meme parent
-        if idx_b == idx_a && self.entries.len() > 1 {
-            idx_b = (idx_b + 1) % self.entries.len();
+    /// Insere un genome et remplace la moitie basse de son compartiment par des mutations.
+    /// Retourne true (insere toujours).
+    pub fn try_insert_and_spread(
+        &mut self,
+        genome: Genome,
+        fitness: f32,
+        rng: &mut dyn Rng,
+    ) -> bool {
+        let key = compartment_key(&genome);
+        let compartment = self.compartments.entry(key).or_default();
+        compartment.push((genome.clone(), fitness));
+
+        // Trier par fitness decroissante
+        compartment.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
+
+        // Remplacer la moitie basse par des mutations du nouveau genome
+        let half = compartment.len() / 2;
+        let start = compartment.len() - half;
+        for entry in compartment.iter_mut().skip(start) {
+            let mut mutated = genome.clone();
+            mutate_genome(&mut mutated, rng);
+            *entry = (mutated, fitness * 0.8);
         }
-        let idx_a = idx_a.min(self.entries.len() - 1);
-        let idx_b = idx_b.min(self.entries.len() - 1);
 
-        let (parent_a, fitness_a) = &self.entries[idx_a];
-        let (parent_b, fitness_b) = &self.entries[idx_b];
+        // Evincer si depassement de capacite
+        while self.len() > self.capacity {
+            self.evict_worst_from_largest();
+        }
+        true
+    }
 
-        let mut child = if parent_a.traits.hidden_size() == parent_b.traits.hidden_size()
-            && rng.next_f32() < CROSSOVER_RATE
-        {
-            // Crossover : combiner les poids des deux parents
+    /// Evince le genome avec la pire fitness du compartiment le plus peuple.
+    fn evict_worst_from_largest(&mut self) {
+        // Trouver le compartiment avec le plus de genomes
+        let largest_key = self
+            .compartments
+            .iter()
+            .max_by_key(|(_, v)| v.len())
+            .map(|(k, _)| *k);
+
+        if let Some(key) = largest_key {
+            if let Some(compartment) = self.compartments.get_mut(&key) {
+                // Trouver l'index du pire
+                if let Some((worst_idx, _)) =
+                    compartment.iter().enumerate().min_by(|(_, a), (_, b)| {
+                        a.1.partial_cmp(&b.1).unwrap_or(core::cmp::Ordering::Equal)
+                    })
+                {
+                    compartment.swap_remove(worst_idx);
+                }
+                // Supprimer le compartiment s'il est vide
+                if compartment.is_empty() {
+                    self.compartments.remove(&key);
+                }
+            }
+        }
+    }
+
+    /// Produit une graine en combinant deux parents du meme compartiment.
+    /// Choisit un compartiment aleatoire pondere par le nombre de genomes.
+    pub fn produce_seed(&self, rng: &mut dyn Rng) -> Genome {
+        // Choix pondere d'un compartiment
+        let total = self.len();
+        let mut pick = (rng.next_f32() * total as f32) as usize;
+        pick = pick.min(total.saturating_sub(1));
+
+        let mut selected_entries: Option<&Vec<(Genome, f32)>> = None;
+        let mut cumul = 0;
+        for entries in self.compartments.values() {
+            cumul += entries.len();
+            if pick < cumul {
+                selected_entries = Some(entries);
+                break;
+            }
+        }
+
+        // Fallback : premier compartiment non vide
+        let entries = selected_entries.unwrap_or_else(|| {
+            self.compartments
+                .values()
+                .next()
+                .expect("produce_seed appelee sur banque non vide")
+        });
+
+        let idx_a = (rng.next_f32() * entries.len() as f32) as usize;
+        let idx_a = idx_a.min(entries.len() - 1);
+        let mut idx_b = (rng.next_f32() * entries.len() as f32) as usize;
+        // Eviter de tirer le meme parent
+        if idx_b == idx_a && entries.len() > 1 {
+            idx_b = (idx_b + 1) % entries.len();
+        }
+        let idx_b = idx_b.min(entries.len() - 1);
+
+        let (parent_a, fitness_a) = &entries[idx_a];
+        let (parent_b, fitness_b) = &entries[idx_b];
+
+        // Dans le meme compartiment, hidden_size est forcement identique
+        let mut child = if rng.next_f32() < CROSSOVER_RATE {
             let brain = crossover_brains(&parent_a.brain, &parent_b.brain, rng);
             let traits = crossover_traits(&parent_a.traits, &parent_b.traits, rng);
             Genome { brain, traits }
@@ -155,35 +262,69 @@ impl SeedBank {
         child
     }
 
-    /// Fitness du meilleur genome.
+    /// Fitness du meilleur genome (tous compartiments confondus).
     pub fn best_fitness(&self) -> f32 {
-        self.entries.first().map_or(0.0, |e| e.1)
+        self.compartments
+            .values()
+            .flat_map(|v| v.iter())
+            .map(|(_, f)| *f)
+            .fold(0.0_f32, f32::max)
     }
 
-    /// Fitness du pire genome.
+    /// Fitness du pire genome (tous compartiments confondus).
     pub fn worst_fitness(&self) -> f32 {
-        self.entries.last().map_or(0.0, |e| e.1)
+        self.compartments
+            .values()
+            .flat_map(|v| v.iter())
+            .map(|(_, f)| *f)
+            .fold(f32::MAX, f32::min)
+            .min(self.best_fitness()) // Si vide, retourner 0.0 via best_fitness
     }
 
-    /// Nombre d'entrees dans la banque.
+    /// Nombre total de genomes dans la banque.
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.compartments.values().map(|v| v.len()).sum()
     }
 
     /// Indique si la banque est vide.
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.compartments.values().all(|v| v.is_empty())
     }
 
-    /// Reconstruit une banque a partir des entrees brutes.
-    /// Utilise pour la deserialisation.
-    pub(crate) fn from_entries(entries: Vec<(Genome, f32)>, capacity: usize) -> Self {
-        Self { entries, capacity }
+    /// Nombre de compartiments actifs (non vides).
+    pub fn compartment_count(&self) -> usize {
+        self.compartments.values().filter(|v| !v.is_empty()).count()
     }
 
-    /// Retourne une reference sur les entrees (genome, fitness).
-    pub fn entries(&self) -> &[(Genome, f32)] {
-        &self.entries
+    /// Indicateur de diversite : (best - worst) / best si best > 0, sinon 0.
+    pub fn diversity_spread(&self) -> f32 {
+        let best = self.best_fitness();
+        if best > 0.0 {
+            (best - self.worst_fitness()) / best
+        } else {
+            0.0
+        }
+    }
+
+    /// Retourne tous les genomes a plat (pour serialisation).
+    pub fn entries(&self) -> Vec<(&Genome, f32)> {
+        self.compartments
+            .values()
+            .flat_map(|v| v.iter().map(|(g, f)| (g, *f)))
+            .collect()
+    }
+
+    /// Reconstruit les compartiments depuis une liste plate (pour deserialisation).
+    pub fn from_entries(entries: Vec<(Genome, f32)>, capacity: usize) -> Self {
+        let mut compartments: HashMap<CompartmentKey, Vec<(Genome, f32)>> = HashMap::new();
+        for (genome, fitness) in entries {
+            let key = compartment_key(&genome);
+            compartments.entry(key).or_default().push((genome, fitness));
+        }
+        Self {
+            compartments,
+            capacity,
+        }
     }
 
     /// Retourne la capacite maximale de la banque.
@@ -354,6 +495,12 @@ mod tests {
         Genome { brain, traits }
     }
 
+    fn make_genome_nitrogen(rng: &mut dyn Rng) -> Genome {
+        let traits = GeneticTraits::new(20, 0.5, ExudateType::Nitrogen, 10, 10.0, 5.0);
+        let brain = Brain::new(10, rng);
+        Genome { brain, traits }
+    }
+
     #[test]
     fn la_fitness_est_positive() {
         let stats = PlantStats::default();
@@ -376,9 +523,8 @@ mod tests {
         };
         let fitness = evaluate_fitness(&stats);
         assert!(fitness > 0.0);
-        // Verifier que chaque composante positive contribue
-        // fitness = 20 + 100 + 7.5 + 12 + 4 + 1.5 + 12 + 6 - 2 - 0.75 = 160.25
-        assert!((fitness - 160.25).abs() < 0.01);
+        // fitness = 30 + 30 + 10 + 24 + 6 + 4 + 20 + 6 - 2 - 0.75 = 127.25
+        assert!((fitness - 127.25).abs() < 0.01);
     }
 
     #[test]
@@ -400,39 +546,62 @@ mod tests {
 
     #[test]
     fn la_banque_remplace_le_pire() {
-        let mut bank = SeedBank::new(2);
+        let mut bank = SeedBank::new(3);
         let mut rng = MockRng::new(0.2, 0.13);
         let g1 = make_genome(&mut rng);
         let g2 = make_genome(&mut rng);
         let g3 = make_genome(&mut rng);
+        let g4 = make_genome(&mut rng);
 
         bank.try_insert(g1, 10.0);
         bank.try_insert(g2, 20.0);
-        assert_eq!(bank.len(), 2);
+        bank.try_insert(g3, 5.0);
+        assert_eq!(bank.len(), 3);
 
-        // Inserer un meilleur que le pire → remplace
-        let inserted = bank.try_insert(g3, 15.0);
+        // Inserer un 4eme → evince le pire du compartiment le plus peuple
+        let inserted = bank.try_insert(g4, 15.0);
         assert!(inserted);
-        assert_eq!(bank.len(), 2);
-        assert_eq!(bank.worst_fitness(), 15.0);
+        assert_eq!(bank.len(), 3);
+        // Le pire (5.0) a ete evince
+        assert!(bank.worst_fitness() >= 10.0);
     }
 
     #[test]
-    fn la_banque_refuse_les_mauvais() {
-        let mut bank = SeedBank::new(2);
-        let mut rng = MockRng::new(0.3, 0.13);
-        let g1 = make_genome(&mut rng);
-        let g2 = make_genome(&mut rng);
-        let g3 = make_genome(&mut rng);
+    fn la_banque_maintient_la_diversite() {
+        let mut bank = SeedBank::new(20);
+        let mut rng = MockRng::new(0.3, 0.07);
 
-        bank.try_insert(g1, 10.0);
-        bank.try_insert(g2, 20.0);
+        // Inserer des genomes Carbon hidden_size=8
+        for i in 0..5 {
+            let g = make_genome(&mut rng);
+            bank.try_insert(g, 10.0 + i as f32);
+        }
 
-        // Inserer un pire que le pire → refuse
-        let inserted = bank.try_insert(g3, 5.0);
-        assert!(!inserted);
-        assert_eq!(bank.len(), 2);
-        assert_eq!(bank.worst_fitness(), 10.0);
+        // Inserer des genomes Nitrogen hidden_size=10
+        for i in 0..5 {
+            let g = make_genome_nitrogen(&mut rng);
+            bank.try_insert(g, 20.0 + i as f32);
+        }
+
+        assert_eq!(bank.len(), 10);
+        assert!(
+            bank.compartment_count() >= 2,
+            "il devrait y avoir au moins 2 compartiments, trouve: {}",
+            bank.compartment_count()
+        );
+    }
+
+    #[test]
+    fn les_graines_fraiches_sont_valides() {
+        let mut rng = MockRng::new(0.5, 0.11);
+        let genome = SeedBank::produce_fresh_seed(&mut rng);
+
+        assert!(genome.brain.hidden_size() >= 6);
+        assert!(genome.brain.hidden_size() <= 14);
+        assert!(genome.traits.max_size() >= 15);
+        assert!(genome.traits.max_size() <= 40);
+        assert!(genome.traits.carbon_nitrogen_ratio() >= 0.3);
+        assert!(genome.traits.carbon_nitrogen_ratio() <= 0.9);
     }
 
     #[test]
@@ -473,5 +642,40 @@ mod tests {
             .zip(weights_after.iter())
             .any(|(a, b)| (a - b).abs() > f32::EPSILON);
         assert!(changed, "la mutation devrait modifier au moins un poids");
+    }
+
+    #[test]
+    fn entries_et_from_entries_roundtrip() {
+        let mut bank = SeedBank::new(20);
+        let mut rng = MockRng::new(0.2, 0.11);
+        bank.initialize(8, &mut rng);
+
+        let flat: Vec<(Genome, f32)> = bank
+            .entries()
+            .into_iter()
+            .map(|(g, f)| (g.clone(), f))
+            .collect();
+        let count = flat.len();
+        let bank2 = SeedBank::from_entries(flat, 20);
+
+        assert_eq!(bank2.len(), count);
+        assert_eq!(bank2.capacity(), 20);
+    }
+
+    #[test]
+    fn diversity_spread_est_coherent() {
+        let mut bank = SeedBank::new(10);
+        let mut rng = MockRng::new(0.1, 0.13);
+
+        // Banque vide → spread = 0
+        assert_eq!(bank.diversity_spread(), 0.0);
+
+        let g1 = make_genome(&mut rng);
+        bank.try_insert(g1, 10.0);
+        let g2 = make_genome(&mut rng);
+        bank.try_insert(g2, 20.0);
+
+        // spread = (20 - 10) / 20 = 0.5
+        assert!((bank.diversity_spread() - 0.5).abs() < 0.01);
     }
 }

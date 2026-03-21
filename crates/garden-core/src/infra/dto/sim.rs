@@ -79,8 +79,8 @@ impl From<&SeedBank> for SeedBankDto {
         Self {
             entries: b
                 .entries()
-                .iter()
-                .map(|(g, f)| (GenomeDto::from(g), *f))
+                .into_iter()
+                .map(|(g, f)| (GenomeDto::from(g), f))
                 .collect(),
             capacity: b.capacity(),
         }
