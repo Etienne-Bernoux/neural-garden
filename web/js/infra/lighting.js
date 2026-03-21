@@ -8,7 +8,7 @@ const SEASON_CONFIG = {
 };
 
 /**
- * Gestionnaire d'eclairage saisonnier.
+ * Gestionnaire d'eclairage saisonnier avec interpolation douce.
  */
 export class LightingManager {
     constructor(scene) {
@@ -33,23 +33,61 @@ export class LightingManager {
         scene.add(this.ambientLight);
 
         this.currentSeason = 'Spring';
+
+        // Cibles pour l'interpolation
+        this.targetIntensity = 1.0;
+        this.targetColor = new THREE.Color(0xfff5e0);
+        this.targetAmbient = new THREE.Color(0x606060);
+        this.targetFogColor = null;
+        this.targetFogNear = 0;
+        this.targetFogFar = 0;
+        this.lerpSpeed = 0.02;  // 2% par frame — transition ~2-3 secondes
     }
 
     /**
-     * Met a jour l'eclairage pour la saison donnee.
+     * Definit la saison cible. L'interpolation se fait dans update().
      */
     setSeason(season) {
         const config = SEASON_CONFIG[season] || SEASON_CONFIG.Spring;
         this.currentSeason = season;
 
-        this.dirLight.intensity = config.intensity;
-        this.dirLight.color.set(config.color);
-        this.ambientLight.color.set(config.ambient);
+        // Stocker les cibles au lieu d'appliquer directement
+        this.targetIntensity = config.intensity;
+        this.targetColor = new THREE.Color(config.color);
+        this.targetAmbient = new THREE.Color(config.ambient);
+        this.targetFogColor = config.fog ? new THREE.Color(config.fog.color) : null;
+        this.targetFogNear = config.fog?.near || 0;
+        this.targetFogFar = config.fog?.far || 0;
+    }
 
-        if (config.fog) {
-            this.scene.fog = new THREE.Fog(config.fog.color, config.fog.near, config.fog.far);
-        } else {
-            this.scene.fog = null;
+    /**
+     * Appeler a chaque frame pour interpoler l'eclairage.
+     */
+    update() {
+        const s = this.lerpSpeed;
+
+        // Interpoler l'intensite
+        this.dirLight.intensity += (this.targetIntensity - this.dirLight.intensity) * s;
+
+        // Interpoler les couleurs
+        this.dirLight.color.lerp(this.targetColor, s);
+        this.ambientLight.color.lerp(this.targetAmbient, s);
+
+        // Interpoler le brouillard
+        if (this.targetFogColor) {
+            if (!this.scene.fog) {
+                this.scene.fog = new THREE.Fog(this.targetFogColor, 300, 500);
+            }
+            this.scene.fog.color.lerp(this.targetFogColor, s);
+            this.scene.fog.near += (this.targetFogNear - this.scene.fog.near) * s;
+            this.scene.fog.far += (this.targetFogFar - this.scene.fog.far) * s;
+        } else if (this.scene.fog) {
+            // Dissiper le brouillard progressivement
+            this.scene.fog.near += (500 - this.scene.fog.near) * s;
+            this.scene.fog.far += (1000 - this.scene.fog.far) * s;
+            if (this.scene.fog.near > 450) {
+                this.scene.fog = null;
+            }
         }
     }
 }

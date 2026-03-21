@@ -12,7 +12,7 @@ import { PanelManager } from './ui/panel.js';
 // --- Init ---
 const canvas = document.getElementById('canvas');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
+scene.background = new THREE.Color(0x1a6b8a);  // meme couleur que l'eau
 
 const godCamera = new GodCamera(canvas);
 const camera = godCamera.getCamera();
@@ -263,6 +263,7 @@ function animate() {
         }
     }
 
+    lighting.update();
     interactionRenderer.tick();
     renderer.render(scene, camera);
 }

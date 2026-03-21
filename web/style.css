@@ -35,3 +35,29 @@ body { background: #1a1a2e; color: #e0e0e0; font-family: 'Courier New', monospac
 #timeline-controls button:hover { background: #53d769; color: #1a1a2e; }
 #scrub { width: 100%; margin-top: 8px; }
 #clip-info { font-size: 0.8em; color: #999; }
+
+#season-clock {
+    margin: 12px 0;
+    padding: 8px;
+    background: #0f3460;
+    border-radius: 4px;
+}
+#season-bar {
+    height: 8px;
+    background: #1a1a2e;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+}
+#season-indicator {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease, background-color 1s ease;
+}
+#season-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7em;
+    margin-top: 4px;
+}

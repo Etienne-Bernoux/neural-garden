@@ -31,6 +31,9 @@ export function createTerrain(header) {
     const positions = geo.attributes.position;
     const colors = new Float32Array(positions.count * 3);
 
+    const seaThreshold = 0.3;  // meme seuil que le niveau de la mer
+    const waterColor = new THREE.Color(0x1a6b8a);
+
     for (let i = 0; i < positions.count; i++) {
         const x = Math.round(positions.getX(i) + gridSize / 2);
         const z = Math.round(positions.getZ(i) + gridSize / 2);
@@ -39,16 +42,25 @@ export function createTerrain(header) {
         const gz = Math.min(Math.max(z, 0), gridSize - 1);
 
         const alt = altitudes[gz] ? (altitudes[gz][gx] || 0) : 0;
-        const height = alt * TERRAIN_SCALE;
+
+        // Les cellules sous la mer sont aplaties au niveau de la mer
+        const isUnderwater = alt <= seaThreshold;
+        const height = isUnderwater ? seaThreshold * TERRAIN_SCALE : alt * TERRAIN_SCALE;
 
         positions.setY(i, height);
 
-        // Couleur par altitude
-        const humidity = header.initial_humidity ? (header.initial_humidity[gz]?.[gx] || 0.5) : 0.5;
-        const color = terrainColor(alt, humidity);
-        colors[i * 3] = color.r;
-        colors[i * 3 + 1] = color.g;
-        colors[i * 3 + 2] = color.b;
+        // Couleur : sous-marin = couleur de l'eau, terrestre = par altitude
+        if (isUnderwater) {
+            colors[i * 3] = waterColor.r;
+            colors[i * 3 + 1] = waterColor.g;
+            colors[i * 3 + 2] = waterColor.b;
+        } else {
+            const humidity = header.initial_humidity ? (header.initial_humidity[gz]?.[gx] || 0.5) : 0.5;
+            const color = terrainColor(alt, humidity);
+            colors[i * 3] = color.r;
+            colors[i * 3 + 1] = color.g;
+            colors[i * 3 + 2] = color.b;
+        }
     }
 
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -61,7 +73,7 @@ export function createTerrain(header) {
 
     // Eau : plan au niveau de la mer
     const seaLevel = 0.3 * TERRAIN_SCALE;
-    const waterGeo = new THREE.PlaneGeometry(gridSize * 1.5, gridSize * 1.5);
+    const waterGeo = new THREE.PlaneGeometry(gridSize * 20, gridSize * 20);
     const waterMat = new THREE.MeshPhongMaterial({
         color: 0x1a6b8a,
         transparent: true,

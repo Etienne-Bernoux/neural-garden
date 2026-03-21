@@ -24,6 +24,7 @@ export class PanelManager {
         if (this.lineagesEl) this.lineagesEl.textContent = state.lineages;
         if (this.symbiosisEl) this.symbiosisEl.textContent = state.symbiosis;
         if (this.fitnessEl) this.fitnessEl.textContent = state.bestFitness.toFixed(1);
+        this.updateSeasonClock(state.season);
     }
 
     /**
@@ -52,6 +53,19 @@ export class PanelManager {
 
     updateClipInfo(info) {
         if (this.clipInfoEl) this.clipInfoEl.textContent = info;
+    }
+
+    updateSeasonClock(season) {
+        const indicator = document.getElementById('season-indicator');
+        if (!indicator) return;
+
+        const seasons = { Spring: 0, Summer: 1, Autumn: 2, Winter: 3 };
+        const colors = { Spring: '#53d769', Summer: '#f5c542', Autumn: '#e67e22', Winter: '#87ceeb' };
+        const idx = seasons[season] ?? 0;
+
+        // La barre avance de 25% par saison
+        indicator.style.width = `${(idx + 1) * 25}%`;
+        indicator.style.backgroundColor = colors[season] || '#53d769';
     }
 
     updateScrub(progress) {
