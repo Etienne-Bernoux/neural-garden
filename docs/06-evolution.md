@@ -22,7 +22,7 @@ La banque de graines est le réservoir génétique de la simulation. Elle contie
 - Chaque graine injectée est produite par **crossover + mutation** :
   1. Deux génomes sont tirés aléatoirement dans la banque.
   2. Si même `hidden_size` → crossover uniforme des poids + mutation.
-  3. Si `hidden_size` différent → clone d'un des deux + mutation.
+  3. Si `hidden_size` différent → clone du **meilleur parent en fitness** + mutation.
 - La graine est placée à une position aléatoire sur l'île (cellule libre, non submergée).
 - Ce mécanisme maintient la diversité génétique et garantit que la simulation ne s'éteint jamais.
 

@@ -16,26 +16,26 @@ neural-garden/
 │   │   ├── src/
 │   │   │   ├── domain/                     # Cœur métier — zéro dépendance externe
 │   │   │   │   ├── mod.rs
-│   │   │   │   ├── plant.rs                # Entity Plant, value objects (Vitality, Energy, Biomass)
+│   │   │   │   ├── plant.rs                # Entity Plant, value objects (Vitality, Energy, Biomass, Lineage, GeneticTraits)
 │   │   │   │   ├── brain.rs                # Entity Brain, forward pass 18→H→H→8
-│   │   │   │   ├── world.rs                # Entity World, Grid, Cell, Altitude
-│   │   │   │   ├── island.rs               # Île : topographie, bassins versants, mares
-│   │   │   │   ├── # Note : Lineage et GeneticTraits vivent dans plant.rs (pas de species.rs séparé)
+│   │   │   │   ├── world.rs                # Entity World, Grid, Cell
+│   │   │   │   ├── island.rs               # Île : topographie, masque terre/mer
+│   │   │   │   ├── rng.rs                  # Trait Rng pour l'injection de l'aléatoire
 │   │   │   │   ├── symbiosis.rs            # Liens mycorhiziens, échanges C↔N
-│   │   │   │   └── events.rs               # Domain events (Grew, Died, Invaded, Linked, Flood...)
+│   │   │   │   └── events.rs               # Domain events (Grew, Died, Born, Invaded, Linked...)
 │   │   │   ├── application/                # Cas d'usage, orchestration
 │   │   │   │   ├── mod.rs
-│   │   │   │   ├── sim.rs                  # Use case : run_tick (game loop continue)
-│   │   │   │   ├── evolution.rs            # Use case : banque de graines, fitness, pluie de graines
-│   │   │   │   ├── perception.rs           # Service : calcul des gradients sur zone d'influence
+│   │   │   │   ├── config.rs              # SimConfig — paramètres de simulation
+│   │   │   │   ├── sim.rs                  # SimState, run_tick — orchestration du game loop
+│   │   │   │   ├── environment.rs          # Phase environnement (pluie, ombrage, décomposition)
+│   │   │   │   ├── actions.rs              # Phase actions (croissance, invasion, défense, exsudats, symbiose)
+│   │   │   │   ├── lifecycle.rs            # Phase vie/mort (reproduction, germination, pluie de graines, GC)
+│   │   │   │   ├── perception.rs           # Service : calcul des 18 inputs (gradients sur racines)
+│   │   │   │   ├── evolution.rs            # Banque de graines, fitness, crossover, mutations
+│   │   │   │   ├── season.rs               # Cycle saisonnier (4 saisons, 250 ticks chacune)
 │   │   │   │   └── highlights.rs           # Service : détection des moments clés pour le replay
-│   │   │   ├── infra/                      # Sérialisation, I/O, config
-│   │   │   │   ├── mod.rs
-│   │   │   │   ├── replay.rs               # Event sourcing → JSON, clips, montage
-│   │   │   │   ├── config.rs               # Désérialisation TOML
-│   │   │   │   ├── persistence.rs          # Sauvegarde/chargement banque de graines
-│   │   │   │   ├── rng.rs                  # Implémentation du trait Rng (rand)
-│   │   │   │   └── noise.rs                # Génération Perlin noise pour les îles
+│   │   │   ├── infra/                      # Sérialisation, I/O, config (à implémenter — Phase 3)
+│   │   │   │   └── mod.rs                  # (vide pour l'instant)
 │   │   │   └── lib.rs                      # Ré-exports publics
 │   │   └── tests/
 │   │       ├── features/                   # Fichiers .feature (Gherkin, français)

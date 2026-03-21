@@ -16,11 +16,11 @@ Chaque génération d'entraînement = une île différente.
 |---|---|---|
 | Taille | 128×128 cellules | Chaque cellule = 5×5 px à l'écran (640px) |
 | Altitude/cellule | 0.0 à 1.0 | Généré par Perlin noise. < seuil mer = obstacle |
-| Carbone/cellule | 0 à 100 | Ressource sol — libéré massivement à la décomposition |
-| Azote/cellule | 0 à 100 | Ressource sol — libéré plus lentement, fixable par symbiose |
-| Humidité/cellule | 0 à 100 | Source : pluie. Ruisselle, s'accumule, s'évapore |
-| Lumière/cellule | 0 à 100 | Réduite par canopée + orientation des pentes |
-| Exsudats/cellule | 0 à 50 | Injectés par les plantes, diffusent, décroissent |
+| Carbone/cellule | [0.0, 1.0] | Ressource sol — libéré massivement à la décomposition |
+| Azote/cellule | [0.0, 1.0] | Ressource sol — libéré plus lentement, fixable par symbiose |
+| Humidité/cellule | [0.0, 1.0] | Source : pluie. Ruisselle, s'accumule, s'évapore |
+| Lumière/cellule | [0.0, 1.0] | Réduite par canopée + orientation des pentes |
+| Exsudats/cellule | [0.0, 1.0] | Injectés par les plantes, diffusent, décroissent |
 | Tick rate | 30 ticks/seconde | Simulation déterministe |
 
 ## Cycle de l'eau
@@ -70,11 +70,11 @@ Deux ressources distinctes dans le sol, consommées par les plantes pour croîtr
 
 ## Saisons
 
-| Saison | Ticks | Lumière | Pluie | Croissance |
-|---|---|---|---|---|
-| Printemps | 0 – 750 | 0.9 | Forte | x1.5 |
-| Été | 750 – 1650 | 1.0 | Faible (sec) | x1.0 |
-| Automne | 1650 – 2400 | 0.5 | Modérée | x0.5 |
-| Hiver | 2400 – 3000 | 0.25 | Faible (froid) | x0.1 |
+| Saison | Ticks | Lumière | Pluie | Régénération sol | Croissance |
+|---|---|---|---|---|---|
+| Printemps | 0 – 249 | 0.8 | 1.2 | 1.5 | 1.3 |
+| Été | 250 – 499 | 1.0 | 0.5 | 0.8 | 1.0 |
+| Automne | 500 – 749 | 0.6 | 1.0 | 1.2 | 0.6 |
+| Hiver | 750 – 999 | 0.3 | 0.8 | 0.5 | 0.2 |
 
 La pluie forte au printemps remplit les mares et relance la végétation. L'été sec crée un stress hydrique — les plantes en crête souffrent, celles en vallée résistent. L'automne recharge modérément avant l'hiver.

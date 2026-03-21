@@ -18,10 +18,10 @@ Neural Garden est un simulateur d'écosystème où des plantes, pilotées par de
 
 ## Décisions clés
 
-- **Perception par gradients** : les plantes perçoivent des gradients chimiques/lumineux (pas d'individus), 13 inputs
+- **Perception par gradients** : les plantes perçoivent des gradients chimiques/lumineux (pas d'individus), 18 inputs
 - **Double modèle de symbiose** : exsudats racinaires (coopération diffuse, publique) + connexion mycorhizienne directe (privée)
 - **Invasion = croissance agressive** : pas de mode spécial, pousser ses racines dans une cellule occupée suffit
-- **Réseau 13→10→10→8** : petit, rapide, lisible. ~340 paramètres par cerveau
+- **Réseau 18→H→H→8** : petit, rapide, lisible. ~340 paramètres par cerveau
 - **Event sourcing** : le replay stocke les événements, pas la grille. Le viewer JS reconstruit l'état
 - **2 crates Rust** : garden-core (tout) + garden-cli (CLI + TUI)
 - **Diversité du sol** plutôt que bonus biodiversité artificiel
@@ -33,7 +33,7 @@ Neural Garden est un simulateur d'écosystème où des plantes, pilotées par de
 | [01-world.md](01-world.md) | Grille, ressources, cycle des ressources, saisons |
 | [02-plants.md](02-plants.md) | Anatomie, stats vitales, cycle de vie, reproduction |
 | [03-perception.md](03-perception.md) | Gradients chimiques, calcul, justification |
-| [04-brain.md](04-brain.md) | Réseau 13→10→10→8, inputs, outputs, forward pass |
+| [04-brain.md](04-brain.md) | Réseau 18→H→H→8, inputs, outputs, forward pass |
 | [05-interactions.md](05-interactions.md) | Exsudats, mycorhizes, invasion, équilibre |
 | [06-evolution.md](06-evolution.md) | Neuroévolution, fitness, sélection, paramètres |
 | [07-simulation.md](07-simulation.md) | Game loop, performance |

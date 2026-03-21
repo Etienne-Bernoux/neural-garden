@@ -25,13 +25,13 @@ Chaque plante peut injecter des ressources dans le sol autour de ses racines via
 
 ## Connexion mycorhizienne (coopération privée)
 
-Quand les **zones d'influence** de deux plantes se superposent, elles peuvent former un **lien direct** — modélisant le réseau de champignons mycorhiziens.
+Quand les **racines** de deux plantes occupent une même cellule, elles peuvent former un **lien direct** — modélisant le réseau de champignons mycorhiziens.
 
-1. **Superposition** : les zones d'influence de A et B se chevauchent.
+1. **Racines partagées** : les racines de A et B occupent au moins une cellule commune.
 2. **Accord mutuel** : `connect_signal > 0.5` des deux côtés.
 3. **Lien établi** : filament doré visible entre les deux plantes.
 4. **Échange C↔N** : chaque tick, chaque plante connectée donne son **surplus** de carbone ou d'azote, proportionnellement à `connect_generosity`. L'échange est bidirectionnel — une plante riche en carbone donne du carbone et reçoit de l'azote, et inversement.
-5. **Rupture** : si les zones d'influence ne se chevauchent plus, ou si une plante envahit la zone de place de l'autre.
+5. **Rupture** : si les racines ne partagent plus de cellule, ou si une plante envahit la zone de place de l'autre.
 
 ### Parasitisme mycorhizien
 
