@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { grassTexture, waterTexture } from './textures.js';
 
 // Echelle verticale du terrain — partagee avec plants.js et symbiosis.js
 export const TERRAIN_SCALE = 15;
@@ -66,18 +67,26 @@ export function createTerrain(header) {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
 
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    // Texture de detail herbeuse en overlay sur les vertex colors
+    const grassTex = grassTexture();
+    grassTex.repeat.set(16, 16);
+
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: grassTex });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     group.add(mesh);
 
     // Eau : plan au niveau de la mer
     const seaLevel = 0.2 * TERRAIN_SCALE;
+    // Texture d'eau procedurale avec ondulations
+    const waterTex = waterTexture();
+    waterTex.repeat.set(8, 8);
+
     const waterGeo = new THREE.PlaneGeometry(gridSize * 20, gridSize * 20);
     const waterMat = new THREE.MeshPhongMaterial({
-        color: 0x1a6b8a,
+        map: waterTex,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.7,
         shininess: 100,
     });
     const water = new THREE.Mesh(waterGeo, waterMat);

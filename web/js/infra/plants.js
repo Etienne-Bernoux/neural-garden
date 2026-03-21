@@ -3,7 +3,7 @@ import { TERRAIN_SCALE } from './terrain.js';
 import { buildGrass, buildBush, buildTree, buildConifer } from './plant-archetypes.js';
 
 // Couleur de lignée : teinte unique par lineage_id
-function lineageHue(lineageId) {
+export function lineageHue(lineageId) {
     // Golden ratio hash pour des teintes bien distribuées
     return (lineageId * 0.618033988) % 1.0;
 }
@@ -106,21 +106,20 @@ export class PlantRenderer {
         const baseZ = cell[1] - this.gridSize / 2;
         const baseY = this._getHeight(cell);
 
-        // État Seed : cube lumineux + halo visible
+        // État Seed : icosaedre organique + halo lumineux
         if (state === 'Seed') {
             const color = plantColor(plant.lineage_id, plant.vitality, 100);
-            const seedSize = 0.8;
-            const geo = new THREE.BoxGeometry(seedSize, seedSize, seedSize);
-            const mat = new THREE.MeshLambertMaterial({
+            const seedGeo = new THREE.IcosahedronGeometry(0.5, 0);
+            const seedMat = new THREE.MeshLambertMaterial({
                 color: color.clone().multiplyScalar(0.8),
                 emissive: color.clone().multiplyScalar(0.4),
             });
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.set(baseX, baseY + seedSize / 2, baseZ);
+            const mesh = new THREE.Mesh(seedGeo, seedMat);
+            mesh.position.set(baseX, baseY + 0.5, baseZ);
             group.add(mesh);
 
             // Halo autour de la graine
-            const haloGeo = new THREE.SphereGeometry(seedSize * 1.5, 8, 8);
+            const haloGeo = new THREE.SphereGeometry(1.2, 8, 8);
             const haloMat = new THREE.MeshBasicMaterial({
                 color: color,
                 transparent: true,
@@ -161,13 +160,16 @@ export class PlantRenderer {
             hiddenSize,
         };
 
+        // Teinte de la lignee pour les textures procedurales
+        const hue = lineageHue(plant.lineage_id);
+
         // Dispatch vers le constructeur d'archétype
         const type = archetype(maxSize);
         switch (type) {
-            case 'grass':   buildGrass(group, plant, baseX, baseY, baseZ, color, params); break;
-            case 'bush':    buildBush(group, plant, baseX, baseY, baseZ, color, params); break;
-            case 'tree':    buildTree(group, plant, baseX, baseY, baseZ, color, params); break;
-            case 'conifer': buildConifer(group, plant, baseX, baseY, baseZ, color, params); break;
+            case 'grass':   buildGrass(group, plant, baseX, baseY, baseZ, color, params, hue); break;
+            case 'bush':    buildBush(group, plant, baseX, baseY, baseZ, color, params, hue); break;
+            case 'tree':    buildTree(group, plant, baseX, baseY, baseZ, color, params, hue); break;
+            case 'conifer': buildConifer(group, plant, baseX, baseY, baseZ, color, params, hue); break;
         }
 
         // Opacité basse pour les plantes en décomposition

@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { barkTexture, foliageTexture, tuffTexture } from './textures.js';
+
 // Pseudo-random déterministe basé sur l'id de la plante
 function pseudoRandom(seed) {
     let x = Math.sin(seed * 12.9898) * 43758.5453;
@@ -27,13 +29,16 @@ function block(geo, mat, x, y, z) {
  * Plusieurs touffes de blocs au sol (2-4 clusters).
  * Mature : petites fleurs colorées.
  */
-export function buildGrass(group, plant, baseX, baseY, baseZ, color, params) {
+export function buildGrass(group, plant, baseX, baseY, baseZ, color, params, hue) {
     const { biomass, isDying, isStressed, isMature, id } = params;
     const grassColor = isDying
         ? new THREE.Color(0x8b7d3a)
         : isStressed
             ? color.clone().lerp(new THREE.Color(0xb0a030), 0.5)
             : color;
+
+    // Texture de touffe parametree par la lignee
+    const grassTex = hue !== undefined ? tuffTexture(hue) : null;
 
     // Nombre de touffes : 2-4 selon biomasse
     const clusterCount = Math.min(2 + Math.floor(biomass / 8), 4);
@@ -47,9 +52,9 @@ export function buildGrass(group, plant, baseX, baseY, baseZ, color, params) {
         const height = Math.max(1, Math.floor(biomass / 8));
         for (let h = 0; h < Math.min(height, 3); h++) {
             const variation = prng(id, blockIdx + 10) * 0.15;
-            const mat = new THREE.MeshLambertMaterial({
-                color: grassColor.clone().offsetHSL(0, 0, variation - 0.07),
-            });
+            const matOpts = { color: grassColor.clone().offsetHSL(0, 0, variation - 0.07) };
+            if (grassTex) matOpts.map = grassTex;
+            const mat = new THREE.MeshLambertMaterial(matOpts);
             group.add(block(blockGeo, mat, baseX + ox, baseY + h * 0.8 + 0.35, baseZ + oz));
             blockIdx++;
         }
@@ -75,7 +80,7 @@ export function buildGrass(group, plant, baseX, baseY, baseZ, color, params) {
  * Buisson : forme sphérique étalée, tronc court (~1 bloc).
  * exudate=Nitrogen → plus étalé, exudate=Carbon → plus compact.
  */
-export function buildBush(group, plant, baseX, baseY, baseZ, color, params) {
+export function buildBush(group, plant, baseX, baseY, baseZ, color, params, hue) {
     const { biomass, isDying, isStressed, isMature, id, exudateType, hiddenSize } = params;
     const canopyColor = isDying
         ? color.clone().multiplyScalar(0.35)
@@ -83,17 +88,21 @@ export function buildBush(group, plant, baseX, baseY, baseZ, color, params) {
             ? color.clone().lerp(new THREE.Color(0x808060), 0.4)
             : color;
 
-    // Tronc court : 1 bloc (agrandi)
+    // Tronc court avec texture d'ecorce
     const trunkGeo = new THREE.BoxGeometry(0.5, 1.5, 0.5);
-    const trunkMat = new THREE.MeshLambertMaterial({ color: trunkColor(isDying) });
+    const barkTex = barkTexture();
+    const trunkMat = new THREE.MeshLambertMaterial({ map: barkTex, color: trunkColor(isDying) });
     group.add(block(trunkGeo, trunkMat, baseX, baseY + 0.75, baseZ));
 
-    // Canopée sphérique (plus grande)
+    // Texture de feuillage parametree par la lignee
+    const foliageTex = hue !== undefined ? foliageTexture(hue) : null;
+
+    // Canopée sphérique (spheres basse resolution = organique)
     const spread = exudateType === 'nitrogen' ? 1.6 : 1.2;
     const verticalScale = exudateType === 'nitrogen' ? 0.7 : 1.0;
     const radius = Math.max(1.2, Math.min(Math.sqrt(biomass) * 0.8, 3.0));
     const canopyBase = baseY + 1.5;
-    const blockGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+    const blockGeo = new THREE.SphereGeometry(0.6, 6, 6);
     let count = 0;
 
     for (let dx = -2; dx <= 2; dx++) {
@@ -106,9 +115,9 @@ export function buildBush(group, plant, baseX, baseY, baseZ, color, params) {
                 const jx = (prng(id, count * 3) - 0.5) * 0.2;
                 const jz = (prng(id, count * 3 + 1) - 0.5) * 0.2;
                 const variation = prng(id, count * 3 + 2) * 0.1;
-                const mat = new THREE.MeshLambertMaterial({
-                    color: canopyColor.clone().offsetHSL(0, 0, variation - 0.05),
-                });
+                const matOpts = { color: canopyColor.clone().offsetHSL(0, 0, variation - 0.05) };
+                if (foliageTex) matOpts.map = foliageTex;
+                const mat = new THREE.MeshLambertMaterial(matOpts);
                 group.add(block(blockGeo, mat, baseX + dx * 0.7 + jx, canopyBase + dy * 0.7, baseZ + dz * 0.7 + jz));
                 count++;
             }
@@ -146,7 +155,7 @@ export function buildBush(group, plant, baseX, baseY, baseZ, color, params) {
  * exudate=Carbon → canopée ronde.
  * hidden_size > 10 → canopée plus détaillée.
  */
-export function buildTree(group, plant, baseX, baseY, baseZ, color, params) {
+export function buildTree(group, plant, baseX, baseY, baseZ, color, params, hue) {
     const { biomass, isDying, isStressed, isMature, id, exudateType, hiddenSize } = params;
     const canopyColor = isDying
         ? color.clone().multiplyScalar(0.35)
@@ -154,16 +163,20 @@ export function buildTree(group, plant, baseX, baseY, baseZ, color, params) {
             ? color.clone().lerp(new THREE.Color(0x808060), 0.4)
             : color;
 
-    // Tronc : 5-12 blocs selon biomasse (agrandi)
+    // Tronc avec texture d'ecorce
     const trunkHeight = Math.min(5 + Math.floor(biomass / 6), 12);
     const trunkGeo = new THREE.BoxGeometry(0.6, 0.8, 0.6);
-    const trunkMat = new THREE.MeshLambertMaterial({ color: trunkColor(isDying) });
+    const barkTex = barkTexture();
+    const trunkMat = new THREE.MeshLambertMaterial({ map: barkTex, color: trunkColor(isDying) });
 
     for (let h = 0; h < trunkHeight; h++) {
         group.add(block(trunkGeo, trunkMat, baseX, baseY + h * 0.8 + 0.4, baseZ));
     }
 
-    // Canopée (plus large)
+    // Texture de feuillage parametree par la lignee
+    const foliageTex = hue !== undefined ? foliageTexture(hue) : null;
+
+    // Canopée (spheres organiques)
     const canopyBase = baseY + trunkHeight * 0.8;
     const isParapluie = exudateType === 'nitrogen';
     const detailed = hiddenSize > 10;
@@ -171,7 +184,7 @@ export function buildTree(group, plant, baseX, baseY, baseZ, color, params) {
     const radius = isStressed ? radiusBase * 0.8 : isDying ? radiusBase * 0.5 : radiusBase;
     const canopyHeight = isParapluie ? 2 : Math.max(3, Math.floor(radius));
     const blockSize = detailed ? 1.0 : 1.2;
-    const blockGeo = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+    const blockGeo = new THREE.SphereGeometry(blockSize * 0.5, 6, 6);
     let count = 0;
 
     const maxR = Math.ceil(radius);
@@ -188,9 +201,9 @@ export function buildTree(group, plant, baseX, baseY, baseZ, color, params) {
                 const jz = (prng(id, count * 3 + 101) - 0.5) * 0.25;
                 const jy = detailed ? (prng(id, count * 3 + 102) - 0.5) * 0.2 : 0;
                 const variation = prng(id, count + 200) * 0.12;
-                const mat = new THREE.MeshLambertMaterial({
-                    color: canopyColor.clone().offsetHSL(0, 0, variation - 0.06),
-                });
+                const matOpts = { color: canopyColor.clone().offsetHSL(0, 0, variation - 0.06) };
+                if (foliageTex) matOpts.map = foliageTex;
+                const mat = new THREE.MeshLambertMaterial(matOpts);
                 group.add(block(blockGeo, mat,
                     baseX + dx * blockSize + jx,
                     canopyBase + dy * blockSize + jy,
@@ -225,7 +238,7 @@ export function buildTree(group, plant, baseX, baseY, baseZ, color, params) {
  * Conifère : tronc fin et très haut, forme conique (pyramide).
  * Chaque étage de canopée est plus petit que le précédent.
  */
-export function buildConifer(group, plant, baseX, baseY, baseZ, color, params) {
+export function buildConifer(group, plant, baseX, baseY, baseZ, color, params, hue) {
     const { biomass, isDying, isStressed, isMature, id } = params;
     const canopyColor = isDying
         ? color.clone().multiplyScalar(0.3)
@@ -233,20 +246,24 @@ export function buildConifer(group, plant, baseX, baseY, baseZ, color, params) {
             ? color.clone().lerp(new THREE.Color(0x506040), 0.4)
             : color.clone().offsetHSL(-0.05, -0.1, -0.05); // Vert plus sombre/bleuté
 
-    // Tronc fin et haut : 8-15 blocs (agrandi)
+    // Texture de feuillage parametree par la lignee
+    const foliageTex = hue !== undefined ? foliageTexture(hue) : null;
+
+    // Tronc fin et haut avec texture d'ecorce
     const trunkHeight = Math.min(8 + Math.floor(biomass / 8), 15);
     const trunkGeo = new THREE.BoxGeometry(0.4, 0.8, 0.4);
-    const trunkMat = new THREE.MeshLambertMaterial({ color: trunkColor(isDying) });
+    const barkTex = barkTexture();
+    const trunkMat = new THREE.MeshLambertMaterial({ map: barkTex, color: trunkColor(isDying) });
 
     for (let h = 0; h < trunkHeight; h++) {
         group.add(block(trunkGeo, trunkMat, baseX, baseY + h * 0.8 + 0.4, baseZ));
     }
 
-    // Canopée conique : étages décroissants (plus haute)
+    // Canopée conique : etages decroissants avec cones hexagonaux
     const levels = Math.min(5 + Math.floor(biomass / 12), 8);
     const maxRadius = Math.max(2.0, Math.min(Math.sqrt(biomass) * 0.9, 3.5));
     const reducedRadius = isStressed ? maxRadius * 0.7 : isDying ? maxRadius * 0.4 : maxRadius;
-    const blockGeo = new THREE.BoxGeometry(0.8, 0.6, 0.8);
+    const blockGeo = new THREE.ConeGeometry(0.5, 0.8, 6);
     let count = 0;
 
     for (let level = 0; level < levels; level++) {
@@ -264,9 +281,9 @@ export function buildConifer(group, plant, baseX, baseY, baseZ, color, params) {
                 const jx = (prng(id, count * 3 + 200) - 0.5) * 0.15;
                 const jz = (prng(id, count * 3 + 201) - 0.5) * 0.15;
                 const variation = prng(id, count + 300) * 0.1;
-                const mat = new THREE.MeshLambertMaterial({
-                    color: canopyColor.clone().offsetHSL(0, 0, variation - 0.05),
-                });
+                const matOpts = { color: canopyColor.clone().offsetHSL(0, 0, variation - 0.05) };
+                if (foliageTex) matOpts.map = foliageTex;
+                const mat = new THREE.MeshLambertMaterial(matOpts);
                 group.add(block(blockGeo, mat,
                     baseX + dx * 0.8 + jx,
                     levelY,
