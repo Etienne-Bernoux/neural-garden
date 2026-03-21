@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use rayon::prelude::*;
+
 use super::actions::phase_actions;
 use super::config::SimConfig;
 use super::environment::{phase_decomposition, phase_environment};
@@ -228,22 +230,23 @@ pub fn run_tick(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
 // --- Phase 2 : Perception et decision ---
 
 fn phase_perception_decision(state: &SimState) -> Vec<(u64, [f32; 8])> {
-    let mut decisions = Vec::new();
+    // Collecter les plantes vivantes non-graines avec leur brain
+    let candidates: Vec<(u64, &Plant, &Brain)> = state
+        .plants
+        .iter()
+        .filter(|p| !p.is_dead() && p.state() != PlantState::Seed)
+        .filter_map(|p| state.find_brain(p.id()).map(|brain| (p.id(), p, brain)))
+        .collect();
 
-    for plant in &state.plants {
-        if plant.is_dead() || plant.state() == PlantState::Seed {
-            continue;
-        }
-
-        let inputs = compute_inputs(plant, &state.world);
-
-        if let Some(brain) = state.find_brain(plant.id()) {
+    // Paralléliser le calcul des inputs + forward pass (read-only sur le World)
+    candidates
+        .par_iter()
+        .map(|(id, plant, brain)| {
+            let inputs = compute_inputs(plant, &state.world);
             let outputs = brain.forward(&inputs);
-            decisions.push((plant.id(), outputs));
-        }
-    }
-
-    decisions
+            (*id, outputs)
+        })
+        .collect()
 }
 
 #[cfg(test)]

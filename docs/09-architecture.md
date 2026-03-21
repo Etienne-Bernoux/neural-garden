@@ -104,6 +104,7 @@ Voir `.claude/rules/ddd.md` pour les règles complètes.
 | rand + rand_distr | Mutations, spawns, positions | infra (via trait Rng) |
 | noise | Perlin noise pour la génération d'île | infra |
 | rayon | Parallélisme (perception, ruissellement) | infra |
+| ctrlc | Signal handler Ctrl+C | garden-cli |
 | toml | Config | infra |
 | cucumber | Tests d'intégration Gherkin | dev-dependency |
 

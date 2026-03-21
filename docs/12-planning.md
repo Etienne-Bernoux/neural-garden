@@ -51,7 +51,9 @@ Sérialisation, persistence, configuration, interface en ligne de commande.
 
 **Done quand** : on peut lancer `garden run`, l'entraînement tourne, et on peut sauvegarder/reprendre.
 
-### Phase 4 — TUI Dashboard
+### Phase 4 — TUI Dashboard ✅ Terminée
+
+> Dashboard ratatui 5 panneaux + mini-carte Unicode. Architecture multi-thread (simulation + UI). Perception parallélisée avec rayon. Mode --no-tui pour les sessions headless. Signal handler Ctrl+C.
 
 Dashboard de monitoring ratatui.
 

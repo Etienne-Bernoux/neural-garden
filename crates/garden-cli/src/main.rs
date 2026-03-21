@@ -1,9 +1,18 @@
 // CLI pour Neural Garden — lance la simulation ou gere la configuration.
 
+mod runner;
+mod snapshot;
+mod tui;
+mod ui;
+
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use garden_core::application::sim::{run_tick, SimState};
 use garden_core::domain::world::World;
 use garden_core::infra::config::{generate_default_toml, load_config};
@@ -13,6 +22,10 @@ use garden_core::infra::persistence::{
 };
 use garden_core::infra::replay::{ReplayConfig, ReplayRecorder};
 use garden_core::infra::rng::SeededRng;
+
+use crate::runner::{spawn_simulation, SimControls};
+use crate::snapshot::SimSnapshot;
+use crate::tui::Tui;
 
 #[derive(Parser)]
 #[command(
@@ -35,6 +48,10 @@ enum Commands {
         /// Reprendre depuis une sauvegarde
         #[arg(short, long)]
         resume: Option<String>,
+
+        /// Desactiver le TUI (affichage texte simple)
+        #[arg(long)]
+        no_tui: bool,
     },
     /// Gerer la configuration
     Config {
@@ -53,7 +70,11 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Run { config, resume } => cmd_run(&config, resume.as_deref()),
+        Commands::Run {
+            config,
+            resume,
+            no_tui,
+        } => cmd_run(&config, resume.as_deref(), no_tui),
         Commands::Config { action } => match action {
             ConfigAction::Init => cmd_config_init(),
         },
@@ -66,14 +87,14 @@ fn main() {
 }
 
 /// Lance la simulation (nouvelle ou reprise).
-fn cmd_run(config_path: &str, resume: Option<&str>) -> Result<(), String> {
+fn cmd_run(config_path: &str, resume: Option<&str>, no_tui: bool) -> Result<(), String> {
     // Creer les dossiers necessaires
     fs::create_dir_all("saves")
         .map_err(|e| format!("impossible de creer le dossier saves/: {e}"))?;
     fs::create_dir_all("replays")
         .map_err(|e| format!("impossible de creer le dossier replays/: {e}"))?;
 
-    let (mut state, mut rng) = if let Some(path) = resume {
+    let (state, rng) = if let Some(path) = resume {
         // Reprise depuis une sauvegarde
         let state = load_state(Path::new(path))?;
         // Utiliser le tick actuel comme seed pour le rng (reproductibilite approximative)
@@ -95,11 +116,91 @@ fn cmd_run(config_path: &str, resume: Option<&str>) -> Result<(), String> {
         (state, rng)
     };
 
-    // Initialiser les outils de suivi
+    if no_tui {
+        run_headless(state, rng)
+    } else {
+        run_with_tui(state, rng)
+    }
+}
+
+/// Boucle de simulation avec TUI ratatui (mode par defaut).
+fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
+    let controls = SimControls::new();
+    let (tx, rx) = mpsc::channel();
+
+    // Handler Ctrl+C — filet de securite en complement de crossterm
+    let quit_signal = controls.quit.clone();
+    ctrlc::set_handler(move || {
+        quit_signal.store(true, Ordering::Relaxed);
+    })
+    .map_err(|e| e.to_string())?;
+
+    let sim_handle = spawn_simulation(state, rng, controls.clone(), tx);
+
+    let mut tui = Tui::new().map_err(|e| e.to_string())?;
+
+    let mut last_snapshot = SimSnapshot::default();
+
+    loop {
+        // Verifier si Ctrl+C a ete recu via le handler
+        if controls.quit.load(Ordering::Relaxed) {
+            break;
+        }
+
+        // Recevoir le dernier snapshot (non bloquant)
+        while let Ok(snap) = rx.try_recv() {
+            last_snapshot = snap;
+        }
+
+        // Dessiner
+        tui.draw(&last_snapshot).map_err(|e| e.to_string())?;
+
+        // Poll events clavier (timeout 33ms ~ 30fps)
+        if event::poll(Duration::from_millis(33)).unwrap_or(false) {
+            if let Ok(Event::Key(key)) = event::read() {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') => {
+                            controls.quit.store(true, Ordering::Relaxed);
+                            break;
+                        }
+                        KeyCode::Char(' ') => {
+                            let current = controls.paused.load(Ordering::Relaxed);
+                            controls.paused.store(!current, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('s') => {
+                            controls.save_requested.store(true, Ordering::Relaxed);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    // Attendre la fin du thread simulation
+    if let Err(e) = sim_handle.join() {
+        eprintln!("Le thread de simulation a paniqué : {:?}", e);
+    }
+
+    // Restaurer le terminal
+    tui.restore().map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Boucle de simulation headless (mode --no-tui) — affichage texte toutes les 100 ticks.
+fn run_headless(mut state: SimState, mut rng: SeededRng) -> Result<(), String> {
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::Relaxed);
+    })
+    .map_err(|e| e.to_string())?;
+
     let mut recorder = ReplayRecorder::new(ReplayConfig::default());
 
-    // Boucle principale
-    loop {
+    while running.load(Ordering::Relaxed) {
         let events = run_tick(&mut state, &mut rng);
 
         // Replay — les highlights sont calcules dans run_tick via state.metrics
@@ -113,7 +214,7 @@ fn cmd_run(config_path: &str, resume: Option<&str>) -> Result<(), String> {
         }
 
         // Affichage toutes les 100 ticks
-        if state.tick_count % 100 == 0 {
+        if state.tick_count.is_multiple_of(100) {
             let season = state.season_cycle.current_season();
             let year = state.season_cycle.year();
             println!(
@@ -127,7 +228,7 @@ fn cmd_run(config_path: &str, resume: Option<&str>) -> Result<(), String> {
         }
 
         // Sauvegarder le montage toutes les 5000 ticks
-        if state.tick_count % 5000 == 0 && state.tick_count > 0 {
+        if state.tick_count.is_multiple_of(5000) && state.tick_count > 0 {
             recorder.finalize_clips(state.tick_count);
             if let Err(e) = recorder.save_montage(
                 Path::new(&format!("replays/montage_{:06}.json", state.tick_count)),
@@ -137,6 +238,13 @@ fn cmd_run(config_path: &str, resume: Option<&str>) -> Result<(), String> {
             }
         }
     }
+
+    // Sauvegarde finale avant arret
+    println!("Sauvegarde finale...");
+    let _ = auto_save(&state, Path::new("saves"), 1);
+    println!("Simulation arretee. {} ticks effectues.", state.tick_count);
+
+    Ok(())
 }
 
 /// Genere un fichier garden.toml par defaut.
