@@ -11,3 +11,5 @@ replays/
 web/node_modules/
 web/.features-gen/
 web/test-results/
+web/tests/screenshots/
+web/pnpm-lock.yaml
