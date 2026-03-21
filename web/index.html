@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Garden — Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+        <div id="panel">
+            <h2>Neural Garden</h2>
+            <div id="stats">
+                <p>Tick: <span id="tick">0</span></p>
+                <p>Saison: <span id="season">-</span></p>
+                <p>Population: <span id="population">0</span></p>
+                <p>Lignées: <span id="lineages">0</span></p>
+                <p>Symbioses: <span id="symbiosis">0</span></p>
+                <p>Best Fitness: <span id="fitness">0</span></p>
+            </div>
+            <div id="timeline-controls">
+                <button id="btn-prev">◀◀</button>
+                <button id="btn-play">▶</button>
+                <button id="btn-next">▶▶</button>
+                <input type="range" id="scrub" min="0" max="100" value="0">
+                <span id="clip-info">Clip 0/0</span>
+            </div>
+            <div id="plant-info" style="display:none">
+                <h3>Plante sélectionnée</h3>
+                <p>ID: <span id="plant-id">-</span></p>
+                <p>État: <span id="plant-state">-</span></p>
+                <p>Vitalité: <span id="plant-vitality">-</span></p>
+                <p>Énergie: <span id="plant-energy">-</span></p>
+                <p>Biomasse: <span id="plant-biomass">-</span></p>
+                <p>Lignée: <span id="plant-lineage">-</span></p>
+            </div>
+        </div>
+    </div>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

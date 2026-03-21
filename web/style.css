@@ -1,0 +1,37 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; color: #e0e0e0; font-family: 'Courier New', monospace; overflow: hidden; }
+
+#container { display: flex; width: 100vw; height: 100vh; }
+#canvas { flex: 1; }
+
+#panel {
+    width: 280px;
+    background: #16213e;
+    padding: 16px;
+    overflow-y: auto;
+    border-left: 1px solid #0f3460;
+}
+
+#panel h2 { color: #53d769; margin-bottom: 12px; font-size: 1.1em; }
+#panel h3 { color: #e9b44c; margin: 12px 0 8px; font-size: 0.95em; }
+#panel p { font-size: 0.85em; margin: 4px 0; }
+#panel span { color: #53d769; }
+
+#timeline-controls {
+    margin: 16px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+#timeline-controls button {
+    background: #0f3460;
+    color: #e0e0e0;
+    border: 1px solid #53d769;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.8em;
+}
+#timeline-controls button:hover { background: #53d769; color: #1a1a2e; }
+#scrub { width: 100%; margin-top: 8px; }
+#clip-info { font-size: 0.8em; color: #999; }
