@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TERRAIN_SCALE } from './terrain.js';
+import { buildGrass, buildBush, buildTree, buildConifer } from './plant-archetypes.js';
 
 // Couleur de lignée : teinte unique par lineage_id
 function lineageHue(lineageId) {
@@ -7,12 +8,21 @@ function lineageHue(lineageId) {
     return (lineageId * 0.618033988) % 1.0;
 }
 
+// Couleur de base de la plante selon lignée et vitalité
 function plantColor(lineageId, vitality, maxVitality) {
     const hue = lineageHue(lineageId);
     const healthRatio = maxVitality > 0 ? vitality / maxVitality : 0;
     const saturation = 0.3 + healthRatio * 0.5;
     const lightness = 0.2 + healthRatio * 0.4;
     return new THREE.Color().setHSL(hue, saturation, lightness);
+}
+
+// Détermine l'archétype depuis max_size
+function archetype(maxSize) {
+    if (maxSize < 20) return 'grass';
+    if (maxSize <= 27) return 'bush';
+    if (maxSize <= 35) return 'tree';
+    return 'conifer';
 }
 
 /**
@@ -42,7 +52,6 @@ export class PlantRenderer {
                     this._updatePlant(plant);
                     existing.userData.hash = hash;
                 }
-                // sinon : pas de changement, on ne reconstruit pas
             } else {
                 this._createPlant(plant);
                 this.plantMeshes.get(plant.id).userData.hash = hash;
@@ -83,95 +92,89 @@ export class PlantRenderer {
     }
 
     _buildPlantGeometry(group, plant) {
-        const color = plantColor(plant.lineage_id, plant.vitality, 100);
+        const traits = plant.traits || {};
         const cells = plant.cells || [];
         const biomass = plant.biomass || cells.length;
-        const isMature = plant.state === 'Mature';
-        const isSeed = plant.state === 'Seed';
-        const isDying = plant.state === 'Dying' || plant.state === 'Dead' || plant.state === 'Decomposing';
+        const state = plant.state || 'Growing';
+        const maxSize = traits.max_size || 25;
+        const exudateType = traits.exudate_type || 'carbon';
+        const hiddenSize = traits.hidden_size || 8;
 
-        if (isSeed) {
-            // Graine : petit cube lumineux
-            const geo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+        // Position de base (première cellule)
+        const cell = cells.length > 0 ? cells[0] : [0, 0];
+        const baseX = cell[0] - this.gridSize / 2;
+        const baseZ = cell[1] - this.gridSize / 2;
+        const baseY = this._getHeight(cell);
+
+        // État Seed : petit cube lumineux
+        if (state === 'Seed') {
+            const color = plantColor(plant.lineage_id, plant.vitality, 100);
+            const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
             const mat = new THREE.MeshLambertMaterial({
                 color: color.clone().multiplyScalar(0.6),
-                emissive: color.clone().multiplyScalar(0.2),
+                emissive: color.clone().multiplyScalar(0.3),
             });
             const mesh = new THREE.Mesh(geo, mat);
-            if (cells.length > 0) {
-                mesh.position.set(cells[0][0] - this.gridSize/2, this._getHeight(cells[0]) + 0.3, cells[0][1] - this.gridSize/2);
-            }
+            mesh.position.set(baseX, baseY + 0.2, baseZ);
             group.add(mesh);
             return;
         }
 
-        const gridSize = this.gridSize;
+        // État Decomposing : quasi transparent, gris/brun foncé
+        const isDecomposing = state === 'Decomposing';
+        const isDying = state === 'Dying' || state === 'Dead';
+        const isStressed = state === 'Stressed';
+        const isMature = state === 'Mature';
 
-        // Tronc : colonne sur la première cellule
-        if (cells.length > 0) {
-            const trunkHeight = Math.min(1 + Math.floor(biomass / 5), 5);
-            const baseHeight = this._getHeight(cells[0]);
+        // Couleur ajustée par état
+        let color;
+        if (isDecomposing) {
+            color = new THREE.Color(0x4a4035);
+        } else {
+            color = plantColor(plant.lineage_id, plant.vitality, 100);
+        }
 
-            for (let h = 0; h < trunkHeight; h++) {
-                const geo = new THREE.BoxGeometry(0.5, 1, 0.5);
-                const trunkColor = isDying ? new THREE.Color(0x4a3520) : new THREE.Color(0x5d4e37);
-                const mat = new THREE.MeshLambertMaterial({ color: trunkColor });
-                const block = new THREE.Mesh(geo, mat);
-                block.position.set(
-                    cells[0][0] - gridSize/2,
-                    baseHeight + h + 0.5,
-                    cells[0][1] - gridSize/2
-                );
-                group.add(block);
-            }
+        // Facteur de taille selon état (Growing = petit, Mature = plein)
+        const sizeFactor = state === 'Growing' ? 0.5 : 1.0;
+        const effectiveBiomass = biomass * sizeFactor;
 
-            // Canopée : blocs autour du sommet
-            const canopyY = baseHeight + trunkHeight;
-            const canopySize = Math.max(2, Math.floor(Math.sqrt(biomass) * 1.5));
-            const canopyColor = isDying ? color.clone().multiplyScalar(0.4) : color;
+        // Paramètres communs pour les constructeurs d'archétype
+        const params = {
+            biomass: effectiveBiomass,
+            isDying: isDying || isDecomposing,
+            isStressed,
+            isMature,
+            id: plant.id,
+            exudateType,
+            hiddenSize,
+        };
 
-            for (let dx = -canopySize; dx <= canopySize; dx++) {
-                for (let dz = -canopySize; dz <= canopySize; dz++) {
-                    for (let dy = 0; dy < Math.max(1, canopySize - Math.abs(dx) - Math.abs(dz)); dy++) {
-                        if (dx*dx + dz*dz + dy*dy > canopySize*canopySize + 1) continue;
+        // Dispatch vers le constructeur d'archétype
+        const type = archetype(maxSize);
+        switch (type) {
+            case 'grass':   buildGrass(group, plant, baseX, baseY, baseZ, color, params); break;
+            case 'bush':    buildBush(group, plant, baseX, baseY, baseZ, color, params); break;
+            case 'tree':    buildTree(group, plant, baseX, baseY, baseZ, color, params); break;
+            case 'conifer': buildConifer(group, plant, baseX, baseY, baseZ, color, params); break;
+        }
 
-                        const geo = new THREE.BoxGeometry(1.0, 1.0, 1.0);
-                        const mat = new THREE.MeshLambertMaterial({ color: canopyColor.clone() });
-                        const block = new THREE.Mesh(geo, mat);
-                        block.position.set(
-                            cells[0][0] - gridSize/2 + dx * 1.0,
-                            canopyY + dy * 1.0,
-                            cells[0][1] - gridSize/2 + dz * 1.0
-                        );
-                        group.add(block);
-                    }
+        // Opacité basse pour les plantes en décomposition
+        if (isDecomposing) {
+            group.traverse(child => {
+                if (child.material) {
+                    child.material.transparent = true;
+                    child.material.opacity = 0.35;
                 }
-            }
-
-            // Fleurs si mature
-            if (isMature) {
-                const flowerGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-                const flowerMat = new THREE.MeshLambertMaterial({
-                    color: new THREE.Color().setHSL(lineageHue(plant.lineage_id), 0.9, 0.7),
-                    emissive: new THREE.Color().setHSL(lineageHue(plant.lineage_id), 0.5, 0.2),
-                });
-                const flower = new THREE.Mesh(flowerGeo, flowerMat);
-                flower.position.set(
-                    cells[0][0] - gridSize/2,
-                    canopyY + canopySize * 1.0 + 0.3,
-                    cells[0][1] - gridSize/2
-                );
-                group.add(flower);
-            }
+            });
         }
     }
 
     _getPlantHash(plant) {
-        return `${plant.cells?.length || 0}-${plant.state}-${Math.round((plant.vitality || 0) * 10)}`;
+        return `${plant.cells?.length || 0}-${plant.state}-${Math.round((plant.vitality || 0) * 10)}-${Math.round((plant.biomass || 0) * 10)}`;
     }
 
     _getHeight(cell) {
-        // Hauteur du terrain — meme echelle que terrain.js
+        // Hauteur du terrain — même échelle que terrain.js
         return this._terrainHeights ? (this._terrainHeights[cell[1]]?.[cell[0]] || 0) * TERRAIN_SCALE : 1;
     }
 

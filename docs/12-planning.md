@@ -132,6 +132,8 @@ Boucle : Brainstorm → Plan → Work → Review → Observer → Ajuster → Re
 
 **Done quand** : on peut se balader entre les plantes et voir leur cerveau.
 
+**Done** ✅ — Caméra FPS (WASD, pointer lock, suivi relief), 4 archétypes de plantes procédurales (herbe/buisson/arbre/conifère), système de particules décomposition, brain-viz Canvas 2D dans le panneau. Touche V pour switcher caméra, B pour le cerveau.
+
 ### Phase 6c — Qualité et performance
 
 | Tâche | Critère de done |

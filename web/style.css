@@ -61,3 +61,14 @@ body { background: #1a1a2e; color: #e0e0e0; font-family: 'Courier New', monospac
     font-size: 0.7em;
     margin-top: 4px;
 }
+
+#brain-viz-container {
+    margin-top: 12px;
+    border-top: 1px solid #0f3460;
+    padding-top: 8px;
+}
+#brain-viz-container h3 {
+    color: #e9b44c;
+    margin: 0 0 8px;
+    font-size: 0.95em;
+}

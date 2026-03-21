@@ -2,7 +2,7 @@
 
 > **V1 implémentée** : terrain voxel, plantes, interactions visuelles (liens, exsudats, flash invasion), éclairage saisonnier, caméra Dieu iso, panneau stats, timeline replay, mode live WebSocket. Structure DDD (domain/application/infra/ui).
 >
-> **V2 à venir** : caméra exploration (WASD), particules de décomposition, visualisation cerveau, greedy meshing, shader vagues, transitions animées entre caméras.
+> **V2 implémentée** : caméra exploration FPS (WASD + pointer lock), 4 archétypes de plantes procédurales, système de particules de décomposition, visualisation cerveau Canvas 2D. Touche V (switch caméra) et B (brain-viz).
 
 ## Vision
 

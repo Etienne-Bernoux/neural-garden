@@ -6,8 +6,11 @@ import { SimState } from './domain/state.js';
 import { ClipManager } from './domain/clips.js';
 import { Timeline } from './application/timeline.js';
 import { GodCamera } from './infra/camera.js';
+import { ExploreCamera } from './infra/camera-explore.js';
 import { LightingManager } from './infra/lighting.js';
+import { ParticleSystem } from './infra/particles.js';
 import { PanelManager } from './ui/panel.js';
+import { BrainViz } from './ui/brain-viz.js';
 
 // --- Init ---
 const canvas = document.getElementById('canvas');
@@ -15,7 +18,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a6b8a);  // meme couleur que l'eau
 
 const godCamera = new GodCamera(canvas);
-const camera = godCamera.getCamera();
+const exploreCamera = new ExploreCamera(canvas);
+let currentCameraMode = 'god';  // 'god' ou 'explore'
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -26,7 +30,9 @@ const lighting = new LightingManager(scene);
 const simState = new SimState();
 const plantRenderer = new PlantRenderer(scene, simState.gridSize);
 const interactionRenderer = new InteractionRenderer(scene, simState.gridSize);
+const particleSystem = new ParticleSystem(scene);
 const panel = new PanelManager();
+const brainViz = new BrainViz();
 const clipManager = new ClipManager();
 const timeline = new Timeline();
 
@@ -80,8 +86,12 @@ function loadClip(clip) {
     terrainGroup = createTerrain(clip.header || {});
     scene.add(terrainGroup);
 
-    // Injecter les hauteurs du terrain dans le plant renderer
+    // Injecter les hauteurs du terrain dans les renderers
     plantRenderer.setTerrainHeights(simState.terrainHeights);
+    exploreCamera.setTerrainHeights(simState.terrainHeights, simState.gridSize);
+
+    // Injecter gridSize dans le systeme de particules
+    particleSystem.setGridSize(simState.gridSize);
 
     // Eclairage initial
     lighting.setSeason(simState.season);
@@ -118,10 +128,21 @@ function initLive(wsUrl) {
                 scene.add(terrainGroup);
 
                 plantRenderer.setTerrainHeights(simState.terrainHeights);
+                exploreCamera.setTerrainHeights(simState.terrainHeights, simState.gridSize);
+                particleSystem.setGridSize(simState.gridSize);
             } else if (data.type === 'tick') {
                 // Events incrementaux
                 if (data.events) {
                     for (const e of data.events) {
+                        // Particules de decomposition a la mort
+                        if ((e.event_type || e.e) === 'died') {
+                            const evtData = e.data || e;
+                            const plantId = evtData.plant_id || evtData.p;
+                            const plant = simState.plants.get(plantId);
+                            if (plant) {
+                                particleSystem.emit(plant, simState.terrainHeights);
+                            }
+                        }
                         simState.applyEvent(e);
                     }
                 }
@@ -183,18 +204,24 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 canvas.addEventListener('click', (e) => {
+    // Pas de selection en mode explore (le clic sert au pointer lock)
+    if (currentCameraMode === 'explore') return;
+
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-    raycaster.setFromCamera(mouse, camera);
+    const activeCamera = currentCameraMode === 'god' ? godCamera.getCamera() : exploreCamera.getCamera();
+    raycaster.setFromCamera(mouse, activeCamera);
     selectedPlantId = plantRenderer.getPlantAtRaycast(raycaster);
 
     if (selectedPlantId) {
         const plant = simState.plants.get(selectedPlantId);
         panel.selectPlant(plant || null);
+        brainViz.draw(plant, null, null);  // inputs/outputs pas dispo dans le viewer
     } else {
         panel.selectPlant(null);
+        brainViz.draw(null, null, null);
     }
 });
 
@@ -219,6 +246,26 @@ document.addEventListener('keydown', (e) => {
         case '-':
             timeline.setSpeed(timeline.speed - 0.5);
             break;
+        case 'b':
+            brainViz.toggle();
+            // Redessiner avec la plante sélectionnée
+            if (selectedPlantId) {
+                const plant = simState.plants.get(selectedPlantId);
+                brainViz.draw(plant, null, null);
+            }
+            break;
+        case 'v':
+            if (currentCameraMode === 'god') {
+                currentCameraMode = 'explore';
+                // Teleporter au centre de l'ile
+                exploreCamera.setTerrainHeights(simState.terrainHeights, simState.gridSize);
+                exploreCamera.teleportTo(0, 0);
+            } else {
+                currentCameraMode = 'god';
+                // Sortir du pointer lock
+                document.exitPointerLock();
+            }
+            break;
     }
 });
 
@@ -228,6 +275,7 @@ window.addEventListener('resize', () => {
     const height = canvas.clientHeight;
     renderer.setSize(width, height);
     godCamera.resize(width, height);
+    exploreCamera.resize(width, height);
 });
 
 // --- Boucle de rendu ---
@@ -240,6 +288,16 @@ function animate() {
         const events = timeline.advance();
         for (const event of events) {
             simState.applyEvent(event);
+
+            // Particules de decomposition a la mort
+            if ((event.event_type || event.e) === 'died') {
+                const data = event.data || event;
+                const plantId = data.plant_id || data.p;
+                const plant = simState.plants.get(plantId);
+                if (plant) {
+                    particleSystem.emit(plant, simState.terrainHeights);
+                }
+            }
 
             // Flash d'invasion
             if ((event.event_type || event.e) === 'invade') {
@@ -265,7 +323,14 @@ function animate() {
 
     lighting.update();
     interactionRenderer.tick();
-    renderer.render(scene, camera);
+    particleSystem.update();
+
+    // Camera active selon le mode
+    const activeCamera = currentCameraMode === 'god' ? godCamera.getCamera() : exploreCamera.getCamera();
+    if (currentCameraMode === 'explore') {
+        exploreCamera.update();
+    }
+    renderer.render(scene, activeCamera);
 }
 
 // --- Demarrage ---
