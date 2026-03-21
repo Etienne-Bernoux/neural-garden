@@ -61,7 +61,15 @@ export class SimState {
         this.plants.clear();
         if (snapshot.plants) {
             for (const p of snapshot.plants) {
-                this.plants.set(p.id, { ...p });
+                this.plants.set(p.id, {
+                    ...p,
+                    roots: p.roots || [],
+                    traits: p.traits || {
+                        max_size: p.max_size || 20,
+                        exudate_type: p.exudate_type || 'Carbon',
+                        hidden_size: p.hidden_size || 8,
+                    },
+                });
             }
         }
 
@@ -125,9 +133,15 @@ export class SimState {
         if (plant) {
             const x = data.x ?? data.cell?.[0];
             const y = data.y ?? data.cell?.[1];
+            const isCanopy = data.is_canopy !== false; // true par defaut
             if (x !== undefined && y !== undefined) {
-                plant.cells.push([x, y]);
-                plant.biomass = plant.cells.length;
+                if (isCanopy) {
+                    plant.cells.push([x, y]);
+                    plant.biomass = plant.cells.length;
+                } else {
+                    if (!plant.roots) plant.roots = [];
+                    plant.roots.push([x, y]);
+                }
             }
         }
     }
@@ -156,11 +170,16 @@ export class SimState {
             id,
             lineage_id: data.lineage_id || data.lin || 0,
             cells: (x !== undefined && y !== undefined) ? [[x, y]] : [],
+            roots: data.roots || [],
             vitality: 100,
             energy: 50,
             biomass: 1,
             state: 'Seed',
-            traits: {},
+            traits: data.traits || {
+                max_size: data.max_size || 20,
+                exudate_type: data.exudate_type || 'Carbon',
+                hidden_size: data.hidden_size || 8,
+            },
         });
     }
 
@@ -252,7 +271,8 @@ export class SimState {
     getAlivePlants() {
         const result = [];
         for (const [, p] of this.plants) {
-            if (p.state !== 'Dead' && p.state !== 'Decomposing') {
+            // Les graines sont sous terre, les mortes et decomposees sont invisibles
+            if (p.state !== 'Dead' && p.state !== 'Decomposing' && p.state !== 'Seed') {
                 result.push(p);
             }
         }

@@ -106,28 +106,8 @@ export class PlantRenderer {
         const baseZ = cell[1] - this.gridSize / 2;
         const baseY = this._getHeight(cell);
 
-        // État Seed : icosaedre organique + halo lumineux
+        // Les graines sont sous terre — invisibles
         if (state === 'Seed') {
-            const color = plantColor(plant.lineage_id, plant.vitality, 100);
-            const seedGeo = new THREE.IcosahedronGeometry(0.5, 0);
-            const seedMat = new THREE.MeshLambertMaterial({
-                color: color.clone().multiplyScalar(0.8),
-                emissive: color.clone().multiplyScalar(0.4),
-            });
-            const mesh = new THREE.Mesh(seedGeo, seedMat);
-            mesh.position.set(baseX, baseY + 0.5, baseZ);
-            group.add(mesh);
-
-            // Halo autour de la graine
-            const haloGeo = new THREE.SphereGeometry(1.2, 8, 8);
-            const haloMat = new THREE.MeshBasicMaterial({
-                color: color,
-                transparent: true,
-                opacity: 0.15,
-            });
-            const halo = new THREE.Mesh(haloGeo, haloMat);
-            halo.position.copy(mesh.position);
-            group.add(halo);
             return;
         }
 
@@ -172,6 +152,8 @@ export class PlantRenderer {
             case 'conifer': buildConifer(group, plant, baseX, baseY, baseZ, color, params, hue); break;
         }
 
+        // Les racines sont sous terre — invisibles
+
         // Opacité basse pour les plantes en décomposition
         if (isDecomposing) {
             group.traverse(child => {
@@ -184,7 +166,8 @@ export class PlantRenderer {
     }
 
     _getPlantHash(plant) {
-        return `${plant.cells?.length || 0}-${plant.state}-${Math.round((plant.vitality || 0) * 10)}-${Math.round((plant.biomass || 0) * 10)}`;
+        const rootCount = plant.roots ? plant.roots.length : 0;
+        return `${plant.cells?.length || 0}-${rootCount}-${plant.state}-${Math.round((plant.vitality || 0) * 10)}-${Math.round((plant.biomass || 0) * 10)}`;
     }
 
     _getHeight(cell) {

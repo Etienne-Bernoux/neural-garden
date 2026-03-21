@@ -96,13 +96,14 @@ describe('SimState', () => {
         expect(state.season).toBe('Winter');
     });
 
-    it('exclut les morts de getAlivePlants', () => {
+    it('exclut les morts et les graines de getAlivePlants', () => {
         const state = new SimState();
         state.applyEvent({ e: 'born', p: 1, lin: 0, x: 10, y: 10 });
         state.applyEvent({ e: 'born', p: 2, lin: 1, x: 20, y: 20 });
+        state.applyEvent({ e: 'germinate', p: 2 });  // plante 2 germe → visible
         state.applyEvent({ e: 'died', p: 1 });
         const alive = state.getAlivePlants();
-        expect(alive).toHaveLength(1);
+        expect(alive).toHaveLength(1);  // plante 1 morte, plante 2 visible (Growing)
         expect(alive[0].id).toBe(2);
     });
 
