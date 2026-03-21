@@ -62,20 +62,24 @@ neural-garden/
 │       └── src/
 │           ├── main.rs                     # Commandes clap
 │           └── tui.rs                      # ratatui (dashboard, rendu Braille)
-├── web/                                    # Replay viewer (vanilla JS)
+├── web/                                    # Viewer 3D Three.js (DDD JS)
 │   ├── index.html
 │   ├── style.css
 │   ├── js/
-│   │   ├── app.js                          # Chargement replay/montage, boucle rAF
-│   │   ├── state.js                        # Reconstruction état depuis events + keyframes
-│   │   ├── renderer.js                     # Rendu Canvas 2D pixel art
-│   │   ├── island.js                       # Île, altitude, mares, humidité
-│   │   ├── plants.js                       # Plantes, lignées, couleurs par santé
-│   │   ├── symbiosis.js                    # Liens mycorhiziens, exsudats
-│   │   ├── particles.js                    # Feuilles, pollen, décomposition
-│   │   ├── timeline.js                     # Play, pause, scrub entre clips, vitesse
-│   │   ├── clips.js                        # Navigation entre clips du montage
-│   │   └── brain-viz.js                    # Réseau de neurones de la plante sélectionnée
+│   │   ├── domain/                         # État pur — zéro Three.js/DOM
+│   │   │   ├── state.js                    # SimState, reconstruction d'état
+│   │   │   └── clips.js                    # ClipManager, navigation clips
+│   │   ├── application/                    # Orchestration
+│   │   │   └── timeline.js                 # Play, pause, scrub, vitesse
+│   │   ├── infra/                          # Three.js (dépendance externe)
+│   │   │   ├── terrain.js                  # Mesh terrain voxel + eau
+│   │   │   ├── plants.js                   # PlantRenderer (tronc, canopée, graines)
+│   │   │   ├── symbiosis.js                # Interactions (liens, exsudats, flash)
+│   │   │   ├── lighting.js                 # Éclairage saisonnier
+│   │   │   └── camera.js                   # Caméra orthographique iso
+│   │   ├── ui/                             # DOM
+│   │   │   └── panel.js                    # Panneau latéral
+│   │   └── app.js                          # Point d'entrée
 │   └── tests/
 │       ├── features/                       # Fichiers .feature (Gherkin, français)
 │       │   └── replay.feature
@@ -112,8 +116,17 @@ Voir `.claude/rules/ddd.md` pour les règles complètes.
 
 ## Viewer web
 
-**Vanilla JS + Canvas 2D + ES modules**. Zéro build step.
+**Three.js + ES modules + structure DDD**. Zéro build step (importmap CDN).
 
-Le fichier `state.js` est le cœur : il prend le header + les events d'un clip et reconstruit l'état de la grille à n'importe quel tick via les keyframes. `clips.js` gère la navigation entre clips du montage. Le renderer dessine l'état courant.
+Le viewer suit la même séparation DDD que le moteur Rust :
 
-Mode live possible : le viewer se connecte à la simulation en cours (via WebSocket ou polling du fichier d'état).
+| Couche | Dépend de | Contenu |
+|---|---|---|
+| `domain/` | Rien (état pur) | `state.js` (SimState, reconstruction d'état depuis events + keyframes), `clips.js` (ClipManager, navigation clips) |
+| `application/` | `domain/` | `timeline.js` (play, pause, scrub, vitesse) |
+| `infra/` | `domain/` + `application/` + Three.js | `terrain.js` (mesh voxel + eau), `plants.js` (tronc, canopée, graines), `symbiosis.js` (liens, exsudats, flash), `lighting.js` (éclairage saisonnier), `camera.js` (ortho iso) |
+| `ui/` | Tout | `panel.js` (panneau latéral DOM) |
+
+`app.js` est le point d'entrée : il connecte toutes les couches et lance la boucle rAF.
+
+Mode replay : chargement d'un fichier montage JSON, navigation entre clips. Mode live : connexion WebSocket au moteur Rust, mise à jour en temps réel.

@@ -1,6 +1,8 @@
 // CLI pour Neural Garden — lance la simulation ou gere la configuration.
 
+mod live;
 mod runner;
+mod server;
 mod snapshot;
 mod tui;
 mod ui;
@@ -58,6 +60,26 @@ enum Commands {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// Servir le viewer web avec un fichier de montage
+    Replay {
+        /// Chemin vers le fichier de montage JSON
+        montage: String,
+        /// Port HTTP
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+    },
+    /// Lancer la simulation en mode live avec WebSocket
+    Live {
+        /// Chemin vers le fichier de configuration TOML
+        #[arg(short, long, default_value = "garden.toml")]
+        config: String,
+        /// Port HTTP pour le viewer
+        #[arg(long, default_value = "3000")]
+        port: u16,
+        /// Port WebSocket
+        #[arg(long, default_value = "8080")]
+        ws_port: u16,
+    },
 }
 
 #[derive(Subcommand)]
@@ -78,6 +100,12 @@ fn main() {
         Commands::Config { action } => match action {
             ConfigAction::Init => cmd_config_init(),
         },
+        Commands::Replay { montage, port } => cmd_replay(&montage, port),
+        Commands::Live {
+            config,
+            port,
+            ws_port,
+        } => cmd_live(&config, port, ws_port),
     };
 
     if let Err(e) = result {
@@ -245,6 +273,36 @@ fn run_headless(mut state: SimState, mut rng: SeededRng) -> Result<(), String> {
     println!("Simulation arretee. {} ticks effectues.", state.tick_count);
 
     Ok(())
+}
+
+/// Sert le viewer web avec un fichier de montage pour le replay.
+fn cmd_replay(montage_path: &str, port: u16) -> Result<(), String> {
+    let montage = Path::new(montage_path);
+    if !montage.exists() {
+        return Err(format!("Fichier montage introuvable: {}", montage_path));
+    }
+    let web_dir = server::find_web_dir().ok_or("Dossier web/ introuvable")?;
+    server::serve_replay(port, montage, &web_dir)
+}
+
+/// Lance la simulation en mode live avec WebSocket.
+fn cmd_live(config_path: &str, port: u16, ws_port: u16) -> Result<(), String> {
+    fs::create_dir_all("saves")
+        .map_err(|e| format!("impossible de creer le dossier saves/: {e}"))?;
+
+    let (config, seed) = load_config(Path::new(config_path))?;
+    let pop = config.initial_population;
+    let mut rng = SeededRng::new(seed);
+
+    let mut world = World::new();
+    let island = generate_island(&mut world, seed as u32, 0.3);
+    let state = SimState::with_terrain(world, island, config, &mut rng);
+
+    println!(
+        "Simulation live demarree (seed: {}, population: {})",
+        seed, pop
+    );
+    live::run_live(state, rng, port, ws_port)
 }
 
 /// Genere un fichier garden.toml par defaut.

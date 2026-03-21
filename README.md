@@ -43,6 +43,22 @@ Logs texte toutes les 100 ticks. Ctrl+C pour arrêter (sauvegarde automatique).
 cargo run --release -- run --resume saves/auto_001.json
 ```
 
+### Viewer web (replay)
+
+```bash
+cargo run --release -- replay replays/montage_005000.json
+```
+
+Ouvre le viewer Three.js dans le navigateur.
+
+### Mode live
+
+```bash
+cargo run --release -- live
+```
+
+Lance la simulation avec WebSocket. Le viewer se met à jour en temps réel.
+
 ### Générer la config par défaut
 
 ```bash

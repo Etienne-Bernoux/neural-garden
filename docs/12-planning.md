@@ -65,9 +65,9 @@ Dashboard de monitoring ratatui.
 
 **Done quand** : on peut surveiller un entraînement complet via la TUI et prendre des décisions informées.
 
-### Phase 5 — Web Viewer 3D
+### Phase 5 — Web Viewer 3D ✅ Terminée (V1)
 
-Le "documentaire nature" en Three.js.
+> Viewer Three.js avec terrain voxel, plantes, interactions visuelles, éclairage saisonnier, caméra Dieu iso, timeline replay, mode live WebSocket. Structure DDD JS. 26 tests Vitest.
 
 | Tâche | Critère de done |
 |---|---|

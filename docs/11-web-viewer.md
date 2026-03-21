@@ -1,5 +1,9 @@
 # Web Viewer — 3D Isométrique
 
+> **V1 implémentée** : terrain voxel, plantes, interactions visuelles (liens, exsudats, flash invasion), éclairage saisonnier, caméra Dieu iso, panneau stats, timeline replay, mode live WebSocket. Structure DDD (domain/application/infra/ui).
+>
+> **V2 à venir** : caméra exploration (WASD), particules de décomposition, visualisation cerveau, greedy meshing, shader vagues, transitions animées entre caméras.
+
 ## Vision
 
 Le viewer est le "documentaire nature" de Neural Garden. Un monde voxel en 3D isométrique, beau et immersif, qui donne vie à l'évolution. Deux modes de caméra : vue Dieu pour comprendre l'écosystème, exploration au sol pour l'immersion.
@@ -99,21 +103,18 @@ Le monde est construit en blocs, mapping direct entre la grille 128×128 et le r
 
 ## Modules JS
 
-| Module | Rôle |
-|---|---|
-| app.js | Init Three.js, chargement montage, boucle rAF |
-| state.js | Reconstruction état depuis events + keyframes |
-| terrain.js | Génération du mesh voxel terrain + eau |
-| plants.js | Génération des plantes voxel (tronc, canopée, graines) |
-| symbiosis.js | Liens mycorhiziens (filaments), exsudats (halos) |
-| particles.js | Particules de décomposition, pollen, feuilles |
-| lighting.js | Éclairage saisonnier, ombres, brouillard |
-| camera-god.js | Caméra orthographique + contrôles iso |
-| camera-explore.js | Caméra perspective + contrôles WASD |
-| clips.js | Navigation entre clips du montage |
-| timeline.js | Play, pause, scrub, vitesse |
-| panel.js | Panneau latéral (stats, plante sélectionnée) |
-| brain-viz.js | Visualisation du réseau de neurones |
+| Module | Couche | Rôle |
+|---|---|---|
+| domain/state.js | Domain | Reconstruction état depuis events + snapshots |
+| domain/clips.js | Domain | Navigation entre clips du montage |
+| application/timeline.js | Application | Play, pause, scrub, vitesse |
+| infra/terrain.js | Infra | Génération du mesh voxel terrain + eau |
+| infra/plants.js | Infra | Rendu des plantes (tronc, canopée, graines) |
+| infra/symbiosis.js | Infra | Liens mycorhiziens, exsudats, flash invasion |
+| infra/lighting.js | Infra | Éclairage saisonnier, ombres, brouillard |
+| infra/camera.js | Infra | Caméra orthographique isométrique |
+| ui/panel.js | UI | Panneau latéral (stats, sélection plante) |
+| app.js | — | Point d'entrée, câblage, boucle rAF |
 
 ## Mode live
 

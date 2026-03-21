@@ -118,6 +118,26 @@ garden-core/src/
 └── lib.rs
 ```
 
+### Structure DDD du web viewer
+
+```
+web/js/
+├── domain/          # État pur — zéro Three.js/DOM
+│   ├── state.js     # SimState, reconstruction d'état
+│   └── clips.js     # ClipManager, navigation clips
+├── application/     # Orchestration
+│   └── timeline.js  # Play, pause, scrub, vitesse
+├── infra/           # Three.js (dépendance externe)
+│   ├── terrain.js   # Mesh terrain voxel + eau
+│   ├── plants.js    # PlantRenderer (tronc, canopée, graines)
+│   ├── symbiosis.js # Interactions (liens, exsudats, flash)
+│   ├── lighting.js  # Éclairage saisonnier
+│   └── camera.js    # Caméra orthographique iso
+├── ui/              # DOM
+│   └── panel.js     # Panneau latéral
+└── app.js           # Point d'entrée
+```
+
 Voir `.claude/rules/ddd.md` pour les règles de dépendances entre couches.
 
 Voir `.claude/rules/tests.md` pour la stratégie de tests (unitaires, Gherkin, Playwright).

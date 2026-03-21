@@ -6,3 +6,6 @@
 garden.toml
 saves/
 replays/
+
+# Web viewer
+web/node_modules/
