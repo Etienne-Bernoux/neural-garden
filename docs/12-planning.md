@@ -83,14 +83,47 @@ Dashboard de monitoring ratatui.
 
 **Done quand** : on peut regarder un montage de clips en 3D et se balader sur l'île en live. Tests E2E Playwright passent.
 
-### Phase 6 — Polish et déploiement
+### Phase 6a — Calibrage (itératif)
+
+Boucle : Brainstorm → Plan → Work → Review → Observer → Ajuster → Repeat
 
 | Tâche | Critère de done |
 |---|---|
-| Calibrage : équilibre des paramètres (coûts, seuils, fitness) | La coopération émerge, la diversité se maintient |
-| Performance : parallélisme rayon, greedy meshing | Simulation fluide, viewer à 60fps |
-| Déploiement GitHub Pages | Viewer accessible en ligne |
-| README + démo | Documentation et vidéo/GIF de démonstration |
+| Banque compartimentée (hidden_size × exudate_type), 100 slots | La diversité génétique se maintient (spread > 20%) |
+| Placement intelligent des graines (près des plantes existantes) | Les racines se chevauchent, la symbiose peut émerger |
+| Graines fraîches (10% de la pluie = génome aléatoire) | La banque ne converge plus |
+| Population initiale 50, densité augmentée | Plus de contacts entre plantes |
+| Échange C↔N bidirectionnel (remplacer l'échange énergie) | Les plantes spécialisées C/N deviennent complémentaires |
+| LineageExtinction highlight implémenté | La disparition d'une lignée est détectée |
+| Ajustement itératif des coûts/gains (maintenance, aging, absorption, etc.) | La fitness progresse, la coopération émerge |
+
+**Done quand** : la fitness progresse au-delà de 1000, des liens mycorhiziens se forment, la banque reste diversifiée, la population est dynamique (pas statique à 13).
+
+### Phase 6b — Viewer V2
+
+| Tâche | Critère de done |
+|---|---|
+| Caméra exploration WASD (perspective, souris) | Balade au sol fonctionnelle |
+| Visualisation cerveau (brain-viz) de la plante sélectionnée | Réseau 18→H→H→8 visible avec valeurs colorées |
+| Particules de décomposition | Effet visuel à la mort des plantes |
+
+**Done quand** : on peut se balader entre les plantes et voir leur cerveau.
+
+### Phase 6c — Qualité et performance
+
+| Tâche | Critère de done |
+|---|---|
+| Tests unitaires pour actions.rs | Chaque action testée en isolation |
+| lib.rs ré-exports (facade publique) | garden-cli importe `garden_core::SimState` directement |
+| Performance : allocations hot path, lookups résiduels | Benchmark > 5000 ticks/s avec 100 plantes |
+| Docs alignées avec le code | Zéro écart significatif |
+
+### Phase 6d — Déploiement
+
+| Tâche | Critère de done |
+|---|---|
+| GitHub Pages : viewer déployé statiquement | Accessible en ligne avec un montage de démo |
+| README + GIF/vidéo de démonstration | Le projet est présentable |
 
 ## Commandes CLI
 
