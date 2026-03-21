@@ -253,14 +253,20 @@ export class SimState {
 
     _updateCounts() {
         let alive = 0;
+        let seeds = 0;
         const lineageSet = new Set();
         for (const [, p] of this.plants) {
             if (p.state !== 'Dead' && p.state !== 'Decomposing') {
-                alive++;
-                lineageSet.add(p.lineage_id);
+                if (p.state === 'Seed') {
+                    seeds++;
+                } else {
+                    alive++;
+                    lineageSet.add(p.lineage_id);
+                }
             }
         }
         this.population = alive;
+        this.seedCount = seeds;
         this.lineages = lineageSet.size;
         this.symbiosis = this.links.length;
     }

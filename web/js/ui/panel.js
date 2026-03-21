@@ -6,6 +6,7 @@ export class PanelManager {
         this.tickEl = document.getElementById('tick');
         this.seasonEl = document.getElementById('season');
         this.populationEl = document.getElementById('population');
+        this.seedsEl = document.getElementById('seeds');
         this.lineagesEl = document.getElementById('lineages');
         this.symbiosisEl = document.getElementById('symbiosis');
         this.fitnessEl = document.getElementById('fitness');
@@ -21,6 +22,7 @@ export class PanelManager {
         if (this.tickEl) this.tickEl.textContent = state.tick;
         if (this.seasonEl) this.seasonEl.textContent = state.season;
         if (this.populationEl) this.populationEl.textContent = state.population;
+        if (this.seedsEl) this.seedsEl.textContent = state.seedCount || 0;
         if (this.lineagesEl) this.lineagesEl.textContent = state.lineages;
         if (this.symbiosisEl) this.symbiosisEl.textContent = state.symbiosis;
         if (this.fitnessEl) this.fitnessEl.textContent = state.bestFitness.toFixed(1);
