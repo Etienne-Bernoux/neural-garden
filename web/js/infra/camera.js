@@ -49,8 +49,11 @@ export class GodCamera {
 
         this.canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
-            // Zoom
+            // Zoom avec limites
             const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+            const newTop = this.camera.top * zoomFactor;
+            // Limites : min 10 (zoom max), max 70 (zoom min — pas de losange visible)
+            if (newTop < 10 || newTop > 70) return;
             this.camera.left *= zoomFactor;
             this.camera.right *= zoomFactor;
             this.camera.top *= zoomFactor;
