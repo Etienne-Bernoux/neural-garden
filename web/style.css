@@ -5,7 +5,9 @@ body { background: #1a1a2e; color: #e0e0e0; font-family: 'Courier New', monospac
 #canvas { flex: 1; }
 
 #panel {
-    width: 280px;
+    min-width: 320px;
+    width: 320px;
+    flex-shrink: 0;
     background: #16213e;
     padding: 16px;
     overflow-y: auto;
