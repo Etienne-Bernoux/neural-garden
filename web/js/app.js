@@ -230,7 +230,10 @@ document.addEventListener('keydown', (e) => {
     switch (e.key) {
         case ' ':
             e.preventDefault();
-            timeline.togglePlay();
+            // En mode explore, espace = saut (gere par camera-explore)
+            if (currentCameraMode !== 'explore') {
+                timeline.togglePlay();
+            }
             break;
         case 'ArrowLeft':
             loadClip(clipManager.prevClip());
