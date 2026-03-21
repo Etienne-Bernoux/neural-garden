@@ -1,11 +1,13 @@
 // Mode live : simulation avec serveur WebSocket pour le viewer temps reel.
 
+use std::fs;
 use std::net::TcpListener;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
+use tiny_http::{Header, Response, Server};
 use tungstenite::accept;
 
 use garden_core::application::sim::{run_tick, SimState};
@@ -16,7 +18,7 @@ use garden_core::infra::dto::DomainEventDto;
 use garden_core::infra::persistence::{auto_save, get_auto_save_slot, should_auto_save};
 use garden_core::infra::rng::SeededRng;
 
-use crate::server::{find_web_dir, serve_replay};
+use crate::server::find_web_dir;
 
 /// Lance la simulation en mode live avec serveur WebSocket.
 pub fn run_live(
@@ -34,14 +36,11 @@ pub fn run_live(
     })
     .map_err(|e| e.to_string())?;
 
-    // Thread serveur HTTP (sert le viewer)
+    // Thread serveur HTTP (sert le viewer avec injection auto du parametre WebSocket)
     let web_dir = find_web_dir().ok_or("Dossier web/ introuvable")?;
     let web_dir_clone = web_dir.clone();
     thread::spawn(move || {
-        // Pour le mode live, pas de montage.json — le viewer utilise le WebSocket.
-        // On sert un fichier inexistant ; le viewer gere le 404.
-        let empty_montage = Path::new("/dev/null");
-        let _ = serve_replay(http_port, empty_montage, &web_dir_clone);
+        let _ = serve_live_http(http_port, ws_port, &web_dir_clone);
     });
 
     println!("Viewer disponible sur http://localhost:{}", http_port);
@@ -169,6 +168,74 @@ fn accept_loop(
             }
             Err(_) => break,
         }
+    }
+}
+
+// --- Serveur HTTP dedie au mode live ---
+
+/// Serveur HTTP qui sert le viewer avec injection automatique du parametre WebSocket.
+fn serve_live_http(http_port: u16, ws_port: u16, web_dir: &Path) -> Result<(), String> {
+    let addr = format!("0.0.0.0:{}", http_port);
+    let server = Server::http(&addr).map_err(|e| format!("Erreur serveur HTTP live: {}", e))?;
+
+    let redirect_script = format!(
+        r#"<script>if(!location.search.includes('live='))location.search='live=ws://localhost:{}';</script>"#,
+        ws_port
+    );
+
+    for request in server.incoming_requests() {
+        let url = request.url().to_string();
+        let url_path = url.split('?').next().unwrap_or(&url);
+
+        let response = if url_path == "/" || url_path == "/index.html" {
+            // Injecter le script de redirection auto dans le HTML
+            match fs::read_to_string(web_dir.join("index.html")) {
+                Ok(html) => {
+                    let modified = html.replace("</head>", &format!("{}</head>", redirect_script));
+                    let header = Header::from_bytes("Content-Type", "text/html").unwrap();
+                    Response::from_string(modified).with_header(header)
+                }
+                Err(_) => Response::from_string("404 Not Found").with_status_code(404),
+            }
+        } else if url_path == "/montage.json" {
+            // Pas de montage en mode live
+            Response::from_string("404 Not Found").with_status_code(404)
+        } else if url_path == "/style.css" {
+            match safe_live_path(web_dir, "style.css") {
+                Some(data) => {
+                    let header = Header::from_bytes("Content-Type", "text/css").unwrap();
+                    Response::from_data(data).with_header(header)
+                }
+                None => Response::from_string("404 Not Found").with_status_code(404),
+            }
+        } else if url_path.starts_with("/js/") {
+            match safe_live_path(web_dir, &url_path[1..]) {
+                Some(data) => {
+                    let header =
+                        Header::from_bytes("Content-Type", "application/javascript").unwrap();
+                    Response::from_data(data).with_header(header)
+                }
+                None => Response::from_string("403 Forbidden").with_status_code(403),
+            }
+        } else {
+            Response::from_string("404 Not Found").with_status_code(404)
+        };
+
+        let _ = request.respond(response);
+    }
+
+    Ok(())
+}
+
+/// Lit un fichier en verifiant qu'il ne sort pas du dossier web (protection directory traversal).
+fn safe_live_path(web_dir: &Path, relative: &str) -> Option<Vec<u8>> {
+    let path = web_dir.join(relative);
+    let canonical = path.canonicalize().ok()?;
+    let web_canonical = web_dir.canonicalize().ok()?;
+    if canonical.starts_with(&web_canonical) {
+        fs::read(&canonical).ok()
+    } else {
+        None
     }
 }
 

@@ -6,7 +6,7 @@ import * as THREE from 'three';
 export class GodCamera {
     constructor(canvas) {
         const aspect = canvas.clientWidth / canvas.clientHeight;
-        const frustum = 80;
+        const frustum = 100;  // voir toute l'ile
         this.camera = new THREE.OrthographicCamera(
             -frustum * aspect, frustum * aspect,
             frustum, -frustum,
@@ -14,8 +14,8 @@ export class GodCamera {
         );
 
         // Position iso classique
-        this.camera.position.set(100, 100, 100);
-        this.camera.lookAt(0, 0, 0);
+        this.camera.position.set(120, 120, 120);
+        this.camera.lookAt(0, 5, 0);  // regarder legerement au-dessus du centre
 
         this.canvas = canvas;
         this.isDragging = false;
@@ -61,9 +61,9 @@ export class GodCamera {
 
     _updatePosition() {
         this.camera.position.set(
-            this.target.x + 100,
-            100,
-            this.target.z + 100
+            this.target.x + 120,
+            120,
+            this.target.z + 120
         );
         this.camera.lookAt(this.target);
     }

@@ -18,6 +18,7 @@ const godCamera = new GodCamera(canvas);
 const camera = godCamera.getCamera();
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 renderer.shadowMap.enabled = true;
 
@@ -50,6 +51,11 @@ async function init() {
 async function loadMontage(url) {
     try {
         const response = await fetch(url);
+        if (!response.ok) {
+            console.warn('Pas de montage disponible');
+            panel.updateClipInfo('Aucun montage');
+            return;
+        }
         const montage = await response.json();
 
         clipManager.loadMontage(montage);
@@ -57,6 +63,7 @@ async function loadMontage(url) {
         panel.updateClipInfo(clipManager.clipInfo());
     } catch (e) {
         console.error('Erreur chargement montage:', e);
+        panel.updateClipInfo('Erreur chargement');
     }
 }
 

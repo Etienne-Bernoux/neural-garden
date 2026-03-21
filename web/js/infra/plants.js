@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TERRAIN_SCALE } from './terrain.js';
 
 // Couleur de lignée : teinte unique par lineage_id
 function lineageHue(lineageId) {
@@ -170,8 +171,8 @@ export class PlantRenderer {
     }
 
     _getHeight(cell) {
-        // Hauteur du terrain — sera injectée par app.js
-        return this._terrainHeights ? (this._terrainHeights[cell[1]]?.[cell[0]] || 0) * 10 : 1;
+        // Hauteur du terrain — meme echelle que terrain.js
+        return this._terrainHeights ? (this._terrainHeights[cell[1]]?.[cell[0]] || 0) * TERRAIN_SCALE : 1;
     }
 
     setTerrainHeights(heights) {

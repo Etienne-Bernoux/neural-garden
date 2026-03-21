@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TERRAIN_SCALE } from './terrain.js';
 
 /**
  * Gestionnaire de rendu des interactions (symbiose, exsudats, invasion).
@@ -25,8 +26,8 @@ export class InteractionRenderer {
             const posB = link.pos_b;
             if (!posA || !posB) continue;
 
-            const heightA = (terrainHeights?.[posA[1]]?.[posA[0]] || 0) * 10 + 0.2;
-            const heightB = (terrainHeights?.[posB[1]]?.[posB[0]] || 0) * 10 + 0.2;
+            const heightA = (terrainHeights?.[posA[1]]?.[posA[0]] || 0) * TERRAIN_SCALE + 0.2;
+            const heightB = (terrainHeights?.[posB[1]]?.[posB[0]] || 0) * TERRAIN_SCALE + 0.2;
 
             const start = new THREE.Vector3(posA[0] - this.gridSize/2, heightA, posA[1] - this.gridSize/2);
             const end = new THREE.Vector3(posB[0] - this.gridSize/2, heightB, posB[1] - this.gridSize/2);
@@ -57,7 +58,7 @@ export class InteractionRenderer {
         this._clearGroup(this.exudateMeshes);
 
         for (const ex of exudates) {
-            const height = (terrainHeights?.[ex.y]?.[ex.x] || 0) * 10 + 0.1;
+            const height = (terrainHeights?.[ex.y]?.[ex.x] || 0) * TERRAIN_SCALE + 0.1;
             const color = ex.type === 'carbon' ? 0xd4a017 : 0x3498db;
             const radius = 0.5 + ex.intensity * 2;
 
@@ -82,7 +83,7 @@ export class InteractionRenderer {
      * @param {number} y
      */
     flashInvasion(x, y, terrainHeights) {
-        const height = (terrainHeights?.[y]?.[x] || 0) * 10 + 1;
+        const height = (terrainHeights?.[y]?.[x] || 0) * TERRAIN_SCALE + 1;
         const geo = new THREE.BoxGeometry(1, 2, 1);
         const mat = new THREE.MeshBasicMaterial({
             color: 0xff0000,
