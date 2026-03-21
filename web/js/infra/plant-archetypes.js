@@ -40,17 +40,17 @@ export function buildGrass(group, plant, baseX, baseY, baseZ, color, params, hue
     // Texture de touffe parametree par la lignee
     const grassTex = hue !== undefined ? tuffTexture(hue) : null;
 
-    // Nombre de touffes : 2-4 selon biomasse
-    const clusterCount = Math.min(2 + Math.floor(biomass / 8), 4);
+    // Nombre de touffes : 2-5 selon biomasse
+    const clusterCount = Math.min(2 + Math.floor(biomass / 3), 5);
     const blockGeo = new THREE.BoxGeometry(1.0, 0.7, 1.0);
     let blockIdx = 0;
 
     for (let c = 0; c < clusterCount; c++) {
-        const ox = (prng(id, c * 2) - 0.5) * 2.0;
-        const oz = (prng(id, c * 2 + 1) - 0.5) * 2.0;
-        // Chaque touffe : 1-3 blocs empilés (plus hauts)
-        const height = Math.max(1, Math.floor(biomass / 8));
-        for (let h = 0; h < Math.min(height, 3); h++) {
+        const ox = (prng(id, c * 2) - 0.5) * 3.0;
+        const oz = (prng(id, c * 2 + 1) - 0.5) * 3.0;
+        // Chaque touffe : 1-4 blocs empilés
+        const height = Math.max(1, Math.floor(biomass / 3));
+        for (let h = 0; h < Math.min(height, 4); h++) {
             const variation = prng(id, blockIdx + 10) * 0.15;
             const matOpts = { color: grassColor.clone().offsetHSL(0, 0, variation - 0.07) };
             if (grassTex) matOpts.map = grassTex;
@@ -88,11 +88,12 @@ export function buildBush(group, plant, baseX, baseY, baseZ, color, params, hue)
             ? color.clone().lerp(new THREE.Color(0x808060), 0.4)
             : color;
 
-    // Tronc court avec texture d'ecorce
-    const trunkGeo = new THREE.BoxGeometry(0.5, 1.5, 0.5);
+    // Tronc court avec texture d'ecorce — grandit avec la biomasse
+    const bushTrunkH = Math.min(1.0 + biomass * 0.3, 4.0);
+    const trunkGeo = new THREE.BoxGeometry(0.5, bushTrunkH, 0.5);
     const barkTex = barkTexture();
     const trunkMat = new THREE.MeshLambertMaterial({ map: barkTex, color: trunkColor(isDying) });
-    group.add(block(trunkGeo, trunkMat, baseX, baseY + 0.75, baseZ));
+    group.add(block(trunkGeo, trunkMat, baseX, baseY + bushTrunkH / 2, baseZ));
 
     // Texture de feuillage parametree par la lignee
     const foliageTex = hue !== undefined ? foliageTexture(hue) : null;
@@ -100,8 +101,8 @@ export function buildBush(group, plant, baseX, baseY, baseZ, color, params, hue)
     // Canopée sphérique (spheres basse resolution = organique)
     const spread = exudateType === 'nitrogen' ? 1.6 : 1.2;
     const verticalScale = exudateType === 'nitrogen' ? 0.7 : 1.0;
-    const radius = Math.max(1.2, Math.min(Math.sqrt(biomass) * 0.8, 3.0));
-    const canopyBase = baseY + 1.5;
+    const radius = Math.max(1.2, Math.min(Math.sqrt(biomass) * 1.2, 4.0));
+    const canopyBase = baseY + bushTrunkH;
     const blockGeo = new THREE.SphereGeometry(0.6, 6, 6);
     let count = 0;
 
@@ -164,7 +165,7 @@ export function buildTree(group, plant, baseX, baseY, baseZ, color, params, hue)
             : color;
 
     // Tronc avec texture d'ecorce
-    const trunkHeight = Math.min(5 + Math.floor(biomass / 6), 12);
+    const trunkHeight = Math.min(3 + Math.floor(biomass * 0.8), 15);
     const trunkGeo = new THREE.BoxGeometry(0.6, 0.8, 0.6);
     const barkTex = barkTexture();
     const trunkMat = new THREE.MeshLambertMaterial({ map: barkTex, color: trunkColor(isDying) });
@@ -180,7 +181,7 @@ export function buildTree(group, plant, baseX, baseY, baseZ, color, params, hue)
     const canopyBase = baseY + trunkHeight * 0.8;
     const isParapluie = exudateType === 'nitrogen';
     const detailed = hiddenSize > 10;
-    const radiusBase = Math.max(2.0, Math.min(Math.sqrt(biomass) * 1.0, 4.5));
+    const radiusBase = Math.max(2.0, Math.min(Math.sqrt(biomass) * 1.5, 6.0));
     const radius = isStressed ? radiusBase * 0.8 : isDying ? radiusBase * 0.5 : radiusBase;
     const canopyHeight = isParapluie ? 2 : Math.max(3, Math.floor(radius));
     const blockSize = detailed ? 1.0 : 1.2;
@@ -250,7 +251,7 @@ export function buildConifer(group, plant, baseX, baseY, baseZ, color, params, h
     const foliageTex = hue !== undefined ? foliageTexture(hue) : null;
 
     // Tronc fin et haut avec texture d'ecorce
-    const trunkHeight = Math.min(8 + Math.floor(biomass / 8), 15);
+    const trunkHeight = Math.min(4 + Math.floor(biomass * 1.0), 18);
     const trunkGeo = new THREE.BoxGeometry(0.4, 0.8, 0.4);
     const barkTex = barkTexture();
     const trunkMat = new THREE.MeshLambertMaterial({ map: barkTex, color: trunkColor(isDying) });
