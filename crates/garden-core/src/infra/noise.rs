@@ -13,7 +13,7 @@ pub fn generate_terrain(world: &mut World, seed: u32) {
     let perlin = Perlin::new(seed);
     let size = GRID_SIZE as f64;
     let center = size / 2.0;
-    let max_radius = center * 0.85; // l'ile occupe ~85% de la grille
+    let max_radius = center * 0.95; // l'ile occupe ~95% de la grille
 
     for y in 0..GRID_SIZE {
         for x in 0..GRID_SIZE {
@@ -30,8 +30,9 @@ pub fn generate_terrain(world: &mut World, seed: u32) {
             let dx = x as f64 - center;
             let dy = y as f64 - center;
             let dist = (dx * dx + dy * dy).sqrt();
-            let mask = 1.0 - (dist / max_radius).clamp(0.0, 1.0);
-            let mask = mask * mask; // courbe plus douce
+            let ratio = (dist / max_radius).clamp(0.0, 1.0);
+            // Courbe douce : plateau au centre, chute progressive sur les bords
+            let mask = if ratio < 0.6 { 1.0 } else { 1.0 - ((ratio - 0.6) / 0.4).powi(2) };
 
             // Altitude finale : combinaison bruit + masque, normalisee [0, 1]
             let altitude = ((noise_val + 1.0) / 2.0 * mask).clamp(0.0, 1.0) as f32;

@@ -137,7 +137,7 @@ fn cmd_run(config_path: &str, resume: Option<&str>, no_tui: bool) -> Result<(), 
 
         // Generer le terrain Perlin
         let mut world = World::new();
-        let island = generate_island(&mut world, seed as u32, 0.3);
+        let island = generate_island(&mut world, seed as u32, 0.2);
         let state = SimState::with_terrain(world, island, config, &mut rng);
 
         println!("Simulation demarree (seed: {}, population: {})", seed, pop);
@@ -295,7 +295,7 @@ fn cmd_live(config_path: &str, port: u16, ws_port: u16) -> Result<(), String> {
     let mut rng = SeededRng::new(seed);
 
     let mut world = World::new();
-    let island = generate_island(&mut world, seed as u32, 0.3);
+    let island = generate_island(&mut world, seed as u32, 0.2);
     let state = SimState::with_terrain(world, island, config, &mut rng);
 
     println!(

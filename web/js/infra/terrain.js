@@ -31,7 +31,7 @@ export function createTerrain(header) {
     const positions = geo.attributes.position;
     const colors = new Float32Array(positions.count * 3);
 
-    const seaThreshold = 0.3;  // meme seuil que le niveau de la mer
+    const seaThreshold = 0.2;  // meme seuil que le niveau de la mer
     const waterColor = new THREE.Color(0x1a6b8a);
 
     for (let i = 0; i < positions.count; i++) {
@@ -72,7 +72,7 @@ export function createTerrain(header) {
     group.add(mesh);
 
     // Eau : plan au niveau de la mer
-    const seaLevel = 0.3 * TERRAIN_SCALE;
+    const seaLevel = 0.2 * TERRAIN_SCALE;
     const waterGeo = new THREE.PlaneGeometry(gridSize * 20, gridSize * 20);
     const waterMat = new THREE.MeshPhongMaterial({
         color: 0x1a6b8a,
