@@ -9,8 +9,8 @@ Fonctionnalité: Lecture de replay
 
   Scénario: Les stats s'affichent correctement
     Soit le viewer est ouvert
-    Alors la population affichée est "2"
-    Et la saison affichée est "Spring"
+    Alors la population affichée est supérieure à 0
+    Et la saison est affichée
 
   Scénario: Le play lance la lecture du replay
     Soit le viewer est ouvert

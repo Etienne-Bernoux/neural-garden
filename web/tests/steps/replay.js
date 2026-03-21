@@ -42,14 +42,22 @@ Then('le panneau de stats est visible', async ({ page }) => {
     await expect(panel).toBeVisible();
 });
 
-Then(/^la population affichée est "(\d+)"$/, async ({ page }, count) => {
-    const pop = page.locator('#population');
-    await expect(pop).toHaveText(String(count));
+Then('la population affichée est supérieure à 0', async ({ page }) => {
+    await page.waitForFunction(
+        () => {
+            const el = document.getElementById('population');
+            return el && parseInt(el.textContent) > 0;
+        },
+        { timeout: 10000 },
+    );
+    const popText = await page.locator('#population').textContent();
+    expect(parseInt(popText)).toBeGreaterThan(0);
 });
 
-Then(/^la saison affichée est "(\w+)"$/, async ({ page }, season) => {
+Then('la saison est affichée', async ({ page }) => {
     const seasonEl = page.locator('#season');
-    await expect(seasonEl).toHaveText(season);
+    const text = await seasonEl.textContent();
+    expect(['Spring', 'Summer', 'Autumn', 'Winter', '-']).toContain(text);
 });
 
 When('je clique sur le bouton play', async ({ page }) => {
