@@ -79,6 +79,26 @@ impl Cell {
     pub fn set_exudates(&mut self, value: f32) {
         self.exudates = value.clamp(0.0, 1.0);
     }
+
+    /// Reconstruit une cellule a partir de ses champs bruts.
+    /// Utilise pour la deserialisation.
+    pub(crate) fn from_raw(
+        altitude: f32,
+        carbon: f32,
+        nitrogen: f32,
+        humidity: f32,
+        light: f32,
+        exudates: f32,
+    ) -> Self {
+        let mut cell = Self::new();
+        cell.set_altitude(altitude);
+        cell.set_carbon(carbon);
+        cell.set_nitrogen(nitrogen);
+        cell.set_humidity(humidity);
+        cell.set_light(light);
+        cell.set_exudates(exudates);
+        cell
+    }
 }
 
 impl Default for Cell {
@@ -147,6 +167,12 @@ impl World {
             }); // Ouest
         }
         result
+    }
+
+    /// Reconstruit un World a partir d'un vecteur de cellules.
+    /// Utilise pour la deserialisation.
+    pub(crate) fn from_cells(cells: Vec<Cell>) -> Self {
+        Self { cells }
     }
 }
 

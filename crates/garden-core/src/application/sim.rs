@@ -6,6 +6,7 @@ use super::actions::phase_actions;
 use super::config::SimConfig;
 use super::environment::{phase_decomposition, phase_environment};
 use super::lifecycle::phase_lifecycle;
+use super::metrics::{detect_highlights, update_metrics, SimMetrics};
 use crate::application::evolution::{GenerationCounter, PlantStats, SeedBank};
 use crate::application::perception::compute_inputs;
 use crate::application::season::SeasonCycle;
@@ -31,6 +32,7 @@ pub struct SimState {
     pub next_plant_id: u64,
     pub tick_count: u32,
     pub config: SimConfig,
+    pub metrics: SimMetrics,
 }
 
 impl SimState {
@@ -47,7 +49,23 @@ impl SimState {
     pub fn with_config(sea_level: f32, config: SimConfig, rng: &mut dyn Rng) -> Self {
         let mut world = World::new();
         let island = Island::generate(&mut world, sea_level, rng);
+        Self::populate(world, island, config, rng)
+    }
 
+    /// Cree un SimState avec un World et une Island pre-construits (ex: terrain Perlin).
+    /// Le World doit deja avoir les altitudes definies. L'Island doit etre coherente avec le World.
+    pub fn with_terrain(
+        world: World,
+        island: Island,
+        config: SimConfig,
+        rng: &mut dyn Rng,
+    ) -> Self {
+        Self::populate(world, island, config, rng)
+    }
+
+    /// Logique commune de peuplement : enrichit le sol, initialise la banque de graines
+    /// et place les plantes initiales sur les cellules terrestres.
+    fn populate(mut world: World, island: Island, config: SimConfig, rng: &mut dyn Rng) -> Self {
         // Enrichir le sol initial des cellules terrestres
         let land_cells = island.land_cells();
         for pos in land_cells {
@@ -97,12 +115,47 @@ impl SimState {
             brains,
             symbiosis: SymbiosisNetwork::new(),
             seed_bank,
-            season_cycle: SeasonCycle::default(),
+            season_cycle: SeasonCycle::new(config.ticks_per_season),
             generation_counter: GenerationCounter::new(),
             plant_stats,
             next_plant_id,
             tick_count: 0,
             config,
+            metrics: SimMetrics::new(),
+        }
+    }
+
+    /// Reconstruit un SimState a partir de tous ses champs.
+    /// Utilise pour la deserialisation.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_raw(
+        world: World,
+        island: Island,
+        plants: Vec<Plant>,
+        brains: HashMap<u64, Brain>,
+        symbiosis: SymbiosisNetwork,
+        seed_bank: SeedBank,
+        season_cycle: SeasonCycle,
+        generation_counter: GenerationCounter,
+        plant_stats: HashMap<u64, PlantStats>,
+        next_plant_id: u64,
+        tick_count: u32,
+        config: SimConfig,
+    ) -> Self {
+        Self {
+            world,
+            island,
+            plants,
+            brains,
+            symbiosis,
+            seed_bank,
+            season_cycle,
+            generation_counter,
+            plant_stats,
+            next_plant_id,
+            tick_count,
+            config,
+            metrics: SimMetrics::new(),
         }
     }
 
@@ -142,6 +195,32 @@ pub fn run_tick(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
     phase_decomposition(state);
 
     state.tick_count += 1;
+
+    // Detecter le changement de saison
+    let season_changed = {
+        // La saison est deja avancee dans phase_environment, on detecte le changement
+        // en comparant le tick courant avec les bornes de saison
+        None // Le CLI gere la detection avant/apres — ici on laisse le CLI passer l'info
+    };
+
+    // Mettre a jour les metriques agregees
+    let best_fitness = state.seed_bank.best_fitness();
+    let symbiosis_count = state.symbiosis.link_count();
+    update_metrics(
+        &mut state.metrics,
+        &state.plants,
+        symbiosis_count,
+        best_fitness,
+    );
+
+    // Detecter les highlights
+    detect_highlights(
+        &mut state.metrics,
+        &events,
+        state.tick_count,
+        best_fitness,
+        season_changed,
+    );
 
     events
 }
@@ -373,6 +452,62 @@ mod tests {
             state.plants.len() >= initial_count,
             "la simulation devrait avoir ajoute des plantes apres {} ticks",
             60
+        );
+    }
+
+    #[test]
+    fn les_plantes_vieillissent_et_perdent_de_la_vitalite() {
+        let mut rng = MockRng::new(0.3, 0.07);
+        let mut state = SimState::new(0.5, 1, &mut rng);
+
+        // Faire germer la plante
+        for plant in &mut state.plants {
+            plant.germinate();
+        }
+
+        let vitality_before = state.plants[0].vitality().value();
+
+        // Faire tourner 500 ticks — le vieillissement doit drainer la vitalite
+        for _ in 0..500 {
+            run_tick(&mut state, &mut rng);
+        }
+
+        let vitality_after = state.plants[0].vitality().value();
+        assert!(
+            vitality_after < vitality_before,
+            "la vitalite devrait avoir baisse apres 500 ticks de vieillissement : avant={}, apres={}",
+            vitality_before,
+            vitality_after
+        );
+    }
+
+    #[test]
+    fn la_famine_draine_la_vitalite() {
+        let mut rng = MockRng::new(0.3, 0.07);
+        let mut state = SimState::new(0.5, 1, &mut rng);
+
+        // Faire germer la plante
+        for plant in &mut state.plants {
+            plant.germinate();
+        }
+
+        // Vider l'energie de la plante
+        let energy = state.plants[0].energy().value();
+        state.plants[0].consume_energy(energy);
+
+        let vitality_before = state.plants[0].vitality().value();
+
+        // Quelques ticks suffisent — la famine doit drainer la vitalite
+        for _ in 0..5 {
+            run_tick(&mut state, &mut rng);
+        }
+
+        let vitality_after = state.plants[0].vitality().value();
+        assert!(
+            vitality_after < vitality_before,
+            "la vitalite devrait avoir baisse par la famine : avant={}, apres={}",
+            vitality_before,
+            vitality_after
         );
     }
 

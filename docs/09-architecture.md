@@ -33,9 +33,21 @@ neural-garden/
 │   │   │   │   ├── perception.rs           # Service : calcul des 18 inputs (gradients sur racines)
 │   │   │   │   ├── evolution.rs            # Banque de graines, fitness, crossover, mutations
 │   │   │   │   ├── season.rs               # Cycle saisonnier (4 saisons, 250 ticks chacune)
-│   │   │   │   └── highlights.rs           # Service : détection des moments clés pour le replay
-│   │   │   ├── infra/                      # Sérialisation, I/O, config (à implémenter — Phase 3)
-│   │   │   │   └── mod.rs                  # (vide pour l'instant)
+│   │   │   │   ├── highlights.rs           # Service : détection des moments clés pour le replay
+│   │   │   │   └── metrics.rs              # Métriques agrégées (population, lignées, historiques)
+│   │   │   ├── infra/                      # Sérialisation, I/O, config
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── rng.rs                  # SeededRng (rand) — implémente trait domain::Rng
+│   │   │   │   ├── noise.rs                # Génération Perlin noise pour les îles
+│   │   │   │   ├── config.rs               # Chargement config TOML
+│   │   │   │   ├── persistence.rs          # Sauvegarde/chargement SimState en JSON
+│   │   │   │   ├── replay.rs               # Enregistrement replay avec filtrage highlights
+│   │   │   │   └── dto/                    # DTOs serde miroir des types domain
+│   │   │   │       ├── mod.rs
+│   │   │   │       ├── plant.rs
+│   │   │   │       ├── world.rs
+│   │   │   │       ├── sim.rs
+│   │   │   │       └── event.rs
 │   │   │   └── lib.rs                      # Ré-exports publics
 │   │   └── tests/
 │   │       ├── features/                   # Fichiers .feature (Gherkin, français)

@@ -490,6 +490,64 @@ impl Plant {
     pub fn is_fully_decomposed(&self) -> bool {
         self.decomposition_remaining == 0 && self.state == PlantState::Decomposing
     }
+
+    /// Reconstruit une plante a partir de tous ses champs bruts.
+    /// Utilise pour la deserialisation — bypass du constructeur normal.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_raw(
+        id: u64,
+        state: PlantState,
+        age: u32,
+        vitality: f32,
+        energy: f32,
+        biomass: u16,
+        canopy: Vec<Pos>,
+        roots: Vec<Pos>,
+        genetics: GeneticTraits,
+        lineage: Lineage,
+        decomposition_remaining: u32,
+        carbon_to_release: f32,
+        nitrogen_to_release: f32,
+    ) -> Self {
+        let v_cap = vitality_cap(
+            &Biomass::new(biomass, genetics.max_size()),
+            genetics.vitality_factor(),
+        );
+        let e_cap = energy_cap(
+            &Biomass::new(biomass, genetics.max_size()),
+            genetics.energy_factor(),
+        );
+        Self {
+            id,
+            state,
+            age,
+            vitality: Vitality::new(vitality, v_cap),
+            energy: Energy::new(energy, e_cap),
+            biomass: Biomass::new(biomass, genetics.max_size()),
+            canopy,
+            roots,
+            genetics,
+            lineage,
+            decomposition_remaining,
+            carbon_to_release,
+            nitrogen_to_release,
+        }
+    }
+
+    /// Accesseur pour decomposition_remaining (pour la serialisation).
+    pub fn decomposition_remaining(&self) -> u32 {
+        self.decomposition_remaining
+    }
+
+    /// Accesseur pour carbon_to_release (pour la serialisation).
+    pub fn carbon_to_release(&self) -> f32 {
+        self.carbon_to_release
+    }
+
+    /// Accesseur pour nitrogen_to_release (pour la serialisation).
+    pub fn nitrogen_to_release(&self) -> f32 {
+        self.nitrogen_to_release
+    }
 }
 
 #[cfg(test)]

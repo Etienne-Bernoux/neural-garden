@@ -158,6 +158,22 @@ impl SeedBank {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// Reconstruit une banque a partir des entrees brutes.
+    /// Utilise pour la deserialisation.
+    pub(crate) fn from_entries(entries: Vec<(Genome, f32)>, capacity: usize) -> Self {
+        Self { entries, capacity }
+    }
+
+    /// Retourne une reference sur les entrees (genome, fitness).
+    pub fn entries(&self) -> &[(Genome, f32)] {
+        &self.entries
+    }
+
+    /// Retourne la capacite maximale de la banque.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
 }
 
 /// Crossover uniforme de deux cerveaux de meme hidden_size.
@@ -295,6 +311,12 @@ impl GenerationCounter {
 
     pub fn current(&self) -> u64 {
         self.count
+    }
+
+    /// Reconstruit un compteur a partir d'une valeur brute.
+    /// Utilise pour la deserialisation.
+    pub(crate) fn from_count(count: u64) -> Self {
+        Self { count }
     }
 }
 

@@ -38,12 +38,20 @@ pub struct SimConfig {
     pub germination_nitrogen_min: f32,
     pub dormancy_timeout: u32,
 
+    // Mortalite naturelle
+    pub aging_base_rate: f32,
+    pub starvation_threshold: f32,
+    pub starvation_drain_rate: f32,
+
     // Decomposition
     pub decomposition_ticks: u32,
 
     // Banque de graines
     pub seed_bank_capacity: usize,
     pub initial_population: usize,
+
+    // Saisons
+    pub ticks_per_season: u32,
 }
 
 impl Default for SimConfig {
@@ -82,10 +90,16 @@ impl Default for SimConfig {
             germination_nitrogen_min: 0.2,
             dormancy_timeout: 200,
 
+            aging_base_rate: 0.05,
+            starvation_threshold: 0.1,
+            starvation_drain_rate: 2.0,
+
             decomposition_ticks: 50,
 
             seed_bank_capacity: 50,
             initial_population: 30,
+
+            ticks_per_season: 250,
         }
     }
 }

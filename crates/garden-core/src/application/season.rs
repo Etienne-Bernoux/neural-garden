@@ -103,6 +103,20 @@ impl SeasonCycle {
     pub fn year(&self) -> u32 {
         self.current_tick / (self.ticks_per_season * 4)
     }
+
+    /// Reconstruit un cycle a partir de ses champs bruts.
+    /// Utilise pour la deserialisation.
+    pub(crate) fn from_raw(current_tick: u32, ticks_per_season: u32) -> Self {
+        Self {
+            current_tick,
+            ticks_per_season,
+        }
+    }
+
+    /// Retourne le nombre de ticks par saison.
+    pub fn ticks_per_season(&self) -> u32 {
+        self.ticks_per_season
+    }
 }
 
 impl Default for SeasonCycle {

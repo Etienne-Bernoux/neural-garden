@@ -95,14 +95,26 @@ garden-core/src/
 │   ├── config.rs     # SimConfig — paramètres de simulation
 │   ├── sim.rs        # SimState, run_tick — orchestration du game loop
 │   ├── environment.rs # Phase environnement (pluie, ombrage, décomposition)
-│   ├── actions.rs    # Phase actions (croissance, invasion, défense, exsudats, symbiose)
-│   ├── lifecycle.rs  # Phase vie/mort (reproduction, germination, pluie de graines, GC)
-│   ├── perception.rs # Service : calcul des 18 inputs (gradients sur racines)
+│   ├── actions.rs    # Phase actions (croissance, invasion, défense, symbiose)
+│   ├── lifecycle.rs  # Phase vie/mort (reproduction, germination, GC)
+│   ├── perception.rs # Service : calcul des 18 inputs
 │   ├── evolution.rs  # Banque de graines, fitness, crossover, mutations
-│   ├── season.rs     # Cycle saisonnier (4 saisons, 250 ticks chacune)
-│   └── highlights.rs # Détection des moments clés pour le replay
+│   ├── season.rs     # Cycle saisonnier (4 saisons, 250 ticks)
+│   ├── highlights.rs # Détection des moments clés
+│   └── metrics.rs    # Métriques agrégées (population, lignées, historiques)
 ├── infra/            # Sérialisation, I/O, config
-│   └── mod.rs        # (vide — Phase 3)
+│   ├── mod.rs
+│   ├── rng.rs        # SeededRng (rand) — implémente trait Rng
+│   ├── noise.rs      # Génération Perlin noise pour les îles
+│   ├── config.rs     # Chargement config TOML
+│   ├── persistence.rs # Sauvegarde/chargement SimState en JSON
+│   ├── replay.rs     # Enregistrement replay avec filtrage highlights
+│   └── dto/          # DTOs serde miroir des types domain
+│       ├── mod.rs
+│       ├── plant.rs
+│       ├── world.rs
+│       ├── sim.rs
+│       └── event.rs
 └── lib.rs
 ```
 

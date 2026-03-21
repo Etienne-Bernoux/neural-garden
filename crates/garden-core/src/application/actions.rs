@@ -1,8 +1,10 @@
 // Phase actions — croissance, defense, exsudats, absorption, photosynthese, symbiose, maintenance.
 
+use std::collections::HashMap;
+
 use super::sim::SimState;
 use crate::domain::events::DomainEvent;
-use crate::domain::plant::{ExudateType, Plant, Pos};
+use crate::domain::plant::{energy_cap, ExudateType, Plant, Pos};
 use crate::domain::rng::Rng;
 use crate::domain::symbiosis::calculate_exchange;
 use crate::domain::world::GRID_SIZE;
@@ -16,6 +18,28 @@ pub fn phase_actions(
     let mut events = Vec::new();
 
     let modifiers = state.season_cycle.current_modifiers();
+
+    // Construire la canopy map : pos → plant_id (pour eliminer find_occupant O(n))
+    let mut canopy_map: HashMap<Pos, u64> = HashMap::new();
+    for plant in state.plants.iter() {
+        if plant.is_dead() {
+            continue;
+        }
+        for &pos in plant.canopy() {
+            canopy_map.insert(pos, plant.id());
+        }
+    }
+
+    // Construire la root map : pos → liste de plant_ids (pour symbiose et monoculture)
+    let mut root_map: HashMap<Pos, Vec<u64>> = HashMap::new();
+    for plant in state.plants.iter() {
+        if plant.is_dead() {
+            continue;
+        }
+        for &pos in plant.roots() {
+            root_map.entry(pos).or_default().push(plant.id());
+        }
+    }
 
     // Construire l'ordre aleatoire d'iteration (Fisher-Yates shuffle)
     let mut indices: Vec<usize> = (0..decisions.len()).collect();
@@ -56,8 +80,11 @@ pub fn phase_actions(
                 if state.island.is_land(&target_pos) && state.world.is_valid(&target_pos) {
                     let is_canopy = canopy_vs_roots > 0.5;
 
-                    // Verifier si la cellule est occupee par une autre plante
-                    let occupant_id = find_occupant(&state.plants, &target_pos, plant_id);
+                    // Verifier si la cellule est occupee par une autre plante (lookup O(1))
+                    let occupant_id = canopy_map
+                        .get(&target_pos)
+                        .copied()
+                        .filter(|&id| id != plant_id);
 
                     if let Some(victim_id) = occupant_id {
                         // Tentative d'invasion
@@ -85,6 +112,9 @@ pub fn phase_actions(
                                 state.plants[plant_idx]
                                     .consume_energy(state.config.invasion_energy_cost);
                                 state.plants[vi].damage(state.config.invasion_damage);
+
+                                // Mettre a jour la canopy map
+                                canopy_map.insert(target_pos, plant_id);
 
                                 // Rompre la symbiose entre les deux
                                 if state.symbiosis.remove_link(plant_id, victim_id) {
@@ -115,6 +145,9 @@ pub fn phase_actions(
                             events.push(event);
                             state.plants[plant_idx]
                                 .consume_energy(state.config.growth_energy_cost / modifiers.growth);
+
+                            // Mettre a jour la canopy map
+                            canopy_map.insert(target_pos, plant_id);
 
                             // Deduire les ressources du sol
                             if let Some(cell) = state.world.get_mut(&target_pos) {
@@ -241,27 +274,33 @@ pub fn phase_actions(
         // g) Creation de liens mycorhiziens
         // Si deux plantes ont leurs racines sur une meme cellule et connect_signal > 0.5 des deux cotes
         if connect_signal > 0.5 {
+            // Utiliser root_map pour trouver les voisins racinaires en O(k) au lieu de O(n*k)
             let root_cells_for_link: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
 
-            // Collecter les candidats a la liaison avant de modifier state
             let mut link_candidates: Vec<u64> = Vec::new();
             for root_pos in &root_cells_for_link {
-                for other_plant in &state.plants {
-                    if other_plant.id() == plant_id
-                        || other_plant.is_dead()
-                        || other_plant.state() == crate::domain::plant::PlantState::Seed
-                    {
-                        continue;
-                    }
-                    if other_plant.roots().contains(root_pos) {
+                if let Some(neighbors) = root_map.get(root_pos) {
+                    for &other_id in neighbors {
+                        if other_id == plant_id {
+                            continue;
+                        }
+                        // Verifier que la plante n'est pas morte ou graine
+                        let is_valid = state.plants.iter().any(|p| {
+                            p.id() == other_id
+                                && !p.is_dead()
+                                && p.state() != crate::domain::plant::PlantState::Seed
+                        });
+                        if !is_valid {
+                            continue;
+                        }
                         // Verifier le connect_signal de l'autre plante
                         let other_connect = decisions
                             .iter()
-                            .find(|(id, _)| *id == other_plant.id())
+                            .find(|(id, _)| *id == other_id)
                             .map(|(_, o)| o[6])
                             .unwrap_or(0.0);
-                        if other_connect > 0.5 {
-                            link_candidates.push(other_plant.id());
+                        if other_connect > 0.5 && !link_candidates.contains(&other_id) {
+                            link_candidates.push(other_id);
                         }
                     }
                 }
@@ -288,6 +327,27 @@ pub fn phase_actions(
         let biomass = state.plants[plant_idx].biomass().value() as f32;
         state.plants[plant_idx].consume_energy(state.config.maintenance_rate * biomass);
 
+        // i) Vieillissement : drain de vitalite proportionnel a l'age
+        let age = state.plants[plant_idx].age() as f32;
+        let aging_drain = state.config.aging_base_rate * (age / 1000.0);
+        state.plants[plant_idx].damage(aging_drain);
+
+        // j) Famine : si energie < seuil, la vitalite draine de plus en plus vite
+        let energy_val = state.plants[plant_idx].energy().value();
+        let e_cap = energy_cap(
+            state.plants[plant_idx].biomass(),
+            state.plants[plant_idx].genetics().energy_factor(),
+        );
+        let starvation_threshold = e_cap * state.config.starvation_threshold;
+
+        if energy_val < starvation_threshold && starvation_threshold > 0.0 {
+            // ratio = 0.0 quand energy = threshold, 1.0 quand energy = 0
+            let ratio = 1.0 - (energy_val / starvation_threshold);
+            // Courbe cubique : acceleration forte vers la fin
+            let drain = state.config.starvation_drain_rate * (ratio * ratio * ratio);
+            state.plants[plant_idx].damage(drain);
+        }
+
         // Mettre a jour les stats de territoire et biomasse
         let territory =
             (state.plants[plant_idx].canopy().len() + state.plants[plant_idx].roots().len()) as u16;
@@ -304,20 +364,38 @@ pub fn phase_actions(
         }
 
         // Calcul penalite monoculture : si > 80% des cellules voisines sont de la meme lignee
+        // Utilise canopy_map et root_map pour un lookup O(k) au lieu de O(n*k)
         let plant_lineage_id = state.plants[plant_idx].lineage().id();
         let root_cells_mono: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
         if root_cells_mono.len() > 1 {
             let mut same_lineage_count = 0usize;
             let mut total_occupied = 0usize;
+            // Ensemble des plantes deja comptees pour eviter les doublons
+            let mut counted: std::collections::HashSet<u64> = std::collections::HashSet::new();
             for pos in &root_cells_mono {
-                for other in &state.plants {
-                    if other.id() == plant_id || other.is_dead() {
-                        continue;
-                    }
-                    if other.canopy().contains(pos) || other.roots().contains(pos) {
+                // Verifier la canopy map
+                if let Some(&occ_id) = canopy_map.get(pos) {
+                    if occ_id != plant_id && counted.insert(occ_id) {
                         total_occupied += 1;
-                        if other.lineage().id() == plant_lineage_id {
-                            same_lineage_count += 1;
+                        if let Some(other) = state.plants.iter().find(|p| p.id() == occ_id) {
+                            if other.lineage().id() == plant_lineage_id {
+                                same_lineage_count += 1;
+                            }
+                        }
+                    }
+                }
+                // Verifier la root map
+                if let Some(root_ids) = root_map.get(pos) {
+                    for &occ_id in root_ids {
+                        if occ_id != plant_id && counted.insert(occ_id) {
+                            if let Some(other) = state.plants.iter().find(|p| p.id() == occ_id) {
+                                if !other.is_dead() {
+                                    total_occupied += 1;
+                                    if other.lineage().id() == plant_lineage_id {
+                                        same_lineage_count += 1;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -371,17 +449,4 @@ pub fn find_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> 
     }
 
     best.map(|(pos, _)| pos)
-}
-
-/// Trouve l'id de la plante occupant une cellule (canopee), exclut plant_id donne.
-pub fn find_occupant(plants: &[Plant], pos: &Pos, exclude: u64) -> Option<u64> {
-    for plant in plants {
-        if plant.id() == exclude || plant.is_dead() {
-            continue;
-        }
-        if plant.canopy().contains(pos) {
-            return Some(plant.id());
-        }
-    }
-    None
 }

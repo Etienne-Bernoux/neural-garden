@@ -35,7 +35,9 @@ Les use cases et services. Orchestration du domain.
 
 **Done quand** : simulation continue fonctionnelle, l'évolution progresse (fitness moyenne monte), tests d'intégration Gherkin passent.
 
-### Phase 3 — Infra + CLI (garden-core/infra/ + garden-cli/)
+### Phase 3 — Infra + CLI (garden-core/infra/ + garden-cli/) ✅ Terminée
+
+> 130 tests, sérialisation DTO, Perlin noise, config TOML, persistence JSON, replay filtré, CLI fonctionnel (garden run/config init).
 
 Sérialisation, persistence, configuration, interface en ligne de commande.
 

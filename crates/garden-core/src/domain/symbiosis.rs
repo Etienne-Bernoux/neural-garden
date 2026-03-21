@@ -57,6 +57,17 @@ impl SymbiosisNetwork {
         Self { links: Vec::new() }
     }
 
+    /// Reconstruit un reseau a partir d'une liste de liens.
+    /// Utilise pour la deserialisation.
+    pub(crate) fn from_links(links: Vec<MycorrhizalLink>) -> Self {
+        Self { links }
+    }
+
+    /// Retourne une reference sur tous les liens.
+    pub fn links(&self) -> &[MycorrhizalLink] {
+        &self.links
+    }
+
     /// Cree un lien s'il n'existe pas deja. Retourne true si cree.
     pub fn create_link(&mut self, plant_a: u64, plant_b: u64) -> bool {
         if plant_a == plant_b {

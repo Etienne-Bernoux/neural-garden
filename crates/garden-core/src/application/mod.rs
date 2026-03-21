@@ -4,6 +4,7 @@ pub mod environment;
 pub mod evolution;
 pub mod highlights;
 pub mod lifecycle;
+pub mod metrics;
 pub mod perception;
 pub mod season;
 pub mod sim;

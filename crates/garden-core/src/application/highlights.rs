@@ -3,7 +3,7 @@
 use crate::application::season::Season;
 use crate::domain::events::DomainEvent;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 /// Type de moment cle detecte.
 #[derive(Debug, Clone, PartialEq)]
@@ -47,7 +47,7 @@ pub struct HighlightDetector {
     recent_deaths: Vec<u32>,
     has_initial_population: bool,
     min_population_seen: usize,
-    population_history: Vec<usize>,
+    population_history: VecDeque<usize>,
 }
 
 impl HighlightDetector {
@@ -59,7 +59,7 @@ impl HighlightDetector {
             recent_deaths: Vec::new(),
             has_initial_population: false,
             min_population_seen: 0,
-            population_history: Vec::new(),
+            population_history: VecDeque::new(),
         }
     }
 
@@ -75,9 +75,9 @@ impl HighlightDetector {
         let mut highlights = Vec::new();
 
         // Mettre a jour l'historique de population
-        self.population_history.push(population);
+        self.population_history.push_back(population);
         if self.population_history.len() > 50 {
-            self.population_history.remove(0);
+            self.population_history.pop_front();
         }
 
         // Mettre a jour le minimum de population

@@ -65,9 +65,50 @@ impl Island {
         &self.land_cells
     }
 
+    /// Retourne le masque terre/mer complet.
+    pub fn land_mask(&self) -> &[bool] {
+        &self.land_mask
+    }
+
     /// Retourne le nombre de cellules terrestres.
     pub fn land_count(&self) -> usize {
         self.land_cells.len()
+    }
+
+    /// Reconstruit une ile a partir de ses champs bruts.
+    /// Utilise pour la deserialisation.
+    pub(crate) fn from_raw(land_mask: Vec<bool>, sea_level: f32, land_cells: Vec<Pos>) -> Self {
+        Self {
+            land_mask,
+            land_cells,
+            sea_level,
+        }
+    }
+
+    /// Cree une ile a partir des altitudes deja presentes dans le World.
+    /// Les cellules au-dessus du sea_level sont considerees comme terre.
+    pub fn from_world(world: &World, sea_level: f32) -> Self {
+        let mut land_mask = vec![false; GRID_SIZE as usize * GRID_SIZE as usize];
+        let mut land_cells = Vec::new();
+
+        for y in 0..GRID_SIZE {
+            for x in 0..GRID_SIZE {
+                let pos = Pos { x, y };
+                let idx = y as usize * GRID_SIZE as usize + x as usize;
+                if let Some(cell) = world.get(&pos) {
+                    if cell.altitude() > sea_level {
+                        land_mask[idx] = true;
+                        land_cells.push(pos);
+                    }
+                }
+            }
+        }
+
+        Self {
+            land_mask,
+            land_cells,
+            sea_level,
+        }
     }
 }
 
