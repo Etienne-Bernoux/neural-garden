@@ -135,4 +135,20 @@ describe('SimState', () => {
         expect(state.plants.has(1)).toBe(false);
         expect(state.plants.has(5)).toBe(true);
     });
+
+    // Tests format PascalCase (DomainEventDto du serveur live)
+    it('accepte les events en PascalCase (format live)', () => {
+        const state = new SimState();
+        state.applyEvent({ event_type: 'Born', data: { plant_id: 1, lineage_id: 0, x: 10, y: 10 } });
+        expect(state.plants.size).toBe(1);
+
+        state.applyEvent({ event_type: 'Germinated', data: { plant_id: 1 } });
+        expect(state.plants.get(1).state).toBe('Growing');
+
+        state.applyEvent({ event_type: 'Grew', data: { plant_id: 1, x: 11, y: 10 } });
+        expect(state.plants.get(1).cells).toHaveLength(2);
+
+        state.applyEvent({ event_type: 'Died', data: { plant_id: 1 } });
+        expect(state.plants.get(1).state).toBe('Dead');
+    });
 });

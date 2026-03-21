@@ -135,7 +135,8 @@ function initLive(wsUrl) {
                 if (data.events) {
                     for (const e of data.events) {
                         // Particules de decomposition a la mort
-                        if ((e.event_type || e.e) === 'died') {
+                        const eType = (e.event_type || e.e || '').toLowerCase();
+                        if (eType === 'died') {
                             const evtData = e.data || e;
                             const plantId = evtData.plant_id || evtData.p;
                             const plant = simState.plants.get(plantId);
@@ -293,7 +294,8 @@ function animate() {
             simState.applyEvent(event);
 
             // Particules de decomposition a la mort
-            if ((event.event_type || event.e) === 'died') {
+            const replayType = (event.event_type || event.e || '').toLowerCase();
+            if (replayType === 'died') {
                 const data = event.data || event;
                 const plantId = data.plant_id || data.p;
                 const plant = simState.plants.get(plantId);
@@ -303,7 +305,7 @@ function animate() {
             }
 
             // Flash d'invasion
-            if ((event.event_type || event.e) === 'invade') {
+            if (replayType === 'invaded' || replayType === 'invade') {
                 const data = event.data || event;
                 interactionRenderer.flashInvasion(
                     data.x ?? data.cell?.[0],

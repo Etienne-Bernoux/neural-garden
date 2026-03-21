@@ -73,11 +73,15 @@ export class SimState {
      * Applique un event incremental.
      */
     applyEvent(event) {
-        switch (event.event_type || event.e) {
-            case 'grow':
+        // Normaliser le type en lowercase (le Rust envoie en PascalCase, le replay en lowercase)
+        const rawType = event.event_type || event.e || '';
+        const eventType = rawType.toLowerCase();
+
+        switch (eventType) {
+            case 'grow': case 'grew':
                 this._handleGrow(event);
                 break;
-            case 'shrink':
+            case 'shrink': case 'shrank':
                 this._handleShrink(event);
                 break;
             case 'born':
@@ -86,20 +90,24 @@ export class SimState {
             case 'died':
                 this._handleDied(event);
                 break;
-            case 'germinate':
+            case 'germinate': case 'germinated':
                 this._handleGerminate(event);
                 break;
-            case 'link':
+            case 'link': case 'linked':
                 this._handleLink(event);
                 break;
-            case 'unlink':
+            case 'unlink': case 'unlinked':
                 this._handleUnlink(event);
                 break;
-            case 'invade':
+            case 'invade': case 'invaded':
                 this._handleInvade(event);
                 break;
-            case 'season':
-                this.season = event.data?.name || event.name || this.season;
+            case 'season': case 'statechanged':
+                if (event.data?.to) {
+                    // StateChanged peut contenir un changement de saison ou d'état plante
+                } else {
+                    this.season = event.data?.name || event.name || this.season;
+                }
                 break;
         }
 
