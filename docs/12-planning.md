@@ -117,10 +117,39 @@ Boucle : Brainstorm → Plan → Work → Review → Observer → Ajuster → Re
 - Population : plateau naturel ~210 (années 4-9), puis remonte vers 1500+
 - Diversité : 60-70 lignées actives (bonne diversité)
 
-⚠️ À reprendre (prochaine itération) :
-- La population finit par exploser malgré les régulations naturelles → les plantes s'adaptent aux conditions de rareté. La compétition pour le sol doit être renforcée (la symbiose doit devenir un avantage de survie, pas juste un bonus fitness).
-- 5 magic numbers à extraire dans SimConfig : growth_bonus (2.0), maintenance_multiplier mature (0.5), heal reproduction (5.0), transfer_rate symbiose (0.02), chimiotaxie fallback.
-- Piste : augmenter le maintenance_rate pour que seules les plantes qui coopèrent (échange C/N = meilleure nutrition) survivent à haute densité.
+⚠️ Itérations 5+ : Refonte modèle spatial 3 couches + recalibrage.
+
+### Phase 6a-R1 — Refonte domain : modèle 3 couches
+
+Refactoring du modèle spatial de Plant. 3 couches distinctes au lieu de 2.
+
+| Couche | Partage | Rôle |
+|---|---|---|
+| Racines (sous-sol) | Partagé | Absorption C/N/H₂O, symbiose. Pas d'invasion. |
+| Emprise au sol | Exclusive | Position physique. Invasion possible. |
+| Canopée (aérien) | Partagé avec priorité | Photosynthèse. Ombre dynamique par hauteur. |
+
+| Tâche | Critère de done |
+|---|---|
+| Refactoring Plant : `footprint`, `canopy` (partagé), `roots` (partagé) | Plant a 3 vecteurs de Pos distincts |
+| Ratio emprise → canopy/roots : `max_canopy = emprise * 4`, `max_roots = emprise * 5` | Les limites sont respectées dans la croissance |
+| Graines inertes : 0 consommation, invasion gratuite, timeout 360 ticks | Les graines ne bloquent plus le sol |
+| Saisons allongées : ticks_per_season = 360, 1 an = 1440 ticks | Saisons plus longues, lumière moyenne |
+| Ombre dynamique : la plante avec la plus grande emprise est plus haute → ombre | Compétition verticale fonctionnelle |
+| Adapter events, perception, DTOs, live snapshot | Tout compile et tourne |
+
+**Done quand** : le modèle 3 couches fonctionne, les tests passent, la simulation tourne.
+
+### Phase 6a-R2 — Recalibrage avec le nouveau modèle
+
+| Tâche | Critère de done |
+|---|---|
+| Ajuster les coûts/gains pour le nouveau modèle | La fitness progresse |
+| Les racines poussent sous les voisins (chimiotaxie maintenue) | Racines partagées, symbiose émerge |
+| Les canopées se superposent avec compétition lumière | Les petites plantes sous les grandes souffrent |
+| Itérer jusqu'à : fitness > 1000, symbiose stable, pop dynamique | L'écosystème vit |
+
+**Done quand** : la coopération émerge naturellement, la diversité se maintient, la population est régulée par les ressources.
 
 ### Phase 6b — Viewer V2
 
