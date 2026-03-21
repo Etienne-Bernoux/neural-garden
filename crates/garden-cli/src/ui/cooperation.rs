@@ -15,6 +15,19 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Magenta));
 
+    // Cas vide : aucun lien et historique vide — message explicatif
+    if snapshot.symbiosis_count == 0 && snapshot.symbiosis_history.iter().all(|&v| v == 0) {
+        let msg = "La symbiose n'a pas encore émergé.\n\
+                   Les plantes doivent développer\n\
+                   des racines qui se chevauchent\n\
+                   et un signal de connexion fort.";
+        let paragraph = Paragraph::new(msg)
+            .style(Style::default().fg(Color::DarkGray))
+            .block(block);
+        frame.render_widget(paragraph, area);
+        return;
+    }
+
     let inner = block.inner(area);
     frame.render_widget(block, area);
 

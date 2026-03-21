@@ -76,7 +76,15 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     // Distribution des lignees sous forme de barres (max 8)
     sorted.truncate(8);
 
-    if !sorted.is_empty() {
+    // Verifier si le BarChart est pertinent
+    let max_count = sorted.iter().map(|(_, c)| *c).max().unwrap_or(0);
+
+    if max_count <= 1 {
+        // Pas de lignee dominante — message explicatif au lieu du BarChart
+        let msg = Paragraph::new("Chaque plante est sa propre lignée\nPas de cluster évolutif")
+            .style(Style::default().fg(Color::DarkGray));
+        frame.render_widget(msg, layout[1]);
+    } else if !sorted.is_empty() {
         // Nommer les lignees avec des lettres pour la lisibilite
         let letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         let bars: Vec<Bar> = sorted
