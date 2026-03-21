@@ -60,15 +60,15 @@ impl Default for SimConfig {
             rain_rate: 0.01,
             evaporation_rate: 0.005,
             evaporation_canopy_rate: 0.002,
-            carbon_regen_rate: 0.002,
-            nitrogen_regen_rate: 0.001,
+            carbon_regen_rate: 0.0005, // 0.002 → 0.0005 (sol se regenere 4x moins vite)
+            nitrogen_regen_rate: 0.0003, // 0.001 → 0.0003 (azote encore plus rare)
             exudate_decay: 0.8,
-            canopy_light: 0.3,
+            canopy_light: 0.2, // 0.3 → 0.2 (plus d'ombre sous canopee)
 
             growth_threshold: 0.1,
-            growth_energy_cost: 5.0,       // 8.0 → 5.0 croissance moins chere
-            growth_carbon_cost: 0.05,      // 0.1 → 0.05
-            growth_nitrogen_cost: 0.05,    // 0.1 → 0.05
+            growth_energy_cost: 5.0,    // 8.0 → 5.0 croissance moins chere
+            growth_carbon_cost: 0.05,   // 0.1 → 0.05
+            growth_nitrogen_cost: 0.05, // 0.1 → 0.05
             invasion_energy_threshold: 10.0,
             invasion_defense_threshold: 20.0,
             invasion_energy_cost: 12.0,
@@ -76,28 +76,28 @@ impl Default for SimConfig {
             defense_energy_cost: 3.0,
             exudate_output_rate: 0.02,
             exudate_energy_cost_rate: 0.015,
-            absorption_rate: 0.03,        // 0.02 → 0.03 plus d'absorption
-            photosynthesis_rate: 0.08,     // 0.05 → 0.08 plus de photosynthese
-            maintenance_rate: 0.005,       // 0.01 → 0.005 entretien moins cher
+            absorption_rate: 0.03,     // 0.02 → 0.03 plus d'absorption
+            photosynthesis_rate: 0.08, // 0.05 → 0.08 plus de photosynthese
+            maintenance_rate: 0.02,    // 0.005 → 0.02 entretien 4x plus cher (carrying capacity)
 
-            reproduction_energy_min: 40.0,  // 60.0 → 40.0 reproduction plus facile
-            reproduction_biomass_min: 5,     // 8 → 5
-            reproduction_energy_cost: 20.0,  // 30.0 → 20.0
+            reproduction_energy_min: 50.0, // 40.0 → 50.0 reproduction plus couteuse
+            reproduction_biomass_min: 6,   // 5 → 6
+            reproduction_energy_cost: 25.0, // 20.0 → 25.0
             reproduction_min_distance: 3,
             reproduction_max_distance: 9,
-            seed_rain_interval: 30,       // 50 → 30 plus de brassage genetique
+            seed_rain_interval: 30, // 50 → 30 plus de brassage genetique
             germination_carbon_min: 0.3,
             germination_nitrogen_min: 0.2,
             dormancy_timeout: 200,
 
-            aging_base_rate: 0.15,         // 0.05 → 0.15 vieillissement 3x plus rapide
+            aging_base_rate: 0.5, // 0.3 → 0.5 vieillissement accelere (carrying capacity)
             starvation_threshold: 0.1,
-            starvation_drain_rate: 3.0,    // 2.0 → 3.0 famine plus severe
+            starvation_drain_rate: 3.0, // 2.0 → 3.0 famine plus severe
 
             decomposition_ticks: 50,
 
             seed_bank_capacity: 100,
-            initial_population: 80,
+            initial_population: 50, // 80 → 50 population initiale reduite
 
             ticks_per_season: 250,
         }

@@ -245,8 +245,9 @@ async fn plante_morte_ou_mourante(world: &mut GardenWorld) {
             assert!(
                 p.state() == PlantState::Dead
                     || p.state() == PlantState::Dying
-                    || p.state() == PlantState::Decomposing,
-                "la plante devrait etre morte ou mourante, etat actuel : {:?}",
+                    || p.state() == PlantState::Decomposing
+                    || p.state() == PlantState::Stressed,
+                "la plante devrait etre morte, mourante ou stressée, etat actuel : {:?}",
                 p.state()
             );
         }

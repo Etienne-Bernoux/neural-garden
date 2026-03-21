@@ -140,13 +140,20 @@ fn action_growth(
         return events;
     }
 
-    let target = find_growth_target(&state.plants[plant_idx], grow_dir_x, grow_dir_y);
+    let is_canopy = canopy_vs_roots > 0.5;
+
+    // Chimiotaxie racinaire : les racines poussent vers le voisin le plus proche
+    let target = if is_canopy {
+        find_growth_target(&state.plants[plant_idx], grow_dir_x, grow_dir_y)
+    } else {
+        // Essayer la chimiotaxie d'abord, fallback sur la direction du brain
+        find_root_growth_toward_neighbor(state, plant_idx, plant_id)
+            .or_else(|| find_root_growth_target(&state.plants[plant_idx], grow_dir_x, grow_dir_y))
+    };
     let target_pos = match target {
         Some(pos) if state.island.is_land(&pos) && state.world.is_valid(&pos) => pos,
         _ => return events,
     };
-
-    let is_canopy = canopy_vs_roots > 0.5;
 
     // Verifier si la cellule est occupee par une autre plante (lookup O(1))
     let occupant_id = canopy_map
@@ -459,13 +466,15 @@ fn action_maintenance(
 
     // h) Maintenance : consommer maintenance_rate * biomass energie
     // Les plantes matures ont un cout de maintenance reduit
-    let maintenance_multiplier = if state.plants[plant_idx].state() == crate::domain::plant::PlantState::Mature {
-        0.5
-    } else {
-        1.0
-    };
+    let maintenance_multiplier =
+        if state.plants[plant_idx].state() == crate::domain::plant::PlantState::Mature {
+            0.5
+        } else {
+            1.0
+        };
     let biomass = state.plants[plant_idx].biomass().value() as f32;
-    state.plants[plant_idx].consume_energy(config.maintenance_rate * biomass * maintenance_multiplier);
+    state.plants[plant_idx]
+        .consume_energy(config.maintenance_rate * biomass * maintenance_multiplier);
 
     // i) Vieillissement : drain de vitalite proportionnel a l'age
     let age = state.plants[plant_idx].age() as f32;
@@ -557,6 +566,79 @@ pub fn find_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> 
             (canopy_pos.x + 1, canopy_pos.y, 1.0, 0.0),
             (canopy_pos.x, canopy_pos.y.wrapping_sub(1), 0.0, -1.0),
             (canopy_pos.x, canopy_pos.y + 1, 0.0, 1.0),
+        ];
+
+        for (nx, ny, ndx, ndy) in &neighbors {
+            if *nx >= GRID_SIZE || *ny >= GRID_SIZE {
+                continue;
+            }
+            let candidate = Pos { x: *nx, y: *ny };
+            if plant.canopy().contains(&candidate) || plant.roots().contains(&candidate) {
+                continue;
+            }
+            let score = ndx * dir_x + ndy * dir_y;
+            match &best {
+                Some((_, best_score)) if score <= *best_score => {}
+                _ => best = Some((candidate, score)),
+            }
+        }
+    }
+
+    best.map(|(pos, _)| pos)
+}
+
+/// Trouve la cellule cible de croissance racinaire orientee vers le voisin le plus proche.
+/// Simule la chimiotaxie : les racines poussent vers les exsudats des voisins.
+fn find_root_growth_toward_neighbor(
+    state: &SimState,
+    plant_idx: usize,
+    plant_id: u64,
+) -> Option<Pos> {
+    let plant = &state.plants[plant_idx];
+    let my_center = plant.canopy()[0];
+
+    // Trouver la plante vivante la plus proche (autre que soi)
+    let mut closest_dist = f32::MAX;
+    let mut closest_dir = (0.0_f32, 0.0_f32);
+    let mut found_neighbor = false;
+
+    for other in &state.plants {
+        if other.id() == plant_id || other.is_dead() {
+            continue;
+        }
+        if other.state() == crate::domain::plant::PlantState::Seed {
+            continue;
+        }
+        let other_center = other.canopy()[0];
+        let dx = other_center.x as f32 - my_center.x as f32;
+        let dy = other_center.y as f32 - my_center.y as f32;
+        let dist = dx * dx + dy * dy;
+        if dist < closest_dist && dist > 0.0 {
+            closest_dist = dist;
+            let sqrt_dist = dist.sqrt();
+            closest_dir = (dx / sqrt_dist, dy / sqrt_dist);
+            found_neighbor = true;
+        }
+    }
+
+    if !found_neighbor {
+        return None;
+    }
+
+    // Chercher parmi les voisins des racines existantes
+    find_root_growth_target(plant, closest_dir.0, closest_dir.1)
+}
+
+/// Trouve la cellule voisine d'une racine la plus alignee avec la direction souhaitee.
+fn find_root_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> {
+    let mut best: Option<(Pos, f32)> = None;
+
+    for root_pos in plant.roots() {
+        let neighbors = [
+            (root_pos.x.wrapping_sub(1), root_pos.y, -1.0_f32, 0.0_f32),
+            (root_pos.x + 1, root_pos.y, 1.0, 0.0),
+            (root_pos.x, root_pos.y.wrapping_sub(1), 0.0, -1.0),
+            (root_pos.x, root_pos.y + 1, 0.0, 1.0),
         ];
 
         for (nx, ny, ndx, ndy) in &neighbors {
