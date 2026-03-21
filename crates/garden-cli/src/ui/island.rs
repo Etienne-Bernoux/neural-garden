@@ -84,29 +84,33 @@ fn season_color(season: garden_core::application::season::Season) -> Color {
     }
 }
 
-/// Rendu de la mini-carte en caracteres Unicode.
+/// Rendu de la mini-carte en caracteres Unicode, adaptee a la taille du panneau.
 /// ░ = mer, · = terre vide, ▪ = plante, █ = plante mature
 fn render_minimap(frame: &mut Frame, area: Rect, minimap: &[Vec<u8>]) {
     if minimap.is_empty() {
         return;
     }
 
-    let height = area.height as usize;
-    let width = area.width as usize;
+    let map_h = minimap.len();
+    let map_w = minimap[0].len();
+    let panel_h = area.height as usize;
+    let panel_w = area.width as usize;
 
-    let lines: Vec<Line> = minimap
-        .iter()
-        .take(height)
-        .map(|row| {
-            let spans: Vec<Span> = row
-                .iter()
-                .take(width)
-                .map(|&cell| match cell {
-                    0 => Span::styled("░", Style::default().fg(Color::DarkGray)),
-                    1 => Span::styled("·", Style::default().fg(Color::Gray)),
-                    2 => Span::styled("▪", Style::default().fg(Color::Green)),
-                    3 => Span::styled("█", Style::default().fg(Color::LightGreen)),
-                    _ => Span::styled(" ", Style::default()),
+    // Echantillonner la minimap pour tenir dans le panneau
+    let lines: Vec<Line> = (0..panel_h)
+        .map(|py| {
+            let my = py * map_h / panel_h.max(1);
+            let spans: Vec<Span> = (0..panel_w)
+                .map(|px| {
+                    let mx = px * map_w / panel_w.max(1);
+                    let cell = minimap.get(my).and_then(|row| row.get(mx)).copied().unwrap_or(0);
+                    match cell {
+                        0 => Span::styled("░", Style::default().fg(Color::DarkGray)),
+                        1 => Span::styled("·", Style::default().fg(Color::Gray)),
+                        2 => Span::styled("▪", Style::default().fg(Color::Green)),
+                        3 => Span::styled("█", Style::default().fg(Color::LightGreen)),
+                        _ => Span::styled(" ", Style::default()),
+                    }
                 })
                 .collect();
             Line::from(spans)
