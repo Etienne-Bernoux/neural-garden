@@ -23,7 +23,7 @@ let currentCameraMode = 'god';  // 'god' ou 'explore'
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
 renderer.shadowMap.enabled = true;
 
 const lighting = new LightingManager(scene);
@@ -297,7 +297,7 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('resize', () => {
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-    renderer.setSize(width, height);
+    renderer.setSize(width, height, false);
     godCamera.resize(width, height);
     exploreCamera.resize(width, height);
 });
