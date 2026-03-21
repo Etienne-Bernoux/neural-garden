@@ -99,6 +99,29 @@ Boucle : Brainstorm → Plan → Work → Review → Observer → Ajuster → Re
 
 **Done quand** : la fitness progresse au-delà de 1000, des liens mycorhiziens se forment, la banque reste diversifiée, la population est dynamique (pas statique à 13).
 
+#### État après itération 4
+
+✅ Implémenté :
+- Banque compartimentée (hidden_size × exudate_type), 100 slots
+- Placement intelligent (80% près des plantes, 20% aléatoire)
+- Graines fraîches 10%
+- Échange C↔N bidirectionnel via le sol
+- LineageExtinction highlight
+- Chimiotaxie racinaire (racines poussent vers le voisin le plus proche)
+- Racines gratuites, bonus croissance, maintenance réduite matures
+- Biais initiaux grow_intensity + connect_signal
+
+📊 Résultats observés :
+- Fitness : 79 → 811 (progresse, critère >1000 pas encore atteint)
+- Symbiose : apparaît sporadiquement (0-8 liens), pas encore stable
+- Population : plateau naturel ~210 (années 4-9), puis remonte vers 1500+
+- Diversité : 60-70 lignées actives (bonne diversité)
+
+⚠️ À reprendre (prochaine itération) :
+- La population finit par exploser malgré les régulations naturelles → les plantes s'adaptent aux conditions de rareté. La compétition pour le sol doit être renforcée (la symbiose doit devenir un avantage de survie, pas juste un bonus fitness).
+- 5 magic numbers à extraire dans SimConfig : growth_bonus (2.0), maintenance_multiplier mature (0.5), heal reproduction (5.0), transfer_rate symbiose (0.02), chimiotaxie fallback.
+- Piste : augmenter le maintenance_rate pour que seules les plantes qui coopèrent (échange C/N = meilleure nutrition) survivent à haute densité.
+
 ### Phase 6b — Viewer V2
 
 | Tâche | Critère de done |
