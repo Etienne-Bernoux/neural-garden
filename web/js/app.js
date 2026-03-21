@@ -27,6 +27,7 @@ renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 renderer.shadowMap.enabled = true;
 
 const lighting = new LightingManager(scene);
+lighting.setCameraMode('god');  // cacher soleil/nuages en mode aerien par defaut
 const simState = new SimState();
 const plantRenderer = new PlantRenderer(scene, simState.gridSize);
 const interactionRenderer = new InteractionRenderer(scene, simState.gridSize);
@@ -279,14 +280,13 @@ document.addEventListener('keydown', (e) => {
         case 'v':
             if (currentCameraMode === 'god') {
                 currentCameraMode = 'explore';
-                // Teleporter au centre de l'ile
                 exploreCamera.setTerrainHeights(simState.terrainHeights, simState.gridSize);
                 exploreCamera.teleportTo(0, 0);
             } else {
                 currentCameraMode = 'god';
-                // Sortir du pointer lock
                 document.exitPointerLock();
             }
+            lighting.setCameraMode(currentCameraMode);
             break;
     }
 });

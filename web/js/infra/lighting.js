@@ -104,6 +104,18 @@ export class LightingManager {
     }
 
     /**
+     * Afficher ou cacher le soleil et les nuages selon le mode camera.
+     * En mode aerien (god), le soleil et les nuages genent la vue.
+     */
+    setCameraMode(mode) {
+        const showSky = mode === 'explore';
+        this.sun.visible = showSky;
+        for (const cloud of this.clouds) {
+            cloud.visible = showSky;
+        }
+    }
+
+    /**
      * Appeler a chaque frame pour interpoler l'eclairage.
      */
     update() {
