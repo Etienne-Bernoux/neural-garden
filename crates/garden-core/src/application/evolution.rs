@@ -4,6 +4,10 @@ use crate::domain::brain::Brain;
 use crate::domain::plant::{ExudateType, GeneticTraits};
 use crate::domain::rng::Rng;
 
+/// Taux de crossover : probabilite de combiner les poids des deux parents
+/// plutot que de cloner le meilleur.
+const CROSSOVER_RATE: f32 = 0.7;
+
 /// Genome complet d'une plante : cerveau + traits genetiques.
 #[derive(Debug, Clone)]
 pub struct Genome {
@@ -72,6 +76,16 @@ impl SeedBank {
             let energy_factor = 4.0 + rng.next_f32() * 4.0;
 
             let brain = Brain::new(hidden_size, rng);
+
+            // Biais de survie : forcer grow_intensity (output[0]) positif par defaut
+            let hs = hidden_size as usize;
+            let bias_o_start = 18 * hs + hs * hs + hs * 8 + hs + hs;
+            let mut weights = brain.weights();
+            if bias_o_start < weights.len() {
+                weights[bias_o_start] = weights[bias_o_start].abs() + 0.5;
+            }
+            let brain = Brain::from_weights(hidden_size, weights).unwrap_or(brain);
+
             let traits = GeneticTraits::new(
                 max_size,
                 carbon_nitrogen_ratio,
@@ -121,8 +135,10 @@ impl SeedBank {
         let (parent_a, fitness_a) = &self.entries[idx_a];
         let (parent_b, fitness_b) = &self.entries[idx_b];
 
-        let mut child = if parent_a.traits.hidden_size() == parent_b.traits.hidden_size() {
-            // Crossover possible
+        let mut child = if parent_a.traits.hidden_size() == parent_b.traits.hidden_size()
+            && rng.next_f32() < CROSSOVER_RATE
+        {
+            // Crossover : combiner les poids des deux parents
             let brain = crossover_brains(&parent_a.brain, &parent_b.brain, rng);
             let traits = crossover_traits(&parent_a.traits, &parent_b.traits, rng);
             Genome { brain, traits }

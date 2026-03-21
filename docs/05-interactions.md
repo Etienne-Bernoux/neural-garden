@@ -15,8 +15,8 @@ Chaque plante peut injecter des ressources dans le sol autour de ses racines via
 
 | Aspect | Détail |
 |---|---|
-| Mécanisme | La plante injecte exudate_rate × 2.0 de carbone OU d'azote (selon `exudate_type`) par tick dans les cellules de sa zone de place |
-| Coût | Énergie : exudate_rate × 1.5 /tick |
+| Mécanisme | La plante injecte exudate_rate × exudate_output_rate (0.02 par défaut) de carbone OU d'azote (selon `exudate_type`) par tick dans les cellules racinaires. Les taux exacts sont configurables via `SimConfig`. |
+| Coût | Énergie : exudate_rate × exudate_energy_cost_rate (0.015 par défaut) /tick |
 | Diffusion | Les exsudats diffusent aux cellules adjacentes, décroissent de 20%/tick |
 | Bénéficiaires | Toute plante dont la zone d'influence chevauche les cellules enrichies |
 | Visuel | Halo doré/ambré semi-transparent autour des racines émettrices |

@@ -184,7 +184,7 @@ pub fn run_tick(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
         }
     }
 
-    phase_environment(state);
+    let season_changed = phase_environment(state);
 
     let decisions = phase_perception_decision(state);
 
@@ -197,13 +197,6 @@ pub fn run_tick(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
     phase_decomposition(state);
 
     state.tick_count += 1;
-
-    // Detecter le changement de saison
-    let season_changed = {
-        // La saison est deja avancee dans phase_environment, on detecte le changement
-        // en comparant le tick courant avec les bornes de saison
-        None // Le CLI gere la detection avant/apres — ici on laisse le CLI passer l'info
-    };
 
     // Mettre a jour les metriques agregees
     let best_fitness = state.seed_bank.best_fitness();

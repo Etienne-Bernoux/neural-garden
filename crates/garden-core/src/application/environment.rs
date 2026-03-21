@@ -5,9 +5,10 @@ use crate::domain::plant::{PlantState, Pos};
 use crate::domain::world::GRID_SIZE;
 
 /// Phase 1 : mise a jour de l'environnement (pluie, evaporation, regeneration, ombrage).
-pub fn phase_environment(state: &mut SimState) {
+/// Retourne Some(Season) si la saison a change pendant ce tick.
+pub fn phase_environment(state: &mut SimState) -> Option<super::season::Season> {
     // Avancer la saison
-    let _new_season = state.season_cycle.advance();
+    let new_season = state.season_cycle.advance();
 
     let modifiers = state.season_cycle.current_modifiers();
 
@@ -69,6 +70,8 @@ pub fn phase_environment(state: &mut SimState) {
             }
         }
     }
+
+    new_season
 }
 
 /// Decomposition progressive des plantes mortes — restitution des nutriments au sol.
