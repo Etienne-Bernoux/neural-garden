@@ -1,13 +1,14 @@
-// Panneau Diversite — nombre de lignees et distribution.
+// Panneau Diversite — nombre de lignees, sante de la diversite, distribution.
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Bar, BarChart, BarGroup, Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use crate::snapshot::SimSnapshot;
 
-/// Rendu du panneau diversite : nombre de lignees, population, et barres de distribution.
+/// Rendu du panneau diversite : lignees, indicateur de sante, barres de distribution.
 pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     let block = Block::default()
         .title(" Diversité ")
@@ -19,33 +20,76 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(2), Constraint::Min(1)])
+        .constraints([Constraint::Length(3), Constraint::Min(1)])
         .split(inner);
 
+    // Trier par taille decroissante
+    let mut sorted: Vec<(u64, usize)> = snapshot
+        .lineage_distribution
+        .iter()
+        .map(|(&k, &v)| (k, v))
+        .collect();
+    sorted.sort_by(|a, b| b.1.cmp(&a.1));
+
+    // Calcul du % de la lignee dominante
+    let dominant_pct = if snapshot.alive_count > 0 {
+        sorted
+            .first()
+            .map(|(_, count)| *count as f64 / snapshot.alive_count as f64 * 100.0)
+            .unwrap_or(0.0)
+    } else {
+        0.0
+    };
+
+    // Indicateur de sante
+    let (health_label, health_color) = if dominant_pct > 70.0 {
+        ("Monoculture!", Color::Red)
+    } else {
+        ("Saine", Color::Green)
+    };
+
     // Infos textuelles
-    let info = format!(
-        "Lignées: {} | Population: {}",
-        snapshot.lineage_count, snapshot.alive_count
-    );
-    let info_paragraph = Paragraph::new(info).style(Style::default().fg(Color::White));
+    let info_lines = vec![
+        Line::from(vec![
+            Span::styled(
+                format!("{} lignées vivantes", snapshot.lineage_count),
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(
+                format!(" | {} plantes", snapshot.alive_count),
+                Style::default().fg(Color::White),
+            ),
+        ]),
+        Line::from(vec![Span::styled(
+            format!("Lignée dominante: {:.0}%", dominant_pct),
+            Style::default().fg(Color::White),
+        )]),
+        Line::from(vec![
+            Span::styled("Diversité: ", Style::default().fg(Color::White)),
+            Span::styled(health_label, Style::default().fg(health_color)),
+        ]),
+    ];
+
+    let info_paragraph = Paragraph::new(info_lines);
     frame.render_widget(info_paragraph, layout[0]);
 
-    // Distribution des lignees sous forme de barres horizontales
-    if !snapshot.lineage_distribution.is_empty() {
-        // Trier par taille decroissante et limiter a 8 lignees max
-        let mut sorted: Vec<(u64, usize)> = snapshot
-            .lineage_distribution
-            .iter()
-            .map(|(&k, &v)| (k, v))
-            .collect();
-        sorted.sort_by(|a, b| b.1.cmp(&a.1));
-        sorted.truncate(8);
+    // Distribution des lignees sous forme de barres (max 8)
+    sorted.truncate(8);
 
+    if !sorted.is_empty() {
+        // Nommer les lignees avec des lettres pour la lisibilite
+        let letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         let bars: Vec<Bar> = sorted
             .iter()
-            .map(|(id, count)| {
+            .enumerate()
+            .map(|(i, (_, count))| {
+                let label = if i < letters.len() {
+                    format!("{} ({})", letters[i], count)
+                } else {
+                    format!("? ({})", count)
+                };
                 Bar::default()
-                    .label(format!("L{}", id % 1000).into())
+                    .label(label.into())
                     .value(*count as u64)
                     .style(Style::default().fg(Color::Cyan))
             })
@@ -53,7 +97,7 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
 
         let bar_chart = BarChart::default()
             .data(BarGroup::default().bars(&bars))
-            .bar_width(5)
+            .bar_width(7)
             .bar_gap(1)
             .value_style(Style::default().fg(Color::White));
 

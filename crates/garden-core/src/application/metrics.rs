@@ -23,6 +23,8 @@ pub struct SimMetrics {
     pub population_history: VecDeque<usize>,
     /// Historique de best fitness (derniers 1000 ticks).
     pub fitness_history: VecDeque<f32>,
+    /// Historique du nombre de liens mycorhiziens (derniers 1000 ticks).
+    pub symbiosis_history: VecDeque<usize>,
     /// Nombre de lignees distinctes vivantes.
     pub lineage_count: usize,
     /// Age moyen des plantes vivantes.
@@ -44,6 +46,7 @@ impl SimMetrics {
             symbiosis_count: 0,
             population_history: VecDeque::new(),
             fitness_history: VecDeque::new(),
+            symbiosis_history: VecDeque::new(),
             lineage_count: 0,
             average_age: 0.0,
             total_biomass: 0,
@@ -106,6 +109,11 @@ pub fn update_metrics(
     metrics.fitness_history.push_back(best_fitness);
     if metrics.fitness_history.len() > HISTORY_CAPACITY {
         metrics.fitness_history.pop_front();
+    }
+
+    metrics.symbiosis_history.push_back(symbiosis_count);
+    if metrics.symbiosis_history.len() > HISTORY_CAPACITY {
+        metrics.symbiosis_history.pop_front();
     }
 }
 

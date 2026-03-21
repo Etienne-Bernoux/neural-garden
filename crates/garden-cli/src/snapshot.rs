@@ -24,6 +24,8 @@ pub struct SimSnapshot {
     pub generation: u64,
     pub population_history: VecDeque<usize>,
     pub fitness_history: VecDeque<f32>,
+    /// Historique du nombre de liens mycorhiziens (derniers 1000 ticks).
+    pub symbiosis_history: VecDeque<usize>,
     pub lineage_distribution: HashMap<u64, usize>,
     /// Highlights formates en texte lisible.
     pub recent_highlights: Vec<String>,
@@ -50,6 +52,7 @@ impl Default for SimSnapshot {
             generation: 0,
             population_history: VecDeque::new(),
             fitness_history: VecDeque::new(),
+            symbiosis_history: VecDeque::new(),
             lineage_distribution: HashMap::new(),
             recent_highlights: Vec::new(),
             paused: false,

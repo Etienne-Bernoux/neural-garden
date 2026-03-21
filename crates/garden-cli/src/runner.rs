@@ -7,6 +7,7 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Instant;
 
+use garden_core::application::highlights::{Highlight, HighlightType};
 use garden_core::application::sim::{run_tick, SimState};
 use garden_core::domain::plant::{PlantState, Pos};
 use garden_core::domain::world::GRID_SIZE;
@@ -149,17 +150,12 @@ fn build_snapshot(state: &SimState, ticks_per_second: f64, paused: bool) -> SimS
         }
     }
 
-    // Formater les highlights en texte
+    // Formater les highlights en messages lisibles
     let recent_highlights: Vec<String> = state
         .metrics
         .recent_highlights
         .iter()
-        .map(|h| {
-            format!(
-                "[tick {}] {:?} (score: {:.1})",
-                h.tick, h.highlight_type, h.score
-            )
-        })
+        .map(format_highlight)
         .collect();
 
     SimSnapshot {
@@ -176,10 +172,47 @@ fn build_snapshot(state: &SimState, ticks_per_second: f64, paused: bool) -> SimS
         generation: state.generation_counter.current(),
         population_history: state.metrics.population_history.clone(),
         fitness_history: state.metrics.fitness_history.clone(),
+        symbiosis_history: state.metrics.symbiosis_history.clone(),
         lineage_distribution: state.metrics.lineage_distribution.clone(),
         recent_highlights,
         paused,
         ticks_per_second,
         minimap,
+    }
+}
+
+/// Formate un highlight en message lisible pour le panneau alertes.
+fn format_highlight(h: &Highlight) -> String {
+    match &h.highlight_type {
+        HighlightType::FirstSymbiosis => {
+            format!("[+] Tick {} — Première symbiose !", h.tick)
+        }
+        HighlightType::FitnessRecord { fitness } => {
+            format!("[!] Tick {} — Record fitness : {:.1}", h.tick, fitness)
+        }
+        HighlightType::MajorInvasion { cells_taken, .. } => {
+            format!(
+                "[!] Tick {} — Invasion majeure ({} cellules)",
+                h.tick, cells_taken
+            )
+        }
+        HighlightType::MassDeath { deaths, .. } => {
+            format!("[x] Tick {} — Mort de masse ({} morts)", h.tick, deaths)
+        }
+        HighlightType::PopulationBoom { population } => {
+            format!(
+                "[+] Tick {} — Boom démographique (pop: {})",
+                h.tick, population
+            )
+        }
+        HighlightType::SeasonChange { season } => {
+            format!("[~] Tick {} — {:?}", h.tick, season)
+        }
+        HighlightType::LineageExtinction { lineage_id } => {
+            format!("[x] Tick {} — Lignée {} éteinte", h.tick, lineage_id)
+        }
+        HighlightType::NewLineage { lineage_id, .. } => {
+            format!("[+] Tick {} — Nouvelle lignée {}", h.tick, lineage_id)
+        }
     }
 }

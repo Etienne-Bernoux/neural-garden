@@ -32,7 +32,11 @@ pub fn generate_terrain(world: &mut World, seed: u32) {
             let dist = (dx * dx + dy * dy).sqrt();
             let ratio = (dist / max_radius).clamp(0.0, 1.0);
             // Courbe douce : plateau au centre, chute progressive sur les bords
-            let mask = if ratio < 0.6 { 1.0 } else { 1.0 - ((ratio - 0.6) / 0.4).powi(2) };
+            let mask = if ratio < 0.6 {
+                1.0
+            } else {
+                1.0 - ((ratio - 0.6) / 0.4).powi(2)
+            };
 
             // Altitude finale : combinaison bruit + masque, normalisee [0, 1]
             let altitude = ((noise_val + 1.0) / 2.0 * mask).clamp(0.0, 1.0) as f32;

@@ -103,7 +103,11 @@ fn render_minimap(frame: &mut Frame, area: Rect, minimap: &[Vec<u8>]) {
             let spans: Vec<Span> = (0..panel_w)
                 .map(|px| {
                     let mx = px * map_w / panel_w.max(1);
-                    let cell = minimap.get(my).and_then(|row| row.get(mx)).copied().unwrap_or(0);
+                    let cell = minimap
+                        .get(my)
+                        .and_then(|row| row.get(mx))
+                        .copied()
+                        .unwrap_or(0);
                     match cell {
                         0 => Span::styled("░", Style::default().fg(Color::DarkGray)),
                         1 => Span::styled("·", Style::default().fg(Color::Gray)),
