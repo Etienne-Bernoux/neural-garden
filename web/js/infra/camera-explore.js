@@ -40,14 +40,15 @@ export class ExploreCamera {
         this._gridSize = 128;
 
         this.locked = false;
+        this.enabled = false;  // desactive par defaut (mode god)
 
         this._setupControls();
     }
 
     _setupControls() {
-        // Pointer lock au clic
+        // Pointer lock au clic (uniquement si le mode explore est active)
         this.canvas.addEventListener('click', () => {
-            if (!this.locked) {
+            if (this.enabled && !this.locked) {
                 this.canvas.requestPointerLock();
             }
         });

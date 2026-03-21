@@ -280,10 +280,12 @@ document.addEventListener('keydown', (e) => {
         case 'v':
             if (currentCameraMode === 'god') {
                 currentCameraMode = 'explore';
+                exploreCamera.enabled = true;
                 exploreCamera.setTerrainHeights(simState.terrainHeights, simState.gridSize);
                 exploreCamera.teleportTo(0, 0);
             } else {
                 currentCameraMode = 'god';
+                exploreCamera.enabled = false;
                 document.exitPointerLock();
             }
             lighting.setCameraMode(currentCameraMode);
