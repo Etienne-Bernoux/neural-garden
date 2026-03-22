@@ -299,6 +299,24 @@ fn build_snapshot(
         bank_best_fitness: state.metrics.bank_best_fitness,
         bank_worst_fitness: state.metrics.bank_worst_fitness,
         bank_spread: state.metrics.bank_spread,
+        bank_top5: {
+            let mut entries: Vec<(f32, u8, String, u16)> = state
+                .seed_bank
+                .entries()
+                .iter()
+                .map(|(genome, fitness)| {
+                    (
+                        *fitness,
+                        genome.traits.hidden_size(),
+                        format!("{:?}", genome.traits.exudate_type()),
+                        genome.traits.max_size(),
+                    )
+                })
+                .collect();
+            entries.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+            entries.truncate(5);
+            entries
+        },
     }
 }
 

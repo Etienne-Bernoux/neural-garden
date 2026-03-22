@@ -2,7 +2,7 @@
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
@@ -68,7 +68,7 @@ fn render_bank_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     let best_str = format_compact(snapshot.bank_best_fitness);
     let worst_str = format_compact(snapshot.bank_worst_fitness);
 
-    let lines = vec![
+    let mut lines = vec![
         Line::from(format!(
             "Banque de graines: {}/100 ({} compartiments)",
             snapshot.bank_total_genomes, snapshot.bank_compartments,
@@ -80,8 +80,27 @@ fn render_bank_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
             worst_str,
         )),
         Line::from(""),
-        Line::from("(Top 5 génomes : données non disponibles dans le snapshot)"),
     ];
+
+    // Top 5 genomes
+    if snapshot.bank_top5.is_empty() {
+        lines.push(Line::from("(Banque vide)"));
+    } else {
+        lines.push(Line::from(Span::styled(
+            " #  Fitness     H.Size  Type       MaxSize",
+            Style::default().fg(Color::DarkGray),
+        )));
+        for (i, (fitness, hs, extype, maxs)) in snapshot.bank_top5.iter().enumerate() {
+            lines.push(Line::from(format!(
+                " {}  {:<10.0}  {:<6}  {:<9}  {}",
+                i + 1,
+                fitness,
+                hs,
+                extype,
+                maxs,
+            )));
+        }
+    }
 
     let block = Block::default()
         .title(" Banque de graines ")

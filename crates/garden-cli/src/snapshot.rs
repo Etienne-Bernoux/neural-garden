@@ -90,6 +90,8 @@ pub struct SimSnapshot {
     pub bank_best_fitness: f32,
     pub bank_worst_fitness: f32,
     pub bank_spread: f32,
+    /// Top 5 genomes de la banque : (fitness, hidden_size, exudate_type, max_size)
+    pub bank_top5: Vec<(f32, u8, String, u16)>,
 }
 
 impl Default for SimSnapshot {
@@ -142,6 +144,7 @@ impl Default for SimSnapshot {
             bank_best_fitness: 0.0,
             bank_worst_fitness: 0.0,
             bank_spread: 0.0,
+            bank_top5: Vec::new(),
         }
     }
 }
