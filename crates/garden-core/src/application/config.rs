@@ -85,10 +85,10 @@ impl Default for SimConfig {
             reproduction_energy_cost: 25.0, // 20.0 → 25.0
             reproduction_min_distance: 3,
             reproduction_max_distance: 9,
-            seed_rain_interval: 30, // 50 → 30 plus de brassage genetique
-            germination_carbon_min: 0.1,  // 0.3 → 0.1 (germer plus facilement)
+            seed_rain_interval: 45, // 30 → 45 (proportionnel aux saisons allongees)
+            germination_carbon_min: 0.1, // 0.3 → 0.1 (germer plus facilement)
             germination_nitrogen_min: 0.08, // 0.2 → 0.08
-            dormancy_timeout: 80,  // 200 → 80 (les graines meurent plus vite si le sol est pauvre)
+            dormancy_timeout: 360,  // 80 → 360 (graines inertes plus longtemps)
 
             aging_base_rate: 0.5, // 0.3 → 0.5 vieillissement accelere (carrying capacity)
             starvation_threshold: 0.1,
@@ -99,7 +99,7 @@ impl Default for SimConfig {
             seed_bank_capacity: 100,
             initial_population: 50, // 80 → 50 population initiale reduite
 
-            ticks_per_season: 250,
+            ticks_per_season: 360, // 250 → 360 (1 an = 1440 ticks)
         }
     }
 }

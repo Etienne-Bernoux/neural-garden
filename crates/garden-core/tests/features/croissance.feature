@@ -11,7 +11,7 @@ Fonctionnalité: Croissance des plantes
   Scénario: Une graine meurt si le sol reste pauvre trop longtemps
     Soit une île avec du sol très pauvre
     Et une graine plantée sur ce sol
-    Quand la simulation avance de 250 ticks
+    Quand la simulation avance de 400 ticks
     Alors la graine est morte
 
   Scénario: Une plante grandit en ajoutant des cellules canopée

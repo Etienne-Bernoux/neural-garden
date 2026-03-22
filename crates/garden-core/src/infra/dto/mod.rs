@@ -61,8 +61,8 @@ mod tests {
     fn aller_retour_plant_dto() {
         let mut plant = test_plant();
         let _ = plant.germinate();
-        let _ = plant.grow(Pos { x: 6, y: 5 }, true);
-        let _ = plant.grow(Pos { x: 5, y: 6 }, false);
+        let _ = plant.grow_footprint(Pos { x: 6, y: 5 });
+        let _ = plant.grow_roots(Pos { x: 5, y: 6 });
         plant.damage(2.0);
 
         // Plant → PlantDto → JSON → PlantDto → Plant
@@ -77,6 +77,7 @@ mod tests {
         assert!((plant.vitality().value() - plant2.vitality().value()).abs() < f32::EPSILON);
         assert!((plant.energy().value() - plant2.energy().value()).abs() < f32::EPSILON);
         assert_eq!(plant.biomass().value(), plant2.biomass().value());
+        assert_eq!(plant.footprint().len(), plant2.footprint().len());
         assert_eq!(plant.canopy().len(), plant2.canopy().len());
         assert_eq!(plant.roots().len(), plant2.roots().len());
         assert_eq!(plant.genetics().max_size(), plant2.genetics().max_size());
@@ -130,10 +131,12 @@ mod tests {
 
     #[test]
     fn aller_retour_domain_event_dto() {
+        use crate::domain::events::GrowthLayer;
+
         let event = DomainEvent::Grew {
             plant_id: 42,
             cell: Pos { x: 3, y: 7 },
-            is_canopy: true,
+            layer: GrowthLayer::Footprint,
         };
 
         let dto = DomainEventDto::from_event(10, &event);
@@ -147,6 +150,6 @@ mod tests {
         assert_eq!(parsed["data"]["plant_id"], 42);
         assert_eq!(parsed["data"]["x"], 3);
         assert_eq!(parsed["data"]["y"], 7);
-        assert_eq!(parsed["data"]["is_canopy"], true);
+        assert_eq!(parsed["data"]["layer"], "footprint");
     }
 }

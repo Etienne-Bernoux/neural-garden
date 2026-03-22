@@ -35,10 +35,12 @@ export class SimState {
                 this.plants.set(p.id, {
                     id: p.id,
                     lineage_id: p.lineage_id,
-                    cells: p.cells || [],
+                    footprint: p.footprint || p.cells || [],  // emprise au sol
+                    cells: p.cells || [],                      // canopy aerienne
+                    roots: p.roots || [],
                     vitality: p.vitality || 100,
                     energy: p.energy || 50,
-                    biomass: p.cells ? p.cells.length : 1,
+                    biomass: p.footprint ? p.footprint.length : (p.cells ? p.cells.length : 1),
                     state: 'Growing',
                     traits: p.traits || {},
                 });
@@ -63,6 +65,8 @@ export class SimState {
             for (const p of snapshot.plants) {
                 this.plants.set(p.id, {
                     ...p,
+                    footprint: p.footprint || p.cells || [],  // footprint prioritaire, fallback sur cells
+                    cells: p.cells || [],  // canopy aerienne
                     roots: p.roots || [],
                     traits: p.traits || {
                         max_size: p.max_size || 20,
@@ -133,14 +137,18 @@ export class SimState {
         if (plant) {
             const x = data.x ?? data.cell?.[0];
             const y = data.y ?? data.cell?.[1];
-            const isCanopy = data.is_canopy !== false; // true par defaut
+            const layer = (data.layer || '').toLowerCase();
             if (x !== undefined && y !== undefined) {
-                if (isCanopy) {
+                if (layer === 'canopy') {
                     plant.cells.push([x, y]);
-                    plant.biomass = plant.cells.length;
-                } else {
+                } else if (layer === 'roots') {
                     if (!plant.roots) plant.roots = [];
                     plant.roots.push([x, y]);
+                } else {
+                    // Footprint par defaut
+                    if (!plant.footprint) plant.footprint = [];
+                    plant.footprint.push([x, y]);
+                    plant.biomass = plant.footprint.length;
                 }
             }
         }
@@ -150,13 +158,15 @@ export class SimState {
         const data = e.data || e;
         const id = data.plant_id || data.p;
         const plant = this.plants.get(id);
-        if (plant && plant.cells.length > 0) {
+        if (plant) {
             const x = data.x ?? data.cell?.[0];
             const y = data.y ?? data.cell?.[1];
             if (x !== undefined && y !== undefined) {
-                const idx = plant.cells.findIndex(c => c[0] === x && c[1] === y);
-                if (idx >= 0) plant.cells.splice(idx, 1);
-                plant.biomass = plant.cells.length;
+                // Retirer du footprint (emprise au sol)
+                const fp = plant.footprint || [];
+                const idx = fp.findIndex(c => c[0] === x && c[1] === y);
+                if (idx >= 0) fp.splice(idx, 1);
+                plant.biomass = fp.length;
             }
         }
     }
@@ -166,11 +176,13 @@ export class SimState {
         const id = data.plant_id || data.p;
         const x = data.x ?? data.position?.[0];
         const y = data.y ?? data.position?.[1];
+        const initialCell = (x !== undefined && y !== undefined) ? [[x, y]] : [];
         this.plants.set(id, {
             id,
             lineage_id: data.lineage_id || data.lin || 0,
-            cells: (x !== undefined && y !== undefined) ? [[x, y]] : [],
-            roots: data.roots || [],
+            footprint: [...initialCell],  // emprise au sol
+            cells: [],                    // canopy aerienne (pousse apres germination)
+            roots: [...initialCell],      // racines (meme position initiale)
             vitality: 100,
             energy: 50,
             biomass: 1,
@@ -210,8 +222,8 @@ export class SimState {
         this.links.push({
             plant_a: a,
             plant_b: b,
-            pos_a: plantA?.cells[0],
-            pos_b: plantB?.cells[0],
+            pos_a: plantA?.footprint?.[0] || plantA?.cells?.[0],
+            pos_b: plantB?.footprint?.[0] || plantB?.cells?.[0],
         });
     }
 
@@ -232,19 +244,21 @@ export class SimState {
         const x = data.x ?? data.cell?.[0];
         const y = data.y ?? data.cell?.[1];
 
-        // Retirer la cellule de la victime
+        // Retirer la cellule du footprint de la victime
         const victim = this.plants.get(victimId);
         if (victim && x !== undefined && y !== undefined) {
-            const idx = victim.cells.findIndex(c => c[0] === x && c[1] === y);
-            if (idx >= 0) victim.cells.splice(idx, 1);
-            victim.biomass = victim.cells.length;
+            const vfp = victim.footprint || [];
+            const idx = vfp.findIndex(c => c[0] === x && c[1] === y);
+            if (idx >= 0) vfp.splice(idx, 1);
+            victim.biomass = vfp.length;
         }
 
-        // Ajouter a l'envahisseur
+        // Ajouter au footprint de l'envahisseur
         const invader = this.plants.get(invaderId);
         if (invader && x !== undefined && y !== undefined) {
-            invader.cells.push([x, y]);
-            invader.biomass = invader.cells.length;
+            if (!invader.footprint) invader.footprint = [];
+            invader.footprint.push([x, y]);
+            invader.biomass = invader.footprint.length;
         }
 
         // Marquer pour flash

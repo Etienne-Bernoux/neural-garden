@@ -96,7 +96,7 @@ impl SimState {
             let pos = land_cells[idx];
 
             // Verifier que la cellule n'est pas deja occupee
-            let occupied = plants.iter().any(|p: &Plant| p.canopy().contains(&pos));
+            let occupied = plants.iter().any(|p: &Plant| p.footprint().contains(&pos));
             if occupied {
                 continue;
             }
@@ -282,14 +282,14 @@ mod tests {
         let mut state = make_state(&mut rng);
 
         let initial_season = state.season_cycle.current_season();
-        for _ in 0..300 {
+        for _ in 0..400 {
             run_tick(&mut state, &mut rng);
         }
-        // Apres 300 ticks (> 250 ticks par saison), la saison a change
+        // Apres 400 ticks (> 360 ticks par saison), la saison a change
         let new_season = state.season_cycle.current_season();
         assert_ne!(
             initial_season, new_season,
-            "la saison devrait avoir change apres 300 ticks"
+            "la saison devrait avoir change apres 400 ticks"
         );
     }
 
@@ -534,11 +534,11 @@ mod tests {
         let land_cells = state.island.land_cells();
         for i in 0..state.plants.len() {
             // Trouver une cellule adjacente libre sur terre
-            let base = state.plants[i].canopy()[0];
+            let base = state.plants[i].footprint()[0];
             for lc in land_cells {
                 if lc.x == base.x + 1 && lc.y == base.y {
                     let pos = *lc;
-                    state.plants[i].grow(pos, true);
+                    state.plants[i].grow_footprint(pos);
                     break;
                 }
             }

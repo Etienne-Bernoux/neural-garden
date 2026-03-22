@@ -282,7 +282,7 @@ mod tests {
         let events = vec![DomainEvent::Grew {
             plant_id: 1,
             cell: Pos { x: 5, y: 5 },
-            is_canopy: true,
+            layer: crate::domain::events::GrowthLayer::Footprint,
         }];
         rec.record_tick(500, &events);
 

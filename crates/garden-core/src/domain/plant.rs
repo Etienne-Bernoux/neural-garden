@@ -1,6 +1,6 @@
 // Value objects de l'entite Plant.
 
-use super::events::DomainEvent;
+use super::events::{DomainEvent, GrowthLayer};
 
 /// Flottant borne dans [0.0, cap]. Base commune pour Vitalite et Energie.
 #[derive(Debug, Clone, PartialEq)]
@@ -247,6 +247,8 @@ impl GeneticTraits {
 // --- Entite Plant ---
 
 /// Une plante vivant sur la grille.
+/// Modele 3 couches : footprint (emprise au sol, exclusive),
+/// canopy (canopee aerienne, partagee), roots (racines, partagees).
 #[derive(Debug, Clone)]
 pub struct Plant {
     id: u64,
@@ -255,6 +257,7 @@ pub struct Plant {
     vitality: Vitality,
     energy: Energy,
     biomass: Biomass,
+    footprint: Vec<Pos>,
     canopy: Vec<Pos>,
     roots: Vec<Pos>,
     genetics: GeneticTraits,
@@ -266,6 +269,7 @@ pub struct Plant {
 
 impl Plant {
     /// Cree une nouvelle plante sous forme de graine a la position donnee.
+    /// La position initiale est presente dans les 3 couches (footprint, canopy, roots).
     pub fn new(id: u64, position: Pos, genetics: GeneticTraits, lineage: Lineage) -> Self {
         let biomass = Biomass::new(1, genetics.max_size());
         let v_cap = vitality_cap(&biomass, genetics.vitality_factor());
@@ -277,6 +281,7 @@ impl Plant {
             vitality: Vitality::new(v_cap, v_cap),
             energy: Energy::new(e_cap, e_cap),
             biomass,
+            footprint: vec![position],
             canopy: vec![position],
             roots: vec![position],
             genetics,
@@ -311,12 +316,29 @@ impl Plant {
         &self.biomass
     }
 
+    /// Emprise au sol — cellules exclusives (presence physique).
+    pub fn footprint(&self) -> &[Pos] {
+        &self.footprint
+    }
+
+    /// Canopee aerienne — cellules partagees.
     pub fn canopy(&self) -> &[Pos] {
         &self.canopy
     }
 
+    /// Racines sous-sol — cellules partagees.
     pub fn roots(&self) -> &[Pos] {
         &self.roots
+    }
+
+    /// Nombre maximum de cellules de canopee (4x l'emprise).
+    pub fn max_canopy(&self) -> usize {
+        self.footprint.len() * 4
+    }
+
+    /// Nombre maximum de cellules de racines (5x l'emprise).
+    pub fn max_roots(&self) -> usize {
+        self.footprint.len() * 5
     }
 
     pub fn genetics(&self) -> &GeneticTraits {
@@ -342,21 +364,17 @@ impl Plant {
             self.state = PlantState::Growing;
             Some(DomainEvent::Germinated {
                 plant_id: self.id,
-                position: self.canopy[0],
+                position: self.footprint[0],
             })
         } else {
             None
         }
     }
 
-    /// Pousse dans une nouvelle cellule. Retourne l'evenement Grew.
-    pub fn grow(&mut self, cell: Pos, is_canopy: bool) -> DomainEvent {
-        if is_canopy {
-            self.canopy.push(cell);
-            self.biomass = self.biomass.add(1, self.genetics.max_size());
-        } else {
-            self.roots.push(cell);
-        }
+    /// Pousse l'emprise au sol dans une nouvelle cellule. Incremente la biomasse.
+    pub fn grow_footprint(&mut self, pos: Pos) -> DomainEvent {
+        self.footprint.push(pos);
+        self.biomass = self.biomass.add(1, self.genetics.max_size());
         // Re-clamper les stats aux nouveaux plafonds
         let v_cap = vitality_cap(&self.biomass, self.genetics.vitality_factor());
         let e_cap = energy_cap(&self.biomass, self.genetics.energy_factor());
@@ -364,16 +382,44 @@ impl Plant {
         self.energy = self.energy.clamp_to(e_cap);
         DomainEvent::Grew {
             plant_id: self.id,
-            cell,
-            is_canopy,
+            cell: pos,
+            layer: GrowthLayer::Footprint,
         }
     }
 
-    /// Retrecit en retirant la derniere cellule de canopee (garde au moins 1).
+    /// Pousse la canopee aerienne dans une nouvelle cellule.
+    /// Retourne None si la limite max_canopy est atteinte.
+    pub fn grow_canopy(&mut self, pos: Pos) -> Option<DomainEvent> {
+        if self.canopy.len() >= self.max_canopy() {
+            return None;
+        }
+        self.canopy.push(pos);
+        Some(DomainEvent::Grew {
+            plant_id: self.id,
+            cell: pos,
+            layer: GrowthLayer::Canopy,
+        })
+    }
+
+    /// Pousse les racines dans une nouvelle cellule.
+    /// Retourne None si la limite max_roots est atteinte.
+    pub fn grow_roots(&mut self, pos: Pos) -> Option<DomainEvent> {
+        if self.roots.len() >= self.max_roots() {
+            return None;
+        }
+        self.roots.push(pos);
+        Some(DomainEvent::Grew {
+            plant_id: self.id,
+            cell: pos,
+            layer: GrowthLayer::Roots,
+        })
+    }
+
+    /// Retrecit en retirant la derniere cellule d'emprise (garde au moins 1).
     /// Retourne l'evenement Shrank si une cellule a ete retiree.
     pub fn shrink(&mut self) -> Option<DomainEvent> {
-        if self.canopy.len() > 1 {
-            let removed_cell = self.canopy.pop().expect("canopy non vide");
+        if self.footprint.len() > 1 {
+            let removed_cell = self.footprint.pop().expect("footprint non vide");
             self.biomass = self.biomass.sub(1);
             // Re-clamper les stats aux nouveaux plafonds
             let v_cap = vitality_cap(&self.biomass, self.genetics.vitality_factor());
@@ -415,7 +461,7 @@ impl Plant {
         if self.state == PlantState::Dead {
             Some(DomainEvent::Died {
                 plant_id: self.id,
-                position: self.canopy[0],
+                position: self.footprint[0],
                 age: self.age,
                 biomass: self.biomass.value(),
             })
@@ -446,14 +492,14 @@ impl Plant {
         self.vitality = self.vitality.add(amount, cap);
     }
 
-    /// Retire une cellule de canopee specifique. Retourne true si retiree.
-    /// Ne retire pas si c'est la derniere cellule de canopee.
-    pub fn remove_canopy_cell(&mut self, pos: &Pos) -> bool {
-        if self.canopy.len() <= 1 {
+    /// Retire une cellule d'emprise specifique. Retourne true si retiree.
+    /// Ne retire pas si c'est la derniere cellule d'emprise.
+    pub fn remove_footprint_cell(&mut self, pos: &Pos) -> bool {
+        if self.footprint.len() <= 1 {
             return false;
         }
-        if let Some(idx) = self.canopy.iter().position(|p| p == pos) {
-            self.canopy.swap_remove(idx);
+        if let Some(idx) = self.footprint.iter().position(|p| p == pos) {
+            self.footprint.swap_remove(idx);
             self.biomass = self.biomass.sub(1);
             let v_cap = vitality_cap(&self.biomass, self.genetics.vitality_factor());
             let e_cap = energy_cap(&self.biomass, self.genetics.energy_factor());
@@ -501,6 +547,7 @@ impl Plant {
         vitality: f32,
         energy: f32,
         biomass: u16,
+        footprint: Vec<Pos>,
         canopy: Vec<Pos>,
         roots: Vec<Pos>,
         genetics: GeneticTraits,
@@ -524,6 +571,7 @@ impl Plant {
             vitality: Vitality::new(vitality, v_cap),
             energy: Energy::new(energy, e_cap),
             biomass: Biomass::new(biomass, genetics.max_size()),
+            footprint,
             canopy,
             roots,
             genetics,
@@ -553,6 +601,7 @@ impl Plant {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::events::GrowthLayer;
 
     #[test]
     fn bounded_f32_clampe_a_la_creation() {
@@ -638,19 +687,31 @@ mod tests {
     }
 
     #[test]
+    fn la_plante_fait_pousser_lemprise() {
+        let mut p = test_plant();
+        let _ = p.germinate();
+        let _ = p.grow_footprint(Pos { x: 6, y: 5 });
+        assert_eq!(p.footprint().len(), 2);
+        assert_eq!(p.biomass().value(), 2);
+    }
+
+    #[test]
     fn la_plante_fait_pousser_la_canopee() {
         let mut p = test_plant();
         let _ = p.germinate();
-        let _ = p.grow(Pos { x: 6, y: 5 }, true);
+        let event = p.grow_canopy(Pos { x: 6, y: 5 });
+        assert!(event.is_some());
         assert_eq!(p.canopy().len(), 2);
-        assert_eq!(p.biomass().value(), 2);
+        // La biomasse ne change pas pour la canopee aerienne
+        assert_eq!(p.biomass().value(), 1);
     }
 
     #[test]
     fn la_plante_fait_pousser_les_racines() {
         let mut p = test_plant();
         let _ = p.germinate();
-        let _ = p.grow(Pos { x: 6, y: 5 }, false);
+        let event = p.grow_roots(Pos { x: 6, y: 5 });
+        assert!(event.is_some());
         assert_eq!(p.roots().len(), 2);
         // La biomasse ne change pas pour la croissance racinaire
         assert_eq!(p.biomass().value(), 1);
@@ -660,10 +721,10 @@ mod tests {
     fn la_plante_retrecit() {
         let mut p = test_plant();
         let _ = p.germinate();
-        let _ = p.grow(Pos { x: 6, y: 5 }, true);
+        let _ = p.grow_footprint(Pos { x: 6, y: 5 });
         assert_eq!(p.biomass().value(), 2);
         assert!(p.shrink().is_some());
-        assert_eq!(p.canopy().len(), 1);
+        assert_eq!(p.footprint().len(), 1);
         assert_eq!(p.biomass().value(), 1);
     }
 
@@ -705,9 +766,9 @@ mod tests {
         let mut p = test_plant();
         let _ = p.germinate();
         // max_size = 20, 80% = 16. Biomasse >= 16 requise.
-        // Commence a 1, pousse 15 cellules de canopee en plus.
+        // Commence a 1, pousse 15 cellules d'emprise en plus.
         for i in 0..15 {
-            let _ = p.grow(Pos { x: 6 + i, y: 5 }, true);
+            let _ = p.grow_footprint(Pos { x: 6 + i, y: 5 });
         }
         assert_eq!(p.biomass().value(), 16);
         // Soigner a fond pour que la vitalite passe le check
@@ -721,8 +782,8 @@ mod tests {
         let mut p = test_plant();
         let _ = p.germinate();
         // Pousse jusqu'a biomasse 3 → plafond vitalite = 30.0, plafond energie = 15.0
-        let _ = p.grow(Pos { x: 6, y: 5 }, true);
-        let _ = p.grow(Pos { x: 7, y: 5 }, true);
+        let _ = p.grow_footprint(Pos { x: 6, y: 5 });
+        let _ = p.grow_footprint(Pos { x: 7, y: 5 });
         // Soigner/gagner pour remplir les plafonds a biomasse 3
         p.heal(100.0);
         p.gain_energy(100.0);
@@ -794,27 +855,32 @@ mod tests {
     }
 
     #[test]
-    fn grow_retourne_evenement_croissance() {
+    fn grow_footprint_retourne_evenement_croissance() {
         let mut p = test_plant();
         let _ = p.germinate();
-        let event = p.grow(Pos { x: 6, y: 5 }, true);
+        let event = p.grow_footprint(Pos { x: 6, y: 5 });
         assert_eq!(
             event,
             DomainEvent::Grew {
                 plant_id: 1,
                 cell: Pos { x: 6, y: 5 },
-                is_canopy: true,
+                layer: GrowthLayer::Footprint,
             }
         );
-        // Croissance racinaire
-        let event = p.grow(Pos { x: 4, y: 5 }, false);
+    }
+
+    #[test]
+    fn grow_roots_retourne_evenement_croissance() {
+        let mut p = test_plant();
+        let _ = p.germinate();
+        let event = p.grow_roots(Pos { x: 4, y: 5 });
         assert_eq!(
             event,
-            DomainEvent::Grew {
+            Some(DomainEvent::Grew {
                 plant_id: 1,
                 cell: Pos { x: 4, y: 5 },
-                is_canopy: false,
-            }
+                layer: GrowthLayer::Roots,
+            })
         );
     }
 
@@ -822,7 +888,7 @@ mod tests {
     fn shrink_retourne_evenement_retrecissement() {
         let mut p = test_plant();
         let _ = p.germinate();
-        let _ = p.grow(Pos { x: 6, y: 5 }, true);
+        let _ = p.grow_footprint(Pos { x: 6, y: 5 });
         let event = p.shrink();
         assert_eq!(
             event,
@@ -889,7 +955,7 @@ mod tests {
         let _ = p.germinate();
         // Pousser pour augmenter la biomasse
         for i in 0..5 {
-            let _ = p.grow(Pos { x: 6 + i, y: 5 }, true);
+            let _ = p.grow_footprint(Pos { x: 6 + i, y: 5 });
         }
         // Avancer l'age pour que nitrogen_to_release > 0
         for _ in 0..100 {

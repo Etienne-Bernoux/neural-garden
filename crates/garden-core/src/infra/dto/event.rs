@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::domain::events::DomainEvent;
+use crate::domain::events::{DomainEvent, GrowthLayer};
 
 /// DTO generique pour les events du domaine.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -20,7 +20,7 @@ impl DomainEventDto {
             DomainEvent::Grew {
                 plant_id,
                 cell,
-                is_canopy,
+                layer,
             } => Self {
                 tick,
                 event_type: "Grew".to_string(),
@@ -28,7 +28,13 @@ impl DomainEventDto {
                     "plant_id": plant_id,
                     "x": cell.x,
                     "y": cell.y,
-                    "is_canopy": is_canopy,
+                    "layer": match layer {
+                        GrowthLayer::Footprint => "footprint",
+                        GrowthLayer::Canopy => "canopy",
+                        GrowthLayer::Roots => "roots",
+                    },
+                    // Compat temporaire : is_canopy = true si footprint (ancien comportement)
+                    "is_canopy": matches!(layer, GrowthLayer::Footprint),
                 }),
             },
             DomainEvent::Died {

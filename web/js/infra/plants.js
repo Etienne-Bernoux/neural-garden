@@ -93,8 +93,8 @@ export class PlantRenderer {
 
     _buildPlantGeometry(group, plant) {
         const traits = plant.traits || {};
-        const cells = plant.cells || [];
-        const biomass = plant.biomass || cells.length;
+        const cells = plant.footprint || plant.cells || [];
+        const biomass = plant.footprint ? plant.footprint.length : (plant.biomass || 1);
         const state = plant.state || 'Growing';
         const maxSize = traits.max_size || 25;
         const exudateType = traits.exudate_type || 'carbon';
@@ -167,7 +167,8 @@ export class PlantRenderer {
 
     _getPlantHash(plant) {
         const rootCount = plant.roots ? plant.roots.length : 0;
-        return `${plant.cells?.length || 0}-${rootCount}-${plant.state}-${Math.round((plant.vitality || 0) * 10)}-${Math.round((plant.biomass || 0) * 10)}`;
+        const footprintCount = plant.footprint ? plant.footprint.length : 0;
+        return `${footprintCount}-${plant.cells?.length || 0}-${rootCount}-${plant.state}-${Math.round((plant.vitality || 0) * 10)}-${Math.round((plant.biomass || 0) * 10)}`;
     }
 
     _getHeight(cell) {

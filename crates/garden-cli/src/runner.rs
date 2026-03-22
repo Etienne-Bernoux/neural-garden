@@ -137,7 +137,7 @@ fn build_snapshot(state: &SimState, ticks_per_second: f64, paused: bool) -> SimS
         if plant.is_dead() {
             continue;
         }
-        for cell_pos in plant.canopy() {
+        for cell_pos in plant.footprint() {
             let mx = (cell_pos.x / 4) as usize;
             let my = (cell_pos.y / 4) as usize;
             if mx < map_size && my < map_size {

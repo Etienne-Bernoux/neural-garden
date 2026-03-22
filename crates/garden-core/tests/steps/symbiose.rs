@@ -55,8 +55,8 @@ fn add_two_plants_shared_roots(state: &mut SimState, rng: &mut dyn garden_core::
 
     // Racines partagees sur (11, 10)
     let shared_pos = Pos { x: 11, y: 10 };
-    plant_a.grow(shared_pos, false);
-    plant_b.grow(shared_pos, false);
+    plant_a.grow_roots(shared_pos);
+    plant_b.grow_roots(shared_pos);
 
     let brain_a = Brain::new(8, rng);
     let brain_b = Brain::new(8, rng);

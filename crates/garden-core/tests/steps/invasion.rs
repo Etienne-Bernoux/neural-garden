@@ -61,8 +61,8 @@ fn setup_two_adjacent_plants(world: &mut GardenWorld) {
     plant_a.germinate();
     plant_b.germinate();
 
-    // B a besoin d'au moins 2 cellules de canopee pour que remove_canopy_cell fonctionne
-    plant_b.grow(Pos { x: 12, y: 10 }, true);
+    // B a besoin d'au moins 2 cellules d'emprise pour que remove_footprint_cell fonctionne
+    plant_b.grow_footprint(Pos { x: 12, y: 10 });
 
     let brain_a = Brain::new(8, &mut world.rng);
     let brain_b = Brain::new(8, &mut world.rng);
@@ -113,7 +113,7 @@ fn plante_a_pousse_vers_b(world: &mut GardenWorld) {
         .expect("plante B");
 
     // Cellule cible : la position de B (11, 10)
-    let target = state.plants[b_idx].canopy()[0];
+    let target = state.plants[b_idx].footprint()[0];
 
     let attacker_energy = state.plants[a_idx].energy().value();
     let defender_energy = state.plants[b_idx].energy().value();
@@ -124,8 +124,8 @@ fn plante_a_pousse_vers_b(world: &mut GardenWorld) {
 
     if attacker_energy > defender_energy + threshold {
         // Invasion reussie
-        state.plants[b_idx].remove_canopy_cell(&target);
-        state.plants[a_idx].grow(target, true);
+        state.plants[b_idx].remove_footprint_cell(&target);
+        state.plants[a_idx].grow_footprint(target);
         state.plants[a_idx].consume_energy(state.config.invasion_energy_cost);
         state.plants[b_idx].damage(state.config.invasion_damage);
 
@@ -144,9 +144,9 @@ fn plante_a_pris_cellule(world: &mut GardenWorld) {
     let plant_a = state.plants.iter().find(|p| p.id() == 1).expect("plante A");
 
     assert!(
-        plant_a.canopy().contains(&target),
-        "la plante A devrait avoir pris la cellule (11, 10), canopee: {:?}",
-        plant_a.canopy()
+        plant_a.footprint().contains(&target),
+        "la plante A devrait avoir pris la cellule (11, 10), emprise: {:?}",
+        plant_a.footprint()
     );
 }
 
@@ -175,15 +175,15 @@ fn cellule_toujours_a_b(world: &mut GardenWorld) {
     let plant_b = state.plants.iter().find(|p| p.id() == 2).expect("plante B");
 
     assert!(
-        plant_b.canopy().contains(&target),
-        "la cellule (11, 10) devrait toujours appartenir a B, canopee B: {:?}",
-        plant_b.canopy()
+        plant_b.footprint().contains(&target),
+        "la cellule (11, 10) devrait toujours appartenir a B, emprise B: {:?}",
+        plant_b.footprint()
     );
 
     // Verifier aussi que A n'a PAS cette cellule
     let plant_a = state.plants.iter().find(|p| p.id() == 1).expect("plante A");
     assert!(
-        !plant_a.canopy().contains(&target),
+        !plant_a.footprint().contains(&target),
         "la plante A ne devrait pas avoir la cellule (11, 10)"
     );
 }
@@ -203,18 +203,18 @@ fn plante_a_envahit_b(world: &mut GardenWorld) {
         .position(|p| p.id() == 2)
         .expect("plante B");
 
-    // B doit avoir au moins 2 cellules de canopee pour que remove_canopy_cell fonctionne.
+    // B doit avoir au moins 2 cellules d'emprise pour que remove_footprint_cell fonctionne.
     // Ajouter une cellule supplementaire si necessaire.
-    if state.plants[b_idx].canopy().len() < 2 {
-        state.plants[b_idx].grow(Pos { x: 13, y: 10 }, true);
+    if state.plants[b_idx].footprint().len() < 2 {
+        state.plants[b_idx].grow_footprint(Pos { x: 13, y: 10 });
     }
 
-    // La cellule a envahir : la premiere cellule de canopee de B
-    let target = state.plants[b_idx].canopy()[0];
+    // La cellule a envahir : la premiere cellule d'emprise de B
+    let target = state.plants[b_idx].footprint()[0];
 
     // Effectuer l'invasion directement
-    state.plants[b_idx].remove_canopy_cell(&target);
-    state.plants[a_idx].grow(target, true);
+    state.plants[b_idx].remove_footprint_cell(&target);
+    state.plants[a_idx].grow_footprint(target);
     state.plants[a_idx].consume_energy(state.config.invasion_energy_cost);
     state.plants[b_idx].damage(state.config.invasion_damage);
 

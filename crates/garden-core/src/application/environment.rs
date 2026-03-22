@@ -12,13 +12,14 @@ pub fn phase_environment(state: &mut SimState) -> Option<super::season::Season> 
 
     let modifiers = state.season_cycle.current_modifiers();
 
-    // Construire un ensemble des cellules occupees par une plante (canopee)
+    // Construire un ensemble des cellules occupees par l'emprise physique (footprint)
+    // L'ombrage est lie a l'emprise au sol pour l'instant (T4 ajoutera l'ombre de la canopee aerienne)
     let mut occupied = vec![false; GRID_SIZE as usize * GRID_SIZE as usize];
     for plant in &state.plants {
         if plant.is_dead() {
             continue;
         }
-        for pos in plant.canopy() {
+        for pos in plant.footprint() {
             if pos.x < GRID_SIZE && pos.y < GRID_SIZE {
                 occupied[pos.y as usize * GRID_SIZE as usize + pos.x as usize] = true;
             }
@@ -84,8 +85,8 @@ pub fn phase_decomposition(state: &mut SimState) {
     for plant in state.plants.iter_mut() {
         if plant.state() == PlantState::Decomposing {
             let (carbon, nitrogen) = plant.decompose_tick(decomposition_ticks);
-            let canopy_cells: Vec<Pos> = plant.canopy().to_vec();
-            for pos in &canopy_cells {
+            let footprint_cells: Vec<Pos> = plant.footprint().to_vec();
+            for pos in &footprint_cells {
                 if let Some(cell) = state.world.get_mut(pos) {
                     let c = cell.carbon();
                     cell.set_carbon(c + carbon);

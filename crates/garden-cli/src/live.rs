@@ -259,6 +259,7 @@ struct InitialSnapshot {
 struct LivePlant {
     id: u64,
     lineage_id: u64,
+    footprint: Vec<[u16; 2]>,
     cells: Vec<[u16; 2]>,
     roots: Vec<[u16; 2]>,
     vitality: f32,
@@ -313,6 +314,7 @@ fn build_initial_snapshot(state: &SimState) -> InitialSnapshot {
         .map(|p| LivePlant {
             id: p.id(),
             lineage_id: p.lineage().id(),
+            footprint: p.footprint().iter().map(|pos| [pos.x, pos.y]).collect(),
             cells: p.canopy().iter().map(|pos| [pos.x, pos.y]).collect(),
             roots: p.roots().iter().map(|pos| [pos.x, pos.y]).collect(),
             vitality: p.vitality().value(),
@@ -335,13 +337,13 @@ fn build_initial_snapshot(state: &SimState) -> InitialSnapshot {
                 .plants
                 .iter()
                 .find(|p| p.id() == l.plant_a())
-                .and_then(|p| p.canopy().first())
+                .and_then(|p| p.footprint().first())
                 .map(|pos| [pos.x, pos.y]);
             let pos_b = state
                 .plants
                 .iter()
                 .find(|p| p.id() == l.plant_b())
-                .and_then(|p| p.canopy().first())
+                .and_then(|p| p.footprint().first())
                 .map(|pos| [pos.x, pos.y]);
             LiveLink {
                 plant_a: l.plant_a(),

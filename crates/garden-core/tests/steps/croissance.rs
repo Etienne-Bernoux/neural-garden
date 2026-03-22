@@ -111,18 +111,18 @@ fn add_germinated_plant_with_growth(
     plant.germinate();
     plant.gain_energy(extra_energy);
 
-    // Pre-grow des cellules de canopee sur des positions terrestres adjacentes
+    // Pre-grow des cellules d'emprise sur des positions terrestres adjacentes
     let mut idx = 1;
     for _ in 0..pre_grow_canopy {
         if idx < land_cells.len() {
-            plant.grow(land_cells[idx], true);
+            plant.grow_footprint(land_cells[idx]);
             idx += 1;
         }
     }
     // Pre-grow des cellules de racines
     for _ in 0..pre_grow_roots {
         if idx < land_cells.len() {
-            plant.grow(land_cells[idx], false);
+            plant.grow_roots(land_cells[idx]);
             idx += 1;
         }
     }
@@ -237,10 +237,11 @@ async fn plante_plus_dune_canopee(world: &mut GardenWorld) {
         .plants
         .first()
         .expect("il doit y avoir au moins une plante");
+    // Apres le refactoring 3 couches, la croissance ajoute a l'emprise (footprint), pas a la canopee aerienne.
     assert!(
-        plant.canopy().len() > 1,
-        "la plante devrait avoir plus d'une cellule de canopee, a {} cellules",
-        plant.canopy().len()
+        plant.footprint().len() > 1,
+        "la plante devrait avoir plus d'une cellule d'emprise, a {} cellules",
+        plant.footprint().len()
     );
 }
 

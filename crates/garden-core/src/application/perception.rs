@@ -14,18 +14,18 @@ fn sign(x: f32) -> f32 {
     }
 }
 
-/// Calcule la moyenne d'un champ sur les cellules de canopee.
+/// Calcule la moyenne d'un champ sur les cellules d'emprise (footprint).
 fn average_field(plant: &Plant, world: &World, field: fn(&Cell) -> f32) -> f32 {
-    let canopy = plant.canopy();
-    if canopy.is_empty() {
+    let footprint = plant.footprint();
+    if footprint.is_empty() {
         return 0.0;
     }
-    let sum: f32 = canopy
+    let sum: f32 = footprint
         .iter()
         .filter_map(|pos| world.get(pos))
         .map(field)
         .sum();
-    sum / canopy.len() as f32
+    sum / footprint.len() as f32
 }
 
 /// Calcule les 18 inputs de perception pour une plante.
@@ -176,8 +176,8 @@ mod tests {
         // Plante avec 3 racines en ligne : x=4, x=5, x=6, y=5
         let mut plant = test_plant_at(Pos { x: 5, y: 5 });
         plant.germinate();
-        plant.grow(Pos { x: 4, y: 5 }, false); // racine
-        plant.grow(Pos { x: 6, y: 5 }, false); // racine
+        plant.grow_roots(Pos { x: 4, y: 5 }); // racine
+        plant.grow_roots(Pos { x: 6, y: 5 }); // racine
 
         let mut world = World::new();
         // Carbon seulement a la racine droite
@@ -198,8 +198,8 @@ mod tests {
         // Plante avec plusieurs racines
         let mut plant = test_plant_at(Pos { x: 5, y: 5 });
         plant.germinate();
-        plant.grow(Pos { x: 4, y: 5 }, false);
-        plant.grow(Pos { x: 6, y: 5 }, false);
+        plant.grow_roots(Pos { x: 4, y: 5 });
+        plant.grow_roots(Pos { x: 6, y: 5 });
 
         let mut world = World::new();
         // Mettre des valeurs extremes partout

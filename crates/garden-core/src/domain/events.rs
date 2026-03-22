@@ -1,16 +1,24 @@
 use super::plant::{Lineage, PlantState, Pos};
 
+/// Couche de croissance pour l'event Grew.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GrowthLayer {
+    Footprint,
+    Canopy,
+    Roots,
+}
+
 /// Evenements domaine emis par les entites durant leurs operations.
 ///
 /// Utilises pour decoupler les effets de bord (replay, TUI, surbrillances)
 /// et permettre l'event sourcing (Phase 3).
 #[derive(Debug, Clone, PartialEq)]
 pub enum DomainEvent {
-    /// Une plante a pousse en ajoutant une cellule (canopee ou racines).
+    /// Une plante a pousse en ajoutant une cellule (emprise, canopee ou racines).
     Grew {
         plant_id: u64,
         cell: Pos,
-        is_canopy: bool,
+        layer: GrowthLayer,
     },
     /// Une plante est morte.
     Died {
@@ -63,17 +71,17 @@ mod tests {
         let event = DomainEvent::Grew {
             plant_id: 1,
             cell: Pos { x: 3, y: 7 },
-            is_canopy: true,
+            layer: GrowthLayer::Footprint,
         };
         match event {
             DomainEvent::Grew {
                 plant_id,
                 cell,
-                is_canopy,
+                layer,
             } => {
                 assert_eq!(plant_id, 1);
                 assert_eq!(cell, Pos { x: 3, y: 7 });
-                assert!(is_canopy);
+                assert_eq!(layer, GrowthLayer::Footprint);
             }
             _ => panic!("expected Grew"),
         }
@@ -174,7 +182,7 @@ mod tests {
         let event = DomainEvent::Grew {
             plant_id: 1,
             cell: Pos { x: 5, y: 5 },
-            is_canopy: false,
+            layer: GrowthLayer::Roots,
         };
         let cloned = event.clone();
         assert_eq!(event, cloned);

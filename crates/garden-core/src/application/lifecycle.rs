@@ -25,7 +25,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         if plant.energy().value() > state.config.reproduction_energy_min
             && plant.biomass().value() > state.config.reproduction_biomass_min
         {
-            let base_pos = plant.canopy()[0];
+            let base_pos = plant.footprint()[0];
             reproduction_candidates.push((i, base_pos));
         }
     }
@@ -55,8 +55,10 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         let occupied = state
             .plants
             .iter()
-            .any(|p| !p.is_dead() && p.canopy().contains(&target));
-        let occupied_new = new_plants.iter().any(|(p, _)| p.canopy().contains(&target));
+            .any(|p| !p.is_dead() && p.footprint().contains(&target));
+        let occupied_new = new_plants
+            .iter()
+            .any(|(p, _)| p.footprint().contains(&target));
 
         if occupied || occupied_new {
             continue;
@@ -202,7 +204,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
                 } else {
                     let parent_idx = (rng.next_f32() * alive.len() as f32) as usize;
                     let parent = alive[parent_idx.min(alive.len() - 1)];
-                    let base_pos = parent.canopy()[0];
+                    let base_pos = parent.footprint()[0];
                     // Position a 3-8 cellules de distance
                     let angle = rng.next_f32() * 2.0 * core::f32::consts::PI;
                     let distance = 3.0 + rng.next_f32() * 5.0;
@@ -229,7 +231,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
             let occupied = state
                 .plants
                 .iter()
-                .any(|p| !p.is_dead() && p.canopy().contains(&pos));
+                .any(|p| !p.is_dead() && p.footprint().contains(&pos));
 
             if !occupied {
                 let child_id = state.next_plant_id;
@@ -268,7 +270,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         }
 
         // Germination si sol assez riche
-        let pos = plant.canopy()[0];
+        let pos = plant.footprint()[0];
         let can_germinate = state
             .world
             .get(&pos)

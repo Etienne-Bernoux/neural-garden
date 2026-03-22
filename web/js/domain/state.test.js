@@ -28,7 +28,8 @@ describe('SimState', () => {
         const state = new SimState();
         state.applyEvent({ e: 'born', p: 1, lin: 0, x: 10, y: 10 });
         expect(state.plants.size).toBe(1);
-        expect(state.population).toBe(1);
+        // Les graines ne comptent pas dans population (seulement apres germination)
+        expect(state.population).toBe(0);
         expect(state.plants.get(1).state).toBe('Seed');
     });
 
@@ -39,11 +40,11 @@ describe('SimState', () => {
         expect(state.plants.get(1).state).toBe('Growing');
     });
 
-    it('ajoute une cellule via event grow', () => {
+    it('ajoute une cellule via event grow (footprint par defaut)', () => {
         const state = new SimState();
         state.applyEvent({ e: 'born', p: 1, lin: 0, x: 10, y: 10 });
         state.applyEvent({ e: 'grow', p: 1, x: 11, y: 10 });
-        expect(state.plants.get(1).cells).toHaveLength(2);
+        expect(state.plants.get(1).footprint).toHaveLength(2);
         expect(state.plants.get(1).biomass).toBe(2);
     });
 
@@ -52,7 +53,7 @@ describe('SimState', () => {
         state.applyEvent({ e: 'born', p: 1, lin: 0, x: 10, y: 10 });
         state.applyEvent({ e: 'grow', p: 1, x: 11, y: 10 });
         state.applyEvent({ e: 'shrink', p: 1, x: 11, y: 10 });
-        expect(state.plants.get(1).cells).toHaveLength(1);
+        expect(state.plants.get(1).footprint).toHaveLength(1);
     });
 
     it('marque une plante morte via event died', () => {
@@ -86,8 +87,8 @@ describe('SimState', () => {
         state.applyEvent({ e: 'born', p: 1, lin: 0, x: 10, y: 10 });
         state.applyEvent({ e: 'born', p: 2, lin: 1, x: 11, y: 10 });
         state.applyEvent({ e: 'invade', p: 1, victim: 2, x: 11, y: 10 });
-        expect(state.plants.get(1).cells).toHaveLength(2);
-        expect(state.plants.get(2).cells).toHaveLength(0);
+        expect(state.plants.get(1).footprint).toHaveLength(2);
+        expect(state.plants.get(2).footprint).toHaveLength(0);
     });
 
     it('change la saison via event season', () => {
@@ -137,6 +138,17 @@ describe('SimState', () => {
         expect(state.plants.has(5)).toBe(true);
     });
 
+    it('dispatche la croissance par couche', () => {
+        const state = new SimState();
+        state.applyEvent({ event_type: 'Born', data: { plant_id: 1, lineage_id: 0, x: 10, y: 10 } });
+        state.applyEvent({ event_type: 'Grew', data: { plant_id: 1, x: 11, y: 10, layer: 'Footprint' } });
+        state.applyEvent({ event_type: 'Grew', data: { plant_id: 1, x: 12, y: 10, layer: 'Canopy' } });
+        state.applyEvent({ event_type: 'Grew', data: { plant_id: 1, x: 13, y: 10, layer: 'Roots' } });
+        expect(state.plants.get(1).footprint).toHaveLength(2);  // 1 initiale + 1 grew
+        expect(state.plants.get(1).cells).toHaveLength(1);       // 1 canopy grew (pas l'initiale)
+        expect(state.plants.get(1).roots).toHaveLength(2);       // 1 initiale + 1 grew
+    });
+
     // Tests format PascalCase (DomainEventDto du serveur live)
     it('accepte les events en PascalCase (format live)', () => {
         const state = new SimState();
@@ -146,8 +158,8 @@ describe('SimState', () => {
         state.applyEvent({ event_type: 'Germinated', data: { plant_id: 1 } });
         expect(state.plants.get(1).state).toBe('Growing');
 
-        state.applyEvent({ event_type: 'Grew', data: { plant_id: 1, x: 11, y: 10 } });
-        expect(state.plants.get(1).cells).toHaveLength(2);
+        state.applyEvent({ event_type: 'Grew', data: { plant_id: 1, x: 11, y: 10, layer: 'Footprint' } });
+        expect(state.plants.get(1).footprint).toHaveLength(2);
 
         state.applyEvent({ event_type: 'Died', data: { plant_id: 1 } });
         expect(state.plants.get(1).state).toBe('Dead');
