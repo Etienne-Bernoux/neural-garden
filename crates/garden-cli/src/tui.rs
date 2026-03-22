@@ -10,6 +10,7 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 
 use crate::snapshot::SimSnapshot;
 use crate::ui;
+use crate::ui::AppMode;
 
 /// Encapsule le terminal ratatui et gere le cycle de vie raw mode.
 pub struct Tui {
@@ -27,10 +28,10 @@ impl Tui {
         Ok(Self { terminal })
     }
 
-    /// Dessine le dashboard a partir d'un snapshot de la simulation.
-    pub fn draw(&mut self, snapshot: &SimSnapshot) -> io::Result<()> {
+    /// Dessine le TUI a partir d'un snapshot et du mode d'affichage.
+    pub fn draw(&mut self, snapshot: &SimSnapshot, mode: AppMode) -> io::Result<()> {
         self.terminal.draw(|frame| {
-            ui::render(frame, snapshot);
+            ui::render(frame, snapshot, mode);
         })?;
         Ok(())
     }

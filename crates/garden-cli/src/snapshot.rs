@@ -34,6 +34,46 @@ pub struct SimSnapshot {
     /// Mini-carte : grille simplifiee (chaque pixel = 4x4 cellules).
     /// 0=mer, 1=terre vide, 2=plante, 3=plante mature
     pub minimap: Vec<Vec<u8>>,
+
+    // --- Demographie ---
+    /// Naissances depuis le dernier reset annuel.
+    pub births_count: u32,
+    /// Morts depuis le dernier reset annuel.
+    pub deaths_count: u32,
+    /// Naissances l'annee precedente.
+    pub births_last_year: u32,
+    /// Morts l'annee precedente.
+    pub deaths_last_year: u32,
+
+    // --- Distribution des ages ---
+    /// [0-100, 100-300, 300-500, 500+]
+    pub age_buckets: [u32; 4],
+
+    // --- Distribution Carbon vs Nitrogen ---
+    pub carbon_count: usize,
+    pub nitrogen_count: usize,
+
+    // --- Cooperation detaillee ---
+    pub cooperators_count: usize,
+    pub cooperators_ratio: f32,
+
+    // --- Ressources sol moyennes ---
+    pub avg_soil_carbon: f32,
+    pub avg_soil_nitrogen: f32,
+
+    // --- Couverture ---
+    pub land_coverage: f32,
+    pub empty_land_cells: usize,
+
+    // --- Echanges cumules ---
+    pub total_exchanges_2y: f32,
+
+    // --- Banque de graines ---
+    pub bank_compartments: usize,
+    pub bank_total_genomes: usize,
+    pub bank_best_fitness: f32,
+    pub bank_worst_fitness: f32,
+    pub bank_spread: f32,
 }
 
 impl Default for SimSnapshot {
@@ -58,6 +98,25 @@ impl Default for SimSnapshot {
             paused: false,
             ticks_per_second: 0.0,
             minimap: Vec::new(),
+            births_count: 0,
+            deaths_count: 0,
+            births_last_year: 0,
+            deaths_last_year: 0,
+            age_buckets: [0; 4],
+            carbon_count: 0,
+            nitrogen_count: 0,
+            cooperators_count: 0,
+            cooperators_ratio: 0.0,
+            avg_soil_carbon: 0.0,
+            avg_soil_nitrogen: 0.0,
+            land_coverage: 0.0,
+            empty_land_cells: 0,
+            total_exchanges_2y: 0.0,
+            bank_compartments: 0,
+            bank_total_genomes: 0,
+            bank_best_fitness: 0.0,
+            bank_worst_fitness: 0.0,
+            bank_spread: 0.0,
         }
     }
 }

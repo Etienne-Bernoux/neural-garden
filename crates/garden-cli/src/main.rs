@@ -28,6 +28,7 @@ use garden_core::infra::rng::SeededRng;
 use crate::runner::{spawn_simulation, SimControls};
 use crate::snapshot::SimSnapshot;
 use crate::tui::Tui;
+use crate::ui::AppMode;
 
 #[derive(Parser)]
 #[command(
@@ -168,6 +169,7 @@ fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
     let mut tui = Tui::new().map_err(|e| e.to_string())?;
 
     let mut last_snapshot = SimSnapshot::default();
+    let mut app_mode = AppMode::Dashboard;
 
     loop {
         // Verifier si Ctrl+C a ete recu via le handler
@@ -180,8 +182,9 @@ fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
             last_snapshot = snap;
         }
 
-        // Dessiner
-        tui.draw(&last_snapshot).map_err(|e| e.to_string())?;
+        // Dessiner avec le mode actif
+        tui.draw(&last_snapshot, app_mode)
+            .map_err(|e| e.to_string())?;
 
         // Poll events clavier (timeout 33ms ~ 30fps)
         if event::poll(Duration::from_millis(33)).unwrap_or(false) {
@@ -198,6 +201,45 @@ fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
                         }
                         KeyCode::Char('s') => {
                             controls.save_requested.store(true, Ordering::Relaxed);
+                        }
+                        // Navigation deep dives (toggle : re-appuyer revient au dashboard)
+                        KeyCode::Char('1') => {
+                            app_mode = if app_mode == AppMode::Evolution {
+                                AppMode::Dashboard
+                            } else {
+                                AppMode::Evolution
+                            };
+                        }
+                        KeyCode::Char('2') => {
+                            app_mode = if app_mode == AppMode::Population {
+                                AppMode::Dashboard
+                            } else {
+                                AppMode::Population
+                            };
+                        }
+                        KeyCode::Char('3') => {
+                            app_mode = if app_mode == AppMode::Cooperation {
+                                AppMode::Dashboard
+                            } else {
+                                AppMode::Cooperation
+                            };
+                        }
+                        KeyCode::Char('4') => {
+                            app_mode = if app_mode == AppMode::Island {
+                                AppMode::Dashboard
+                            } else {
+                                AppMode::Island
+                            };
+                        }
+                        KeyCode::Char('5') => {
+                            app_mode = if app_mode == AppMode::Logs {
+                                AppMode::Dashboard
+                            } else {
+                                AppMode::Logs
+                            };
+                        }
+                        KeyCode::Esc => {
+                            app_mode = AppMode::Dashboard;
                         }
                         _ => {}
                     }

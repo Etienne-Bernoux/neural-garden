@@ -38,7 +38,11 @@ fn bench_ticks(population: usize, num_ticks: u32) -> f64 {
 
     println!(
         "  pop_init={:<4} pop_reelle={:<4} | {} ticks en {:.2}s | {:.0} ticks/s",
-        population, alive, num_ticks, elapsed.as_secs_f64(), ticks_per_sec
+        population,
+        alive,
+        num_ticks,
+        elapsed.as_secs_f64(),
+        ticks_per_sec
     );
 
     ticks_per_sec

@@ -11,7 +11,7 @@ use super::lifecycle::phase_lifecycle;
 use super::metrics::{detect_highlights, update_metrics, SimMetrics};
 use crate::application::evolution::{GenerationCounter, PlantStats, SeedBank};
 use crate::application::perception::compute_inputs;
-use crate::application::season::SeasonCycle;
+use crate::application::season::{Season, SeasonCycle};
 use crate::domain::brain::Brain;
 use crate::domain::events::DomainEvent;
 use crate::domain::island::Island;
@@ -198,14 +198,33 @@ pub fn run_tick(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
 
     state.tick_count += 1;
 
+    // Compteurs naissances/morts a partir des events du tick
+    for event in &events {
+        match event {
+            DomainEvent::Born { .. } => state.metrics.births_count += 1,
+            DomainEvent::Died { .. } => state.metrics.deaths_count += 1,
+            _ => {}
+        }
+    }
+
+    // Reset annuel au changement de saison Printemps (debut d'annee)
+    if season_changed == Some(Season::Spring) {
+        state.metrics.births_last_year = state.metrics.births_count;
+        state.metrics.deaths_last_year = state.metrics.deaths_count;
+        state.metrics.births_count = 0;
+        state.metrics.deaths_count = 0;
+    }
+
     // Mettre a jour les metriques agregees
     let best_fitness = state.seed_bank.best_fitness();
-    let symbiosis_count = state.symbiosis.link_count();
     update_metrics(
         &mut state.metrics,
         &state.plants,
-        symbiosis_count,
+        &state.symbiosis,
+        &state.world,
+        &state.island,
         best_fitness,
+        &state.seed_bank,
     );
 
     // Detecter les highlights

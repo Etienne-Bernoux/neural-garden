@@ -544,6 +544,9 @@ fn action_symbiosis(
                     state.plants[plant_idx].gain_energy(-energy_transfer);
                 }
 
+                // Accumuler les echanges du tick pour la fenetre glissante
+                state.metrics.tick_exchanges += total_exchanged;
+
                 if let Some(stats) = state.find_stats_mut(plant_id) {
                     stats.cn_exchanges += total_exchanged;
                 }
@@ -967,14 +970,22 @@ mod tests {
 
         // Mesurer l'azote du sol avant
         let root_pos = state.plants[plant_idx].roots()[0];
-        let nitrogen_before = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+        let nitrogen_before = state
+            .world
+            .get(&root_pos)
+            .map(|c| c.nitrogen())
+            .unwrap_or(0.0);
 
         // Appeler action_exudates avec un taux d'exsudat nul
         // (pour isoler uniquement la fixation d'azote)
         action_exudates(&mut state, plant_id, plant_idx, 0.0);
 
         // Mesurer l'azote apres
-        let nitrogen_after = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+        let nitrogen_after = state
+            .world
+            .get(&root_pos)
+            .map(|c| c.nitrogen())
+            .unwrap_or(0.0);
 
         assert!(
             nitrogen_after > nitrogen_before,
@@ -1015,11 +1026,19 @@ mod tests {
         state.plants[plant_idx].gain_energy(0.1); // < nitrogen_fixation_energy_cost (0.5)
 
         let root_pos = state.plants[plant_idx].roots()[0];
-        let nitrogen_before = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+        let nitrogen_before = state
+            .world
+            .get(&root_pos)
+            .map(|c| c.nitrogen())
+            .unwrap_or(0.0);
 
         action_exudates(&mut state, plant_id, plant_idx, 0.0);
 
-        let nitrogen_after = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+        let nitrogen_after = state
+            .world
+            .get(&root_pos)
+            .map(|c| c.nitrogen())
+            .unwrap_or(0.0);
 
         assert!(
             (nitrogen_after - nitrogen_before).abs() < f32::EPSILON,
@@ -1166,10 +1185,10 @@ mod tests {
             &decisions,
             1,
             0,
-            1.0,       // grow_intensity
-            1.0,       // grow_dir_x (+x)
-            0.0,       // grow_dir_y
-            0.5,       // canopy_vs_roots → footprint
+            1.0, // grow_intensity
+            1.0, // grow_dir_x (+x)
+            0.0, // grow_dir_y
+            0.5, // canopy_vs_roots → footprint
             &mut footprint_map,
             &modifiers,
         );
@@ -1193,7 +1212,9 @@ mod tests {
             "l'invasion de graine devrait etre gratuite : avant={energy_before}, apres={energy_after}"
         );
         // Verifier qu'un evenement d'invasion n'est PAS emis (c'est un ecrasement, pas une invasion)
-        let has_invaded_event = events.iter().any(|e| matches!(e, DomainEvent::Invaded { .. }));
+        let has_invaded_event = events
+            .iter()
+            .any(|e| matches!(e, DomainEvent::Invaded { .. }));
         assert!(
             !has_invaded_event,
             "l'ecrasement de graine ne devrait pas emettre d'evenement Invaded"
@@ -1226,7 +1247,7 @@ mod tests {
         let mut plant_a = Plant::new(1, shared_pos, genetics_a, Lineage::new(1, 0));
         plant_a.germinate();
         plant_a.grow_footprint(pos_a_extra); // footprint = 2
-        // La canopee inclut deja shared_pos (position initiale)
+                                             // La canopee inclut deja shared_pos (position initiale)
 
         // Plante B : petite (footprint = 1 cellule), canopee sur shared_pos aussi
         let pos_b = Pos { x: 65, y: 64 };
@@ -1368,12 +1389,10 @@ mod tests {
         ];
 
         let _events = action_symbiosis(
-            &mut state,
-            &decisions,
-            1,     // plant_id
-            0,     // plant_idx
-            1.0,   // connect_signal
-            1.0,   // connect_generosity
+            &mut state, &decisions, 1,   // plant_id
+            0,   // plant_idx
+            1.0, // connect_signal
+            1.0, // connect_generosity
             &root_map,
         );
 
