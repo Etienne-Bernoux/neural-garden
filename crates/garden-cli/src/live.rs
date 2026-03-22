@@ -269,6 +269,8 @@ struct LivePlant {
     max_size: u16,
     exudate_type: String,
     hidden_size: u8,
+    ancestors: Vec<u64>,
+    seed_progress: f32,
 }
 
 #[derive(serde::Serialize)]
@@ -324,6 +326,8 @@ fn build_initial_snapshot(state: &SimState) -> InitialSnapshot {
             max_size: p.genetics().max_size(),
             exudate_type: format!("{:?}", p.genetics().exudate_type()),
             hidden_size: p.genetics().hidden_size(),
+            ancestors: p.ancestors().to_vec(),
+            seed_progress: p.seed_progress(),
         })
         .collect();
 

@@ -30,27 +30,27 @@ pub struct PlantStats {
     pub soil_enriched: f32,
     pub soil_depleted: f32,
     pub monoculture_penalty: f32,
+    /// Fitness heritee du parent (30% de la fitness estimee du parent a la reproduction).
+    pub inherited_fitness: f32,
 }
 
 /// Calcule la fitness d'une plante a sa mort.
-/// Les poids sont calibres par ordres de grandeur pour pousser massivement
-/// vers la cooperation symbiotique :
-/// - Plante solitaire : fitness ~5
-/// - Plante qui grandit et se reproduit : fitness ~260
-/// - Plante avec symbiose active : fitness ~60 000
+/// La reproduction (seeds_produced × 500) est le facteur dominant.
+/// La cooperation reste importante comme moyen de survivre plus longtemps
+/// → plus de reproductions.
 pub fn evaluate_fitness(stats: &PlantStats) -> f32 {
-    let fitness = stats.max_biomass as f32 * 0.5           // grandir = peu
+    let own_fitness = stats.max_biomass as f32 * 0.5       // grandir = peu
         + stats.lifetime as f32 * 0.01                     // survivre = quasi rien
         + stats.max_territory as f32 * 0.3                 // territoire = peu
-        + stats.symbiotic_connections as f32 * 500.0       // liens = tres bien (ordre 10 000)
-        + stats.exudates_emitted * 100.0                   // exsuder = bien (ordre 1 000)
-        + stats.cn_exchanges * 5000.0                      // echanger C/N = jackpot (ordre 100 000)
-        + stats.seeds_produced as f32 * 50.0               // se reproduire = bien (ordre 1 000)
+        + stats.symbiotic_connections as f32 * 100.0       // liens = bien (reduit de 500)
+        + stats.exudates_emitted * 50.0                    // exsuder = moyen (reduit de 100)
+        + stats.cn_exchanges * 500.0                       // echanger C/N = bien (reduit de 5000)
+        + stats.seeds_produced as f32 * 500.0              // se reproduire = DOMINANT (monte de 50)
         + stats.soil_enriched * 10.0                       // enrichir le sol = moyen
         - stats.soil_depleted * 1.0                        // penalite legere
-        - stats.monoculture_penalty * 5.0; // penalite monoculture
+        - stats.monoculture_penalty * 5.0;                 // penalite monoculture
 
-    fitness.max(0.0)
+    (own_fitness + stats.inherited_fitness).max(0.0)
 }
 
 /// Cle de compartiment : (hidden_size, is_carbon)
@@ -526,11 +526,13 @@ mod tests {
             soil_enriched: 3.0,
             soil_depleted: 1.0,
             monoculture_penalty: 0.5,
+            inherited_fitness: 0.0,
         };
         let fitness = evaluate_fitness(&stats);
         assert!(fitness > 0.0);
-        // fitness = 5 + 1 + 1.5 + 1500 + 200 + 5000 + 200 + 30 - 1 - 2.5 = 6934.0
-        assert!((fitness - 6934.0).abs() < 0.01);
+        // own_fitness = 5 + 1 + 1.5 + 300 + 100 + 500 + 2000 + 30 - 1 - 2.5 = 2934.0
+        // inherited_fitness = 0.0 (default)
+        assert!((fitness - 2934.0).abs() < 0.01);
     }
 
     #[test]

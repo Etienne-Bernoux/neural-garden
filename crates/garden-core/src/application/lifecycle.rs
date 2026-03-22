@@ -14,110 +14,118 @@ use super::sim::SimState;
 pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
     let mut events = Vec::new();
 
-    // a) Reproduction : plantes avec assez d'energie et de biomasse
-    // Collecter d'abord les candidats a la reproduction pour eviter les conflits de borrow
-    let mut reproduction_candidates: Vec<(usize, Pos)> = Vec::new();
+    // a) Production continue de graines — plantes matures avec assez d'energie
+    let mut new_seeds: Vec<(Plant, crate::domain::brain::Brain)> = Vec::new();
+
     for i in 0..state.plants.len() {
         let plant = &state.plants[i];
         if plant.is_dead() || plant.state() == PlantState::Seed {
             continue;
         }
-        if plant.energy().value() > state.config.reproduction_energy_min
-            && plant.biomass().value() > state.config.reproduction_biomass_min
-        {
-            let base_pos = plant.footprint()[0];
-            reproduction_candidates.push((i, base_pos));
-        }
-    }
 
-    let mut new_plants: Vec<(Plant, crate::domain::brain::Brain)> = Vec::new();
-    for (plant_idx, base_pos) in &reproduction_candidates {
-        // Direction aleatoire, distance 3-9
-        let angle = rng.next_f32() * 2.0 * core::f32::consts::PI;
-        let min_dist = state.config.reproduction_min_distance as f32;
-        let max_dist = state.config.reproduction_max_distance as f32;
-        let distance = min_dist + rng.next_f32() * (max_dist - min_dist);
-        let tx = (base_pos.x as f32 + angle.cos() * distance).round();
-        let ty = (base_pos.y as f32 + angle.sin() * distance).round();
-
-        if tx < 0.0 || tx >= GRID_SIZE as f32 || ty < 0.0 || ty >= GRID_SIZE as f32 {
-            continue;
-        }
-        let target = Pos {
-            x: tx as u16,
-            y: ty as u16,
-        };
-
-        if !state.island.is_land(&target) {
+        // Pas encore mature → pas de graines
+        if plant.state() != PlantState::Mature {
             continue;
         }
 
-        let occupied = state
-            .plants
-            .iter()
-            .any(|p| !p.is_dead() && p.footprint().contains(&target));
-        let occupied_new = new_plants
-            .iter()
-            .any(|(p, _)| p.footprint().contains(&target));
-
-        if occupied || occupied_new {
+        // Pas assez d'energie
+        if plant.energy().value() < state.config.seed_energy_threshold {
             continue;
         }
 
-        // Reproduction vivante : cloner le genome du parent et appliquer des mutations
-        let parent_id = state.plants[*plant_idx].id();
-        let parent_brain = state.brains.get(&parent_id).cloned();
-        let parent_brain = match parent_brain {
-            Some(b) => b,
-            None => continue,
-        };
-        let mut genome = Genome {
-            brain: parent_brain,
-            traits: state.plants[*plant_idx].genetics().clone(),
-        };
-        mutate_genome(&mut genome, rng);
+        // Accumuler seed_progress
+        let rate = plant.biomass().value() as f32 * state.config.seed_production_rate;
+        state.plants[i].add_seed_progress(rate);
 
-        let gen = state.generation_counter.next();
-        let parent_lineage_id = state.plants[*plant_idx].lineage().id();
-        let lineage = Lineage::new(parent_lineage_id, gen);
-        let child_id = state.next_plant_id;
-        state.next_plant_id += 1;
+        // Si une graine est prete
+        while state.plants[i].seed_progress() >= 1.0 {
+            state.plants[i].consume_seed_progress(1.0);
 
-        let child = Plant::new(child_id, target, genome.traits, lineage.clone());
-        new_plants.push((child, genome.brain));
+            // Cout en energie
+            state.plants[i].consume_energy(state.config.seed_energy_cost);
+            if state.plants[i].energy().value() < state.config.seed_energy_threshold {
+                break;
+            }
 
-        state.plants[*plant_idx].consume_energy(state.config.reproduction_energy_cost);
+            // Dispersion gradient
+            let base_pos = state.plants[i].footprint()[0];
+            let target = disperse_seed(&base_pos, rng);
 
-        // La plante qui se reproduit gagne un boost de vitalite
-        state.plants[*plant_idx].heal(5.0);
+            // Verifier cellule valide
+            if !state.island.is_land(&target) {
+                continue;
+            }
 
-        events.push(DomainEvent::Born {
-            plant_id: child_id,
-            parent_id: Some(parent_id),
-            position: target,
-            lineage,
-        });
-    }
+            // Clone (10%) ou mute (90%)
+            let parent_id = state.plants[i].id();
+            let parent_brain = state.brains.get(&parent_id).cloned();
+            let parent_brain = match parent_brain {
+                Some(b) => b,
+                None => continue,
+            };
 
-    // Mettre a jour les stats de seeds_produced
-    for event in &events {
-        if let DomainEvent::Born {
-            parent_id: Some(pid),
-            ..
-        } = event
-        {
-            if let Some(stats) = state.find_stats_mut(*pid) {
+            let mut genome = Genome {
+                brain: parent_brain,
+                traits: state.plants[i].genetics().clone(),
+            };
+
+            if rng.next_f32() > 0.1 {
+                // 90% : mute
+                mutate_genome(&mut genome, rng);
+            }
+            // 10% : clone exact (pas de mutation)
+
+            let gen = state.generation_counter.next();
+            let parent_lineage_id = state.plants[i].lineage().id();
+            let lineage = Lineage::new(parent_lineage_id, gen);
+            let child_id = state.next_plant_id;
+            state.next_plant_id += 1;
+
+            let child = Plant::with_parent(
+                child_id,
+                target,
+                genome.traits,
+                lineage.clone(),
+                parent_id,
+                state.plants[i].ancestors(),
+            );
+
+            new_seeds.push((child, genome.brain));
+
+            events.push(DomainEvent::Born {
+                plant_id: child_id,
+                parent_id: Some(parent_id),
+                position: target,
+                lineage,
+            });
+
+            // Stats
+            if let Some(stats) = state.find_stats_mut(parent_id) {
                 stats.seeds_produced += 1;
             }
         }
     }
 
-    // Ajouter les nouvelles plantes
-    for (child, brain) in new_plants {
+    // Ajouter les nouvelles plantes avec fitness heritee du parent
+    for (child, brain) in new_seeds {
         let child_id = child.id();
+        let parent_id = child.parent_id();
+
+        // Calculer la fitness estimee du parent (sur ses stats accumulees)
+        let parent_fitness_estimate = parent_id
+            .and_then(|pid| state.plant_stats.get(&pid))
+            .map(evaluate_fitness)
+            .unwrap_or(0.0);
+
+        // Creer les stats du fils avec fitness heritee (30% du parent)
+        let child_stats = PlantStats {
+            inherited_fitness: parent_fitness_estimate * 0.3,
+            ..PlantStats::default()
+        };
+
         state.plants.push(child);
         state.brains.insert(child_id, brain);
-        state.plant_stats.insert(child_id, PlantStats::default());
+        state.plant_stats.insert(child_id, child_stats);
     }
 
     // b) Verifier les morts
@@ -180,9 +188,9 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         .iter()
         .filter(|p| !p.is_dead() && p.state() != PlantState::Seed)
         .count();
-    let population_cap = state.config.initial_population * 4; // seuil = 4x la population initiale
+    // Filet de securite : pluie de graines seulement si tres peu de plantes germees
     if state.tick_count > 0
-        && germinated_count < population_cap
+        && germinated_count < 10
         && state
             .tick_count
             .is_multiple_of(state.config.seed_rain_interval)
@@ -304,6 +312,32 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
     }
 
     events
+}
+
+/// Disperse une graine avec un gradient de distance :
+/// 70% proche (1-3 cellules), 20% moyen (3-6), 10% loin (6-15).
+fn disperse_seed(base: &Pos, rng: &mut dyn Rng) -> Pos {
+    let angle = rng.next_f32() * 2.0 * core::f32::consts::PI;
+    let roll = rng.next_f32();
+
+    let distance = if roll < 0.7 {
+        // 70% : proche (1-3 cellules)
+        1.0 + rng.next_f32() * 2.0
+    } else if roll < 0.9 {
+        // 20% : moyen (3-6 cellules)
+        3.0 + rng.next_f32() * 3.0
+    } else {
+        // 10% : loin (6-15 cellules)
+        6.0 + rng.next_f32() * 9.0
+    };
+
+    let tx = (base.x as f32 + angle.cos() * distance).round();
+    let ty = (base.y as f32 + angle.sin() * distance).round();
+
+    Pos {
+        x: tx.clamp(0.0, (GRID_SIZE - 1) as f32) as u16,
+        y: ty.clamp(0.0, (GRID_SIZE - 1) as f32) as u16,
+    }
 }
 
 /// Choisit une position aleatoire parmi les cellules terrestres.

@@ -265,6 +265,8 @@ pub struct Plant {
     decomposition_remaining: u32,
     carbon_to_release: f32,
     nitrogen_to_release: f32,
+    ancestors: Vec<u64>,
+    seed_progress: f32,
 }
 
 impl Plant {
@@ -289,7 +291,29 @@ impl Plant {
             decomposition_remaining: 0,
             carbon_to_release: 0.0,
             nitrogen_to_release: 0.0,
+            ancestors: Vec::new(),
+            seed_progress: 0.0,
         }
+    }
+
+    /// Cree une plante-graine issue d'un parent, avec la genealogie heritee.
+    /// Conserve les 20 derniers ancetres (du plus ancien au parent direct).
+    pub fn with_parent(
+        id: u64,
+        position: Pos,
+        genetics: GeneticTraits,
+        lineage: Lineage,
+        parent_id: u64,
+        parent_ancestors: &[u64],
+    ) -> Self {
+        let mut ancestors = parent_ancestors.to_vec();
+        ancestors.push(parent_id);
+        if ancestors.len() > 20 {
+            ancestors.drain(0..ancestors.len() - 20);
+        }
+        let mut plant = Self::new(id, position, genetics, lineage);
+        plant.ancestors = ancestors;
+        plant
     }
 
     pub fn id(&self) -> u64 {
@@ -565,6 +589,8 @@ impl Plant {
         decomposition_remaining: u32,
         carbon_to_release: f32,
         nitrogen_to_release: f32,
+        ancestors: Vec<u64>,
+        seed_progress: f32,
     ) -> Self {
         let v_cap = vitality_cap(
             &Biomass::new(biomass, genetics.max_size()),
@@ -589,6 +615,8 @@ impl Plant {
             decomposition_remaining,
             carbon_to_release,
             nitrogen_to_release,
+            ancestors,
+            seed_progress,
         }
     }
 
@@ -605,6 +633,36 @@ impl Plant {
     /// Accesseur pour nitrogen_to_release (pour la serialisation).
     pub fn nitrogen_to_release(&self) -> f32 {
         self.nitrogen_to_release
+    }
+
+    /// Ancetres de la plante (du plus ancien au parent direct).
+    pub fn ancestors(&self) -> &[u64] {
+        &self.ancestors
+    }
+
+    /// Identifiant du parent direct (dernier element des ancetres).
+    pub fn parent_id(&self) -> Option<u64> {
+        self.ancestors.last().copied()
+    }
+
+    /// Profondeur de generation (nombre d'ancetres connus).
+    pub fn generation_depth(&self) -> usize {
+        self.ancestors.len()
+    }
+
+    /// Progression vers la prochaine graine.
+    pub fn seed_progress(&self) -> f32 {
+        self.seed_progress
+    }
+
+    /// Accumule de la progression vers la prochaine graine.
+    pub fn add_seed_progress(&mut self, amount: f32) {
+        self.seed_progress += amount;
+    }
+
+    /// Consomme de la progression de graine (quand une graine est produite).
+    pub fn consume_seed_progress(&mut self, amount: f32) {
+        self.seed_progress -= amount;
     }
 }
 

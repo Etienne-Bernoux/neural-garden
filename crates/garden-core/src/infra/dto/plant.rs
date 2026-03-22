@@ -177,6 +177,10 @@ pub struct PlantDto {
     pub decomposition_remaining: u32,
     pub carbon_to_release: f32,
     pub nitrogen_to_release: f32,
+    #[serde(default)]
+    pub ancestors: Vec<u64>,
+    #[serde(default)]
+    pub seed_progress: f32,
 }
 
 impl From<&Plant> for PlantDto {
@@ -196,6 +200,8 @@ impl From<&Plant> for PlantDto {
             decomposition_remaining: p.decomposition_remaining(),
             carbon_to_release: p.carbon_to_release(),
             nitrogen_to_release: p.nitrogen_to_release(),
+            ancestors: p.ancestors().to_vec(),
+            seed_progress: p.seed_progress(),
         }
     }
 }
@@ -218,6 +224,8 @@ impl PlantDto {
             self.decomposition_remaining,
             self.carbon_to_release,
             self.nitrogen_to_release,
+            self.ancestors.clone(),
+            self.seed_progress,
         )
     }
 }
@@ -236,6 +244,8 @@ pub struct PlantStatsDto {
     pub soil_enriched: f32,
     pub soil_depleted: f32,
     pub monoculture_penalty: f32,
+    #[serde(default)]
+    pub inherited_fitness: f32,
 }
 
 impl From<&PlantStats> for PlantStatsDto {
@@ -251,6 +261,7 @@ impl From<&PlantStats> for PlantStatsDto {
             soil_enriched: s.soil_enriched,
             soil_depleted: s.soil_depleted,
             monoculture_penalty: s.monoculture_penalty,
+            inherited_fitness: s.inherited_fitness,
         }
     }
 }
@@ -268,6 +279,7 @@ impl PlantStatsDto {
             soil_enriched: self.soil_enriched,
             soil_depleted: self.soil_depleted,
             monoculture_penalty: self.monoculture_penalty,
+            inherited_fitness: self.inherited_fitness,
         }
     }
 }

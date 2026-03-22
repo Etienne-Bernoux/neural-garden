@@ -146,6 +146,12 @@ pub struct SimConfigDto {
     pub decomposition_ticks: u32,
     pub seed_bank_capacity: usize,
     pub initial_population: usize,
+    #[serde(default = "default_seed_production_rate")]
+    pub seed_production_rate: f32,
+    #[serde(default = "default_seed_energy_cost")]
+    pub seed_energy_cost: f32,
+    #[serde(default = "default_seed_energy_threshold")]
+    pub seed_energy_threshold: f32,
     #[serde(default = "default_ticks_per_season")]
     pub ticks_per_season: u32,
 }
@@ -168,6 +174,18 @@ fn default_nitrogen_fixation_rate() -> f32 {
 
 fn default_nitrogen_fixation_energy_cost() -> f32 {
     0.5
+}
+
+fn default_seed_production_rate() -> f32 {
+    0.01
+}
+
+fn default_seed_energy_cost() -> f32 {
+    5.0
+}
+
+fn default_seed_energy_threshold() -> f32 {
+    15.0
 }
 
 fn default_ticks_per_season() -> u32 {
@@ -215,6 +233,9 @@ impl From<&SimConfig> for SimConfigDto {
             decomposition_ticks: c.decomposition_ticks,
             seed_bank_capacity: c.seed_bank_capacity,
             initial_population: c.initial_population,
+            seed_production_rate: c.seed_production_rate,
+            seed_energy_cost: c.seed_energy_cost,
+            seed_energy_threshold: c.seed_energy_threshold,
             ticks_per_season: c.ticks_per_season,
         }
     }
@@ -261,6 +282,9 @@ impl SimConfigDto {
             decomposition_ticks: self.decomposition_ticks,
             seed_bank_capacity: self.seed_bank_capacity,
             initial_population: self.initial_population,
+            seed_production_rate: self.seed_production_rate,
+            seed_energy_cost: self.seed_energy_cost,
+            seed_energy_threshold: self.seed_energy_threshold,
             ticks_per_season: self.ticks_per_season,
         }
     }

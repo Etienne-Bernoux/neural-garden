@@ -54,6 +54,11 @@ pub struct SimConfig {
     pub seed_bank_capacity: usize,
     pub initial_population: usize,
 
+    // Production de graines (nouveau mecanisme continu)
+    pub seed_production_rate: f32,
+    pub seed_energy_cost: f32,
+    pub seed_energy_threshold: f32,
+
     // Saisons
     pub ticks_per_season: u32,
 }
@@ -105,6 +110,10 @@ impl Default for SimConfig {
 
             seed_bank_capacity: 100,
             initial_population: 50, // 80 → 50 population initiale reduite
+
+            seed_production_rate: 0.01,
+            seed_energy_cost: 5.0,
+            seed_energy_threshold: 15.0,
 
             ticks_per_season: 360, // 250 → 360 (1 an = 1440 ticks)
         }
