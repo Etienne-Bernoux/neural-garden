@@ -101,18 +101,20 @@ Résultats : fitness jusqu'à 1941, symbiose sporadique (0-14 liens), pop régul
 
 Graines inertes (0 consommation, invasion gratuite, timeout 360). Saisons allongées (360 ticks/saison). Ombre dynamique par taille d'emprise.
 
-### Phase 6a-R2 — Recalibrage avec le nouveau modèle ⏸
+### Phase 6a-R2 — Recalibrage : dépendance vitale C/N ⏸
 
-📊 Observation post-refonte : pop stable ~20, fitness 641 (stagne), symbiose sporadique puis disparaît. L'écosystème est stable mais la coopération n'est pas durable.
+Modèle de dépendance vitale implémenté :
+- **Fixation atmosphérique** : les plantes Nitrogen créent du N à partir de rien (coût 0.5 énergie/tick)
+- **Rareté N** : nitrogen_regen_rate quasi nul (0.00005), growth_nitrogen_cost doublé (0.1)
+- **Échange énergie** : via symbiose, la grande plante (énergie) nourrit la fixatrice (azote)
+- **Fitness par ordres de grandeur** : cn_exchanges ×5000, symbiotic_connections ×500
 
-| Tâche | Critère de done |
-|---|---|
-| Ajuster les coûts/gains pour le nouveau modèle | La fitness progresse au-delà de 1000 |
-| La symbiose doit être un avantage de survie | Liens stables > 5 en permanence |
-| Les canopées se superposent avec compétition lumière | Les petites plantes sous les grandes souffrent |
-| Itérer | L'écosystème vit avec diversité |
+📊 Résultats : fitness 610 588 (✅ >1000), pop régulée ~620, symbiose sporadique (0-19 liens par vagues, pas encore stable en permanence).
 
-⚠️ Piste : la symbiose doit donner un avantage nutritionnel VITAL, pas juste un bonus fitness. Les plantes qui coopèrent doivent survivre PLUS LONGTEMPS que celles qui ne coopèrent pas.
+⚠️ À reprendre :
+- La symbiose reste sporadique — les liens se forment puis se rompent. Piste : les plantes meurent trop vite ou les racines se décalent.
+- Le critère "liens stables > 5 en permanence" n'est pas encore atteint.
+- Les defaults DTO divergent des defaults config pour les anciennes sauvegardes (à aligner si besoin).
 
 ### Phase 6b — Viewer V2 ✅
 
