@@ -33,17 +33,23 @@ pub struct PlantStats {
 }
 
 /// Calcule la fitness d'une plante a sa mort.
+/// Les poids sont calibres par ordres de grandeur pour pousser massivement
+/// vers la cooperation symbiotique :
+/// - Plante solitaire : fitness ~5
+/// - Plante qui grandit et se reproduit : fitness ~260
+/// - Plante avec symbiose active : fitness ~60 000
 pub fn evaluate_fitness(stats: &PlantStats) -> f32 {
-    let fitness = stats.max_biomass as f32 * 3.0      // recompenser la croissance
-        + stats.lifetime as f32 * 0.3                  // reduire le poids de la survie pure
-        + stats.max_territory as f32 * 2.0             // expansion territoriale
-        + stats.symbiotic_connections as f32 * 8.0     // doubler le bonus cooperation
-        + stats.exudates_emitted * 3.0                 // exsudats valorises
-        + stats.cn_exchanges * 4.0                     // tripler les echanges C/N
-        + stats.seeds_produced as f32 * 5.0            // recompenser la reproduction
-        + stats.soil_enriched * 2.0
-        - stats.soil_depleted * 2.0
-        - stats.monoculture_penalty * 1.5;
+    let fitness = stats.max_biomass as f32 * 0.5           // grandir = peu
+        + stats.lifetime as f32 * 0.01                     // survivre = quasi rien
+        + stats.max_territory as f32 * 0.3                 // territoire = peu
+        + stats.symbiotic_connections as f32 * 500.0       // liens = tres bien (ordre 10 000)
+        + stats.exudates_emitted * 100.0                   // exsuder = bien (ordre 1 000)
+        + stats.cn_exchanges * 5000.0                      // echanger C/N = jackpot (ordre 100 000)
+        + stats.seeds_produced as f32 * 50.0               // se reproduire = bien (ordre 1 000)
+        + stats.soil_enriched * 10.0                       // enrichir le sol = moyen
+        - stats.soil_depleted * 1.0                        // penalite legere
+        - stats.monoculture_penalty * 5.0; // penalite monoculture
+
     fitness.max(0.0)
 }
 
@@ -523,8 +529,8 @@ mod tests {
         };
         let fitness = evaluate_fitness(&stats);
         assert!(fitness > 0.0);
-        // fitness = 30 + 30 + 10 + 24 + 6 + 4 + 20 + 6 - 2 - 0.75 = 127.25
-        assert!((fitness - 127.25).abs() < 0.01);
+        // fitness = 5 + 1 + 1.5 + 1500 + 200 + 5000 + 200 + 30 - 1 - 2.5 = 6934.0
+        assert!((fitness - 6934.0).abs() < 0.01);
     }
 
     #[test]

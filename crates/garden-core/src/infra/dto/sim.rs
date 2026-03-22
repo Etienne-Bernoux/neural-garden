@@ -139,6 +139,10 @@ pub struct SimConfigDto {
     pub starvation_threshold: f32,
     #[serde(default = "default_starvation_drain_rate")]
     pub starvation_drain_rate: f32,
+    #[serde(default = "default_nitrogen_fixation_rate")]
+    pub nitrogen_fixation_rate: f32,
+    #[serde(default = "default_nitrogen_fixation_energy_cost")]
+    pub nitrogen_fixation_energy_cost: f32,
     pub decomposition_ticks: u32,
     pub seed_bank_capacity: usize,
     pub initial_population: usize,
@@ -156,6 +160,14 @@ fn default_starvation_threshold() -> f32 {
 
 fn default_starvation_drain_rate() -> f32 {
     2.0
+}
+
+fn default_nitrogen_fixation_rate() -> f32 {
+    0.03
+}
+
+fn default_nitrogen_fixation_energy_cost() -> f32 {
+    0.5
 }
 
 fn default_ticks_per_season() -> u32 {
@@ -198,6 +210,8 @@ impl From<&SimConfig> for SimConfigDto {
             aging_base_rate: c.aging_base_rate,
             starvation_threshold: c.starvation_threshold,
             starvation_drain_rate: c.starvation_drain_rate,
+            nitrogen_fixation_rate: c.nitrogen_fixation_rate,
+            nitrogen_fixation_energy_cost: c.nitrogen_fixation_energy_cost,
             decomposition_ticks: c.decomposition_ticks,
             seed_bank_capacity: c.seed_bank_capacity,
             initial_population: c.initial_population,
@@ -242,6 +256,8 @@ impl SimConfigDto {
             aging_base_rate: self.aging_base_rate,
             starvation_threshold: self.starvation_threshold,
             starvation_drain_rate: self.starvation_drain_rate,
+            nitrogen_fixation_rate: self.nitrogen_fixation_rate,
+            nitrogen_fixation_energy_cost: self.nitrogen_fixation_energy_cost,
             decomposition_ticks: self.decomposition_ticks,
             seed_bank_capacity: self.seed_bank_capacity,
             initial_population: self.initial_population,

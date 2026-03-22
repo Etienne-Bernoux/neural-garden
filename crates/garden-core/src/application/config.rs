@@ -43,6 +43,10 @@ pub struct SimConfig {
     pub starvation_threshold: f32,
     pub starvation_drain_rate: f32,
 
+    // Fixation d'azote
+    pub nitrogen_fixation_rate: f32,
+    pub nitrogen_fixation_energy_cost: f32,
+
     // Decomposition
     pub decomposition_ticks: u32,
 
@@ -61,14 +65,14 @@ impl Default for SimConfig {
             evaporation_rate: 0.005,
             evaporation_canopy_rate: 0.002,
             carbon_regen_rate: 0.0005, // 0.002 → 0.0005 (sol se regenere 4x moins vite)
-            nitrogen_regen_rate: 0.0003, // 0.001 → 0.0003 (azote encore plus rare)
+            nitrogen_regen_rate: 0.00005, // quasi nul — sans fixatrice, le sol se vide
             exudate_decay: 0.8,
             canopy_light: 0.2, // 0.3 → 0.2 (plus d'ombre sous canopee)
 
             growth_threshold: 0.1,
-            growth_energy_cost: 5.0,    // 8.0 → 5.0 croissance moins chere
-            growth_carbon_cost: 0.05,   // 0.1 → 0.05
-            growth_nitrogen_cost: 0.05, // 0.1 → 0.05
+            growth_energy_cost: 5.0,   // 8.0 → 5.0 croissance moins chere
+            growth_carbon_cost: 0.05,  // 0.1 → 0.05
+            growth_nitrogen_cost: 0.1, // double — la croissance coute cher en azote
             invasion_energy_threshold: 10.0,
             invasion_defense_threshold: 20.0,
             invasion_energy_cost: 12.0,
@@ -93,6 +97,9 @@ impl Default for SimConfig {
             aging_base_rate: 0.5, // 0.3 → 0.5 vieillissement accelere (carrying capacity)
             starvation_threshold: 0.1,
             starvation_drain_rate: 3.0, // 2.0 → 3.0 famine plus severe
+
+            nitrogen_fixation_rate: 0.03, // azote produit par tick par la fixatrice
+            nitrogen_fixation_energy_cost: 0.5, // cout energetique de la fixation
 
             decomposition_ticks: 50,
 

@@ -337,12 +337,38 @@ fn action_defense(state: &mut SimState, plant_idx: usize, defense: f32) {
 }
 
 /// c) Exsudats racinaires — depose des nutriments sur les cellules racinaires.
+/// Les fixatrices d'azote (exudate_type = Nitrogen) beneficient d'un bonus :
+/// elles creent de l'azote a partir de rien (fixation atmospherique).
 fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudate_rate: f32) {
+    let exudate_type = state.plants[plant_idx].genetics().exudate_type();
+
+    // Fixation atmospherique d'azote — bonus gratuit pour les fixatrices
+    if exudate_type == ExudateType::Nitrogen {
+        let fix_cost = state.config.nitrogen_fixation_energy_cost;
+        if state.plants[plant_idx].energy().value() > fix_cost {
+            state.plants[plant_idx].consume_energy(fix_cost);
+            // Injecter l'azote fixe dans le sol sous les racines
+            let root_cells: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
+            let n_per_cell = state.config.nitrogen_fixation_rate / root_cells.len().max(1) as f32;
+            for pos in &root_cells {
+                if let Some(cell) = state.world.get_mut(pos) {
+                    let n = cell.nitrogen();
+                    cell.set_nitrogen(n + n_per_cell);
+                }
+            }
+            // Stats
+            let fixation_rate = state.config.nitrogen_fixation_rate;
+            if let Some(stats) = state.find_stats_mut(plant_id) {
+                stats.exudates_emitted += fixation_rate;
+            }
+        }
+    }
+
+    // Exsudation classique — les deux types exsudent normalement
     if exudate_rate <= 0.1 {
         return;
     }
 
-    let exudate_type = state.plants[plant_idx].genetics().exudate_type();
     let root_cells: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
     for pos in &root_cells {
         if let Some(cell) = state.world.get_mut(pos) {
@@ -503,6 +529,20 @@ fn action_symbiosis(
                 let total_exchanged = c_transfer.abs() + n_transfer.abs();
                 state.plants[plant_idx].gain_energy(total_exchanged * 0.5);
                 state.plants[oi].gain_energy(total_exchanged * 0.5);
+
+                // Echange d'energie : la plante avec le plus d'energie donne a celle qui en a le moins
+                let my_energy = state.plants[plant_idx].energy().value();
+                let other_energy = state.plants[oi].energy().value();
+                let energy_diff = my_energy - other_energy;
+                let energy_transfer = energy_diff * avg_generosity * 0.05; // 5% du gradient
+
+                if energy_transfer > 0.1 {
+                    state.plants[plant_idx].consume_energy(energy_transfer);
+                    state.plants[oi].gain_energy(energy_transfer);
+                } else if energy_transfer < -0.1 {
+                    state.plants[oi].consume_energy(-energy_transfer);
+                    state.plants[plant_idx].gain_energy(-energy_transfer);
+                }
 
                 if let Some(stats) = state.find_stats_mut(plant_id) {
                     stats.cn_exchanges += total_exchanged;

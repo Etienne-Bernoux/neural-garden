@@ -247,7 +247,8 @@ async fn plante_morte_ou_mourante(world: &mut GardenWorld) {
                 || p.state() == PlantState::Dying
                 || p.state() == PlantState::Decomposing
                 || p.state() == PlantState::Stressed
-                || p.vitality().value() < p.biomass().value() as f32 * p.genetics().vitality_factor() * 0.8;
+                || p.vitality().value()
+                    < p.biomass().value() as f32 * p.genetics().vitality_factor() * 0.8;
             assert!(
                 is_suffering,
                 "la plante devrait souffrir en hiver, etat: {:?}, vitalite: {:.1}",
