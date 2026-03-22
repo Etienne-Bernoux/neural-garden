@@ -103,8 +103,8 @@ impl Default for SimConfig {
             starvation_threshold: 0.1,
             starvation_drain_rate: 3.0, // 2.0 → 3.0 famine plus severe
 
-            nitrogen_fixation_rate: 0.03, // azote produit par tick par la fixatrice
-            nitrogen_fixation_energy_cost: 0.5, // cout energetique de la fixation
+            nitrogen_fixation_rate: 0.5, // efficacite de fixation (× lumiere × carbone)
+            nitrogen_fixation_energy_cost: 3.0, // cout energie par unite de N fixe
 
             decomposition_ticks: 50,
 

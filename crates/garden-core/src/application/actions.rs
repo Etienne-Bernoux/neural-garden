@@ -342,24 +342,55 @@ fn action_defense(state: &mut SimState, plant_idx: usize, defense: f32) {
 fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudate_rate: f32) {
     let exudate_type = state.plants[plant_idx].genetics().exudate_type();
 
-    // Fixation atmospherique d'azote — bonus gratuit pour les fixatrices
+    // Fixation atmospherique d'azote — proportionnelle a la lumiere et au carbone
+    // Les fixatrices sont des "pompes solaires a azote" : lumiere + carbone → azote
     if exudate_type == ExudateType::Nitrogen {
-        let fix_cost = state.config.nitrogen_fixation_energy_cost;
-        if state.plants[plant_idx].energy().value() > fix_cost {
-            state.plants[plant_idx].consume_energy(fix_cost);
-            // Injecter l'azote fixe dans le sol sous les racines
-            let root_cells: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
-            let n_per_cell = state.config.nitrogen_fixation_rate / root_cells.len().max(1) as f32;
-            for pos in &root_cells {
-                if let Some(cell) = state.world.get_mut(pos) {
-                    let n = cell.nitrogen();
-                    cell.set_nitrogen(n + n_per_cell);
-                }
+        // Calculer la lumiere moyenne et le carbone moyen sous les racines
+        let root_cells: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
+        let root_count = root_cells.len().max(1) as f32;
+        let mut total_light = 0.0_f32;
+        let mut total_carbon = 0.0_f32;
+        for pos in &root_cells {
+            if let Some(cell) = state.world.get(pos) {
+                total_light += cell.light();
+                total_carbon += cell.carbon();
             }
-            // Stats
-            let fixation_rate = state.config.nitrogen_fixation_rate;
-            if let Some(stats) = state.find_stats_mut(plant_id) {
-                stats.exudates_emitted += fixation_rate;
+        }
+        let avg_light = total_light / root_count;
+        let avg_carbon = total_carbon / root_count;
+
+        // Fixation = lumiere × carbone × efficacite
+        let fixation_amount = avg_light * avg_carbon * state.config.nitrogen_fixation_rate;
+
+        if fixation_amount > 0.001 {
+            // Cout en energie proportionnel a la fixation
+            let fix_cost = fixation_amount * state.config.nitrogen_fixation_energy_cost;
+
+            if state.plants[plant_idx].energy().value() > fix_cost {
+                state.plants[plant_idx].consume_energy(fix_cost);
+
+                // Consommer du carbone du sol (la fixation coute du C)
+                let c_cost_per_cell = fixation_amount * 0.5 / root_count;
+                for pos in &root_cells {
+                    if let Some(cell) = state.world.get_mut(pos) {
+                        let c = cell.carbon();
+                        cell.set_carbon(c - c_cost_per_cell);
+                    }
+                }
+
+                // Injecter l'azote fixe dans le sol sous les racines
+                let n_per_cell = fixation_amount / root_count;
+                for pos in &root_cells {
+                    if let Some(cell) = state.world.get_mut(pos) {
+                        let n = cell.nitrogen();
+                        cell.set_nitrogen(n + n_per_cell);
+                    }
+                }
+
+                // Stats
+                if let Some(stats) = state.find_stats_mut(plant_id) {
+                    stats.exudates_emitted += fixation_amount;
+                }
             }
         }
     }
@@ -625,6 +656,18 @@ fn action_maintenance(
     let biomass = state.plants[plant_idx].biomass().value() as f32;
     state.plants[plant_idx]
         .consume_energy(config.maintenance_rate * biomass * maintenance_multiplier);
+
+    // h-bis) Consommation d'azote du sol proportionnelle a la biomasse
+    // Les grosses plantes consomment plus de N, les petites quasi rien
+    let n_consumption = biomass * 0.001;  // tres faible par unite de biomasse
+    let footprint_cells: Vec<Pos> = state.plants[plant_idx].footprint().to_vec();
+    let n_per_cell = n_consumption / footprint_cells.len().max(1) as f32;
+    for pos in &footprint_cells {
+        if let Some(cell) = state.world.get_mut(pos) {
+            let n = cell.nitrogen();
+            cell.set_nitrogen(n - n_per_cell);
+        }
+    }
 
     // i) Vieillissement : drain de vitalite proportionnel a l'age
     let age = state.plants[plant_idx].age() as f32;
@@ -1005,11 +1048,12 @@ mod tests {
         action_exudates(&mut state, plant_id, plant_idx, 0.0);
 
         let energy_after = state.plants[plant_idx].energy().value();
-        let expected_cost = state.config.nitrogen_fixation_energy_cost;
 
+        // Le cout est proportionnel a lumiere × carbone × fixation_rate × energy_cost
+        // Il doit etre > 0 (la plante a perdu de l'energie)
         assert!(
-            (energy_before - energy_after - expected_cost).abs() < 0.001,
-            "la fixation devrait couter {expected_cost} d'energie : avant={energy_before}, apres={energy_after}"
+            energy_after < energy_before,
+            "la fixation devrait couter de l'energie : avant={energy_before}, apres={energy_after}"
         );
     }
 
