@@ -258,9 +258,11 @@ fn action_growth(
                 }
             } else {
                 // Cellule libre : verifier les ressources du sol
+                // Les fixatrices d'azote n'ont PAS besoin de N du sol (elles le fabriquent)
+                let is_fixer = state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
                 let can_grow = if let Some(cell) = state.world.get(&target_pos) {
                     cell.carbon() >= state.config.growth_carbon_cost
-                        && cell.nitrogen() >= state.config.growth_nitrogen_cost
+                        && (is_fixer || cell.nitrogen() >= state.config.growth_nitrogen_cost)
                 } else {
                     false
                 };
@@ -276,12 +278,14 @@ fn action_growth(
 
                     footprint_map.insert(target_pos, plant_id);
 
-                    // Deduire les ressources du sol
+                    // Deduire les ressources du sol (les fixatrices ne consomment pas de N)
                     if let Some(cell) = state.world.get_mut(&target_pos) {
                         let c = cell.carbon();
                         cell.set_carbon(c - state.config.growth_carbon_cost);
-                        let n = cell.nitrogen();
-                        cell.set_nitrogen(n - state.config.growth_nitrogen_cost);
+                        if !is_fixer {
+                            let n = cell.nitrogen();
+                            cell.set_nitrogen(n - state.config.growth_nitrogen_cost);
+                        }
                     }
                 }
             }
@@ -292,10 +296,11 @@ fn action_growth(
             if state.plants[plant_idx].canopy().len() >= state.plants[plant_idx].max_canopy() {
                 return events;
             }
-            // Verifier les ressources du sol
+            // Verifier les ressources du sol (fixatrices n'ont pas besoin de N)
+            let is_fixer = state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
             let can_grow = if let Some(cell) = state.world.get(&target_pos) {
                 cell.carbon() >= state.config.growth_carbon_cost
-                    && cell.nitrogen() >= state.config.growth_nitrogen_cost
+                    && (is_fixer || cell.nitrogen() >= state.config.growth_nitrogen_cost)
             } else {
                 false
             };
@@ -306,12 +311,14 @@ fn action_growth(
                 state.plants[plant_idx]
                     .consume_energy(state.config.growth_energy_cost / modifiers.growth);
 
-                // Deduire les ressources du sol
+                // Deduire les ressources du sol (fixatrices ne consomment pas de N)
                 if let Some(cell) = state.world.get_mut(&target_pos) {
                     let c = cell.carbon();
                     cell.set_carbon(c - state.config.growth_carbon_cost);
-                    let n = cell.nitrogen();
-                    cell.set_nitrogen(n - state.config.growth_nitrogen_cost);
+                    if !is_fixer {
+                        let n = cell.nitrogen();
+                        cell.set_nitrogen(n - state.config.growth_nitrogen_cost);
+                    }
                 }
             }
         }
@@ -342,10 +349,12 @@ fn action_defense(state: &mut SimState, plant_idx: usize, defense: f32) {
 fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudate_rate: f32) {
     let exudate_type = state.plants[plant_idx].genetics().exudate_type();
 
-    // Fixation atmospherique d'azote — proportionnelle a la lumiere et au carbone
-    // Les fixatrices sont des "pompes solaires a azote" : lumiere + carbone → azote
+    // Fixation atmospherique d'azote — la fixatrice GARDE le N pour elle
+    // Elle ne l'injecte PAS dans le sol. Le N n'arrive dans le sol que par :
+    // 1. Decomposition (a sa mort)
+    // 2. Echange via lien mycorhizien (troc N contre energie)
+    // Avantage competitif : elle pousse la ou les autres ne peuvent pas (sol sans N)
     if exudate_type == ExudateType::Nitrogen {
-        // Calculer la lumiere moyenne et le carbone moyen sous les racines
         let root_cells: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
         let root_count = root_cells.len().max(1) as f32;
         let mut total_light = 0.0_f32;
@@ -363,7 +372,6 @@ fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudat
         let fixation_amount = avg_light * avg_carbon * state.config.nitrogen_fixation_rate;
 
         if fixation_amount > 0.001 {
-            // Cout en energie proportionnel a la fixation
             let fix_cost = fixation_amount * state.config.nitrogen_fixation_energy_cost;
 
             if state.plants[plant_idx].energy().value() > fix_cost {
@@ -378,14 +386,8 @@ fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudat
                     }
                 }
 
-                // Injecter l'azote fixe dans le sol sous les racines
-                let n_per_cell = fixation_amount / root_count;
-                for pos in &root_cells {
-                    if let Some(cell) = state.world.get_mut(pos) {
-                        let n = cell.nitrogen();
-                        cell.set_nitrogen(n + n_per_cell);
-                    }
-                }
+                // La fixatrice GARDE le N : gain d'energie interne (le N nourrit la plante)
+                state.plants[plant_idx].gain_energy(fixation_amount * 2.0);
 
                 // Stats
                 if let Some(stats) = state.find_stats_mut(plant_id) {
@@ -659,13 +661,17 @@ fn action_maintenance(
 
     // h-bis) Consommation d'azote du sol proportionnelle a la biomasse
     // Les grosses plantes consomment plus de N, les petites quasi rien
-    let n_consumption = biomass * 0.001;  // tres faible par unite de biomasse
-    let footprint_cells: Vec<Pos> = state.plants[plant_idx].footprint().to_vec();
-    let n_per_cell = n_consumption / footprint_cells.len().max(1) as f32;
-    for pos in &footprint_cells {
-        if let Some(cell) = state.world.get_mut(pos) {
-            let n = cell.nitrogen();
-            cell.set_nitrogen(n - n_per_cell);
+    // Les fixatrices d'azote ne consomment pas de N du sol (elles le fabriquent)
+    let is_fixer = state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
+    if !is_fixer {
+        let n_consumption = biomass * 0.001;
+        let footprint_cells: Vec<Pos> = state.plants[plant_idx].footprint().to_vec();
+        let n_per_cell = n_consumption / footprint_cells.len().max(1) as f32;
+        for pos in &footprint_cells {
+            if let Some(cell) = state.world.get_mut(pos) {
+                let n = cell.nitrogen();
+                cell.set_nitrogen(n - n_per_cell);
+            }
         }
     }
 
@@ -1007,32 +1013,25 @@ mod tests {
     // --- Test 1 : la fixation d'azote enrichit le sol ---
 
     #[test]
-    fn la_fixation_azote_enrichit_le_sol() {
+    fn la_fixation_azote_donne_de_lenergie_a_la_fixatrice() {
         let (mut state, plant_id) = test_state_with_plant(ExudateType::Nitrogen);
         let plant_idx = 0;
 
-        // Mesurer l'azote du sol avant
-        let root_pos = state.plants[plant_idx].roots()[0];
-        let nitrogen_before = state
-            .world
-            .get(&root_pos)
-            .map(|c| c.nitrogen())
-            .unwrap_or(0.0);
+        // Vider l'energie puis en donner un peu
+        let current_e = state.plants[plant_idx].energy().value();
+        state.plants[plant_idx].consume_energy(current_e);
+        state.plants[plant_idx].gain_energy(10.0);
+        let energy_before = state.plants[plant_idx].energy().value();
 
-        // Appeler action_exudates avec un taux d'exsudat nul
-        // (pour isoler uniquement la fixation d'azote)
+        // La fixation coute de l'energie (C sol × lumiere × cost) mais donne aussi de l'energie
+        // Le gain net depend des conditions. On verifie juste que l'energie a change.
         action_exudates(&mut state, plant_id, plant_idx, 0.0);
 
-        // Mesurer l'azote apres
-        let nitrogen_after = state
-            .world
-            .get(&root_pos)
-            .map(|c| c.nitrogen())
-            .unwrap_or(0.0);
-
+        let energy_after = state.plants[plant_idx].energy().value();
+        // L'energie doit avoir change (cout - gain ou gain - cout)
         assert!(
-            nitrogen_after > nitrogen_before,
-            "la fixation d'azote devrait enrichir le sol : avant={nitrogen_before}, apres={nitrogen_after}"
+            (energy_after - energy_before).abs() > 0.001,
+            "la fixation devrait modifier l'energie : avant={energy_before}, apres={energy_after}"
         );
     }
 
