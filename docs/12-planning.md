@@ -133,7 +133,7 @@ Caméra FPS (ZQSD + WASD, pointer lock, saut, taille humaine 1.7m). 4 archétype
 | GitHub Pages : viewer déployé statiquement | Accessible en ligne avec un montage de démo |
 | README + GIF/vidéo de démonstration | Le projet est présentable |
 
-### Phase 7 — Refonte TUI
+### Phase 7 — Refonte TUI ✅ Terminée
 
 | Tâche | Critère de done |
 |---|---|
@@ -147,6 +147,8 @@ Caméra FPS (ZQSD + WASD, pointer lock, saut, taille humaine 1.7m). 4 archétype
 | Barre de raccourcis en bas : espace, q, s, 1-5, m | L'utilisateur voit les commandes dispo |
 
 **Done quand** : le TUI raconte l'histoire de la simulation en un coup d'œil, les panneaux sont toggleables, les raccourcis sont visibles.
+
+**Done** ✅ — Dashboard compact + 5 deep dives plein écran (Évolution, Population, Coopération, Île, Logs). Barres d'état et raccourcis permanentes. Toggle 1-5 + Esc. Nouvelles métriques (naissances/morts, âges, C/N, coopérateurs, sol, échanges, banque).
 
 ## Commandes CLI
 
