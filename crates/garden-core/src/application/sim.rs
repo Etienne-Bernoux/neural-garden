@@ -68,13 +68,16 @@ impl SimState {
     /// Logique commune de peuplement : enrichit le sol, initialise la banque de graines
     /// et place les plantes initiales sur les cellules terrestres.
     fn populate(mut world: World, island: Island, config: SimConfig, rng: &mut dyn Rng) -> Self {
-        // Enrichir le sol initial des cellules terrestres
+        // Sol initial varie selon l'altitude : vallees riches, cretes pauvres
         let land_cells = island.land_cells();
         for pos in land_cells {
             if let Some(cell) = world.get_mut(pos) {
-                cell.set_carbon(0.5);
-                cell.set_nitrogen(0.4);
-                cell.set_humidity(0.5);
+                let alt = cell.altitude();
+                // Vallees (alt basse) = sol riche, cretes (alt haute) = sol pauvre
+                let richness = (1.0 - alt).clamp(0.0, 1.0);
+                cell.set_carbon(0.2 + richness * 0.4);   // 0.2 à 0.6
+                cell.set_nitrogen(0.05 + richness * 0.15); // 0.05 à 0.2
+                cell.set_humidity(0.3 + richness * 0.4);  // 0.3 à 0.7
             }
         }
 

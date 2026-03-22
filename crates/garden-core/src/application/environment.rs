@@ -49,11 +49,18 @@ pub fn phase_environment(state: &mut SimState) -> Option<super::season::Season> 
                 }
 
                 // Regeneration sol : cellules terrestres
+                // Plafonnee aux seuils de base (ne regenere pas au-dela du naturel)
                 if is_land {
                     let c = cell.carbon();
-                    cell.set_carbon(c + state.config.carbon_regen_rate * modifiers.soil_regen);
+                    let c_baseline = 0.3;  // seuil naturel max de regeneration C
+                    if c < c_baseline {
+                        cell.set_carbon(c + state.config.carbon_regen_rate * modifiers.soil_regen);
+                    }
                     let n = cell.nitrogen();
-                    cell.set_nitrogen(n + state.config.nitrogen_regen_rate * modifiers.soil_regen);
+                    let n_baseline = 0.05;  // seuil naturel max de regeneration N (tres bas)
+                    if n < n_baseline {
+                        cell.set_nitrogen(n + state.config.nitrogen_regen_rate * modifiers.soil_regen);
+                    }
                 }
 
                 // Diffusion exsudats : decroissance
