@@ -6,16 +6,16 @@ Pas de vagues ni de cycles artificiels. La simulation tourne en continu. L'évol
 
 ## Banque de graines
 
-La banque de graines est le réservoir génétique de la simulation. Elle contient les **50 meilleurs génomes** observés au cours de la simulation.
+La banque de graines est le réservoir génétique de la simulation. Elle est **compartimentée par (`hidden_size`, `exudate_type`)** : chaque combinaison forme un compartiment indépendant, ce qui maintient la diversité génétique. Capacité totale : **100 slots**.
 
 ### Initialisation
-- Au démarrage, la banque est remplie avec **50 génomes aléatoires** avec un biais de survie minimal : les biais de `grow_intensity` sont positifs (la plante pousse par défaut), ce qui garantit un comportement minimal viable.
-- L'île est peuplée depuis cette banque initiale.
+- Au démarrage, la banque est remplie avec **100 génomes aléatoires** avec un biais de survie minimal : les biais de `grow_intensity` et `connect_signal` sont positifs (la plante pousse et accepte les connexions par défaut), ce qui garantit un comportement minimal viable.
+- L'île est peuplée avec **50 plantes** depuis cette banque initiale.
 
 ### Alimentation
 - **À la mort de chaque plante**, sa fitness est évaluée (voir ci-dessous).
-- Si sa fitness est **supérieure au pire génome de la banque**, elle le remplace.
-- La banque maintient toujours 50 slots, triés par fitness.
+- Le génome est inséré dans son compartiment. Si la capacité totale est dépassée, le pire génome du compartiment le plus peuplé est évincé.
+- La banque maintient toujours un maximum de 100 slots répartis entre les compartiments.
 
 ### Injection — pluie de graines
 - La banque injecte des graines **en continu** sur l'île, à un taux configurable (pluie de graines).
@@ -51,20 +51,24 @@ Tous les paramètres de mutation sont configurables (TOML).
 
 ## Fonction de fitness
 
-La fitness est calculée **à la mort de chaque plante**, sur la base de sa vie entière.
+La fitness est calculée **à la mort de chaque plante**, sur la base de sa vie entière. Les poids sont calibrés **par ordres de grandeur** pour pousser massivement vers la coopération symbiotique :
+
+- Plante solitaire : fitness ~5
+- Plante qui grandit et se reproduit : fitness ~260
+- Plante avec symbiose active : fitness ~60 000
 
 | Composante | Poids | Raison |
 |---|---|---|
-| Biomasse max atteinte | + 2.0 | Récompense la croissance |
-| Durée de vie | + 1.0 | Encourage la durabilité |
-| Territoire max contrôlé | + 1.5 | Récompense l'expansion |
-| Connexions symbiotiques (cumul) | + 4.0 | Fort bonus coopération |
-| Exsudats émis (cumul) | + 2.0 | Encourage la générosité publique |
-| Échanges C↔N via liens directs (cumul) | + 1.5 | Encourage la coopération privée |
-| Graines lancées (reproduction vivante) | + 3.0 | Succès biologique |
-| Sol enrichi à la mort (décomposition) | + 2.0 | Même la mort contribue |
-| Sol épuisé sous soi (cumul) | - 2.0 | Pénalise la surexploitation |
-| Monoculture autour de soi | - 1.5 | Si > 80% des cellules dans la zone d'influence sont de la même espèce |
+| Biomasse max atteinte | + 0.5 | Grandir = peu |
+| Durée de vie | + 0.01 | Survivre = quasi rien |
+| Territoire max contrôlé | + 0.3 | Territoire = peu |
+| Connexions symbiotiques (cumul) | + 500.0 | Liens = très bien (ordre 10 000) |
+| Exsudats émis (cumul) | + 100.0 | Exsuder = bien (ordre 1 000) |
+| Échanges C↔N via liens directs (cumul) | + 5000.0 | Échanger C/N = jackpot (ordre 100 000) |
+| Graines lancées (reproduction vivante) | + 50.0 | Se reproduire = bien (ordre 1 000) |
+| Sol enrichi à la mort (décomposition) | + 10.0 | Enrichir le sol = moyen |
+| Sol épuisé sous soi (cumul) | - 1.0 | Pénalité légère |
+| Monoculture autour de soi | - 5.0 | Pénalité monoculture |
 
 **La pénalité monoculture** : un sol dominé par une seule espèce s'appauvrit naturellement (diversité du sol), et la fitness pénalise les plantes qui contribuent à cette monoculture. L'évolution favorise la coexistence.
 
@@ -85,9 +89,9 @@ La spéciation n'est pas programmée — elle émerge de la contrainte de crosso
 
 | Paramètre | Valeur par défaut | Description |
 |---|---|---|
-| seed_bank_size | 50 | Nombre de slots dans la banque |
-| seed_rain_rate | 1 graine / 50 ticks | Fréquence d'injection depuis la banque |
-| initial_population | 30 | Nombre de graines plantées au démarrage |
+| seed_bank_capacity | 100 | Nombre total de slots dans la banque (compartimentée) |
+| seed_rain_interval | 1 graine / 45 ticks | Fréquence d'injection depuis la banque |
+| initial_population | 50 | Nombre de graines plantées au démarrage |
 | mutation_weight_prob | 0.3 | Probabilité de mutation d'un poids |
 | mutation_weight_sigma | 0.2 | Amplitude de la mutation gaussienne |
 | mutation_hidden_size_prob | 0.05 | Probabilité de mutation ±1 de hidden_size |

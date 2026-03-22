@@ -25,7 +25,7 @@ La simulation tourne en continu. Il n'y a pas de "fin de partie" ni de cycle par
 
 10. **Croissance** : résoudre `grow_dir`, `grow_intensity`, `canopy_vs_roots`. Ajouter des cellules si énergie + carbone + azote suffisants. Si la cellule cible est dans la zone de place d'une autre plante → tentative d'invasion.
 11. **Défense** : appliquer le coût de 3 énergie/tick pour les plantes en mode défensif (`defense > 0.5`).
-12. **Exsudats** : injecter carbone ou azote (selon `exudate_type`) dans le sol de la zone de place.
+12. **Exsudats** : injecter carbone ou azote (selon `exudate_type`) dans le sol des cellules racinaires. Les fixatrices d'azote bénéficient en plus d'une fixation atmosphérique automatique.
 13. **Absorption** : absorber carbone + azote + humidité via la zone d'influence. Compétition passive dans les zones de chevauchement.
 14. **Photosynthèse** : lumière reçue → énergie.
 15. **Échanges mycorhiziens** : transférer les surplus de C↔N entre plantes connectées, proportionnellement à `connect_generosity`.

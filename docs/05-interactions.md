@@ -2,12 +2,13 @@
 
 ## Zones et compétition
 
-Chaque plante a deux zones (voir 03-perception.md) :
+Chaque plante a trois couches spatiales (voir 02-plants.md, 03-perception.md) :
 
-- **Zone de place** : cellules physiquement occupées. Exclusive — une seule plante par cellule.
-- **Zone d'influence** : zone élargie d'absorption et d'interaction. Le rayon scale avec la biomasse et l'investissement en racines (output `canopy_vs_roots`, voir 03-perception.md). Peut se superposer avec celle d'autres plantes.
+- **Emprise au sol (footprint)** : cellules exclusives. Seule couche où l'invasion est possible.
+- **Canopée (canopy)** : couche aérienne partagée. Ombre dynamique par priorité de taille.
+- **Racines (roots)** : couche souterraine partagée. Absorption, exsudats, symbiose.
 
-Quand les zones d'influence de deux plantes se chevauchent, elles sont en **compétition passive** pour les ressources (carbone, azote, humidité) dans la zone de recouvrement. Pas besoin d'invasion — l'absorption est partagée, la plus efficace gagne.
+Quand les racines de deux plantes occupent les mêmes cellules, elles sont en **compétition passive** pour les ressources (carbone, azote, humidité). Pas besoin d'invasion — l'absorption est partagée, la plus efficace gagne.
 
 ## Exsudats racinaires (coopération publique)
 
@@ -21,7 +22,11 @@ Chaque plante peut injecter des ressources dans le sol autour de ses racines via
 | Bénéficiaires | Toute plante dont la zone d'influence chevauche les cellules enrichies |
 | Visuel | Halo doré/ambré semi-transparent autour des racines émettrices |
 
-**Ce qui émerge :** une fixatrice d'azote (exudate_type = azote) crée un gradient d'azote qui attire les plantes voisines carencées. Les voisins poussent vers elle → zones d'influence se croisent → lien mycorhizien possible. La coopération attire la coopération. À l'inverse, un parasite (exudate 0 mais absorption forte) crée un puits — gradient négatif autour de lui.
+### Fixation atmosphérique d'azote
+
+Les plantes avec `exudate_type = Nitrogen` bénéficient d'un bonus automatique : elles **fixent de l'azote depuis l'atmosphère** (modélisant les bactéries fixatrices associées aux légumineuses). Chaque tick, elles injectent `nitrogen_fixation_rate` (0.03) d'azote dans le sol sous leurs racines, au coût de `nitrogen_fixation_energy_cost` (0.5) énergie. Ce mécanisme est indépendant de l'exsudation classique.
+
+**Ce qui émerge :** une fixatrice d'azote crée un gradient d'azote qui attire les plantes voisines carencées. Les voisins poussent vers elle → racines partagées → lien mycorhizien possible. La coopération attire la coopération. À l'inverse, un parasite (exudate 0 mais absorption forte) crée un puits — gradient négatif autour de lui.
 
 ## Connexion mycorhizienne (coopération privée)
 
@@ -30,8 +35,9 @@ Quand les **racines** de deux plantes occupent une même cellule, elles peuvent 
 1. **Racines partagées** : les racines de A et B occupent au moins une cellule commune.
 2. **Accord mutuel** : `connect_signal > 0.5` des deux côtés.
 3. **Lien établi** : filament doré visible entre les deux plantes.
-4. **Échange C↔N** : chaque tick, chaque plante connectée donne son **surplus** de carbone ou d'azote, proportionnellement à `connect_generosity`. L'échange est bidirectionnel — une plante riche en carbone donne du carbone et reçoit de l'azote, et inversement.
-5. **Rupture** : si les racines ne partagent plus de cellule, ou si une plante envahit la zone de place de l'autre.
+4. **Échange C↔N** : chaque tick, chaque plante connectée donne son **surplus** de carbone ou d'azote, proportionnellement à `connect_generosity`. L'échange est bidirectionnel — une plante riche en carbone donne du carbone et reçoit de l'azote, et inversement. L'échange passe par le sol (transfert entre les cellules racinaires des deux plantes).
+5. **Échange d'énergie** : en plus des nutriments, les plantes connectées échangent de l'énergie. La plante avec le plus d'énergie donne à celle qui en a le moins, proportionnellement à la générosité moyenne des deux. L'échange nourrit aussi les deux plantes (gain d'énergie proportionnel au volume total échangé).
+6. **Rupture** : si les racines ne partagent plus de cellule, ou si une plante envahit la zone de place de l'autre.
 
 ### Parasitisme mycorhizien
 
@@ -45,10 +51,11 @@ Il n'y a pas de « mode invasion ». L'invasion est le résultat de la **croissa
 
 | Condition | Détail |
 |---|---|
-| Déclenchement | La plante pousse (`grow_intensity > 0`) et la cellule cible est dans la zone de place d'une autre plante |
+| Déclenchement | La plante pousse en emprise au sol (`canopy_vs_roots` entre 0.33 et 0.66, `grow_intensity > 0`) et la cellule cible est dans la zone de place d'une autre plante |
 | Réussite | Si énergie attaquant > énergie défenseur + 10 |
 | Défense | Si `defense > 0.5` chez le défenseur : le seuil passe à +20 au lieu de +10. Coûte 3 énergie/tick. |
-| Coût | 12 énergie (au lieu de 8 pour une cellule libre) |
+| Graines | Si la victime est une **graine** : invasion automatique et gratuite. La graine meurt sans condition d'énergie. |
+| Coût | 12 énergie (au lieu de 5 pour une cellule libre) |
 | Rupture symbiose | Si A envahit la zone de place de B, tout lien mycorhizien entre A et B est rompu |
 | Perte pour la victime | -3 vitalité + perte de la cellule. Si 0 cellules : mort. |
 

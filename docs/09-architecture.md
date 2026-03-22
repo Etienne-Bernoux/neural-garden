@@ -32,7 +32,7 @@ neural-garden/
 │   │   │   │   ├── lifecycle.rs            # Phase vie/mort (reproduction, germination, pluie de graines, GC)
 │   │   │   │   ├── perception.rs           # Service : calcul des 18 inputs (gradients sur racines)
 │   │   │   │   ├── evolution.rs            # Banque de graines, fitness, crossover, mutations
-│   │   │   │   ├── season.rs               # Cycle saisonnier (4 saisons, 250 ticks chacune)
+│   │   │   │   ├── season.rs               # Cycle saisonnier (4 saisons, 360 ticks chacune)
 │   │   │   │   ├── highlights.rs           # Service : détection des moments clés pour le replay
 │   │   │   │   └── metrics.rs              # Métriques agrégées (population, lignées, historiques)
 │   │   │   ├── infra/                      # Sérialisation, I/O, config
@@ -61,24 +61,43 @@ neural-garden/
 │   └── garden-cli/                         # CLI + TUI
 │       └── src/
 │           ├── main.rs                     # Commandes clap
-│           └── tui.rs                      # ratatui (dashboard, rendu Braille)
+│           ├── runner.rs                   # Boucle de simulation (headless ou TUI)
+│           ├── tui.rs                      # ratatui (dashboard, rendu Braille)
+│           ├── server.rs                   # Serveur WebSocket pour le mode live
+│           ├── live.rs                     # Mode live (simulation + WebSocket)
+│           ├── snapshot.rs                 # Génération de snapshots
+│           └── ui/                         # Widgets TUI spécialisés
+│               ├── mod.rs
+│               ├── alerts.rs              # Alertes et highlights
+│               ├── island.rs              # Rendu de l'île
+│               ├── diversity.rs           # Panneau diversité
+│               ├── cooperation.rs         # Panneau coopération
+│               └── fitness.rs             # Panneau fitness
 ├── web/                                    # Viewer 3D Three.js (DDD JS)
 │   ├── index.html
 │   ├── style.css
 │   ├── js/
 │   │   ├── domain/                         # État pur — zéro Three.js/DOM
 │   │   │   ├── state.js                    # SimState, reconstruction d'état
-│   │   │   └── clips.js                    # ClipManager, navigation clips
+│   │   │   ├── state.test.js               # Tests unitaires state
+│   │   │   ├── clips.js                    # ClipManager, navigation clips
+│   │   │   └── clips.test.js              # Tests unitaires clips
 │   │   ├── application/                    # Orchestration
-│   │   │   └── timeline.js                 # Play, pause, scrub, vitesse
+│   │   │   ├── timeline.js                 # Play, pause, scrub, vitesse
+│   │   │   └── timeline.test.js           # Tests unitaires timeline
 │   │   ├── infra/                          # Three.js (dépendance externe)
 │   │   │   ├── terrain.js                  # Mesh terrain voxel + eau
+│   │   │   ├── textures.js                # Textures procédurales
 │   │   │   ├── plants.js                   # PlantRenderer (tronc, canopée, graines)
+│   │   │   ├── plant-archetypes.js        # Archétypes visuels de plantes
+│   │   │   ├── particles.js               # Système de particules (spores, pluie)
 │   │   │   ├── symbiosis.js                # Interactions (liens, exsudats, flash)
 │   │   │   ├── lighting.js                 # Éclairage saisonnier
-│   │   │   └── camera.js                   # Caméra orthographique iso
+│   │   │   ├── camera.js                   # Caméra orthographique iso
+│   │   │   └── camera-explore.js          # Caméra d'exploration libre
 │   │   ├── ui/                             # DOM
-│   │   │   └── panel.js                    # Panneau latéral
+│   │   │   ├── panel.js                    # Panneau latéral
+│   │   │   └── brain-viz.js               # Visualisation du réseau de neurones
 │   │   └── app.js                          # Point d'entrée
 │   └── tests/
 │       ├── features/                       # Fichiers .feature (Gherkin, français)

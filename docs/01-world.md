@@ -72,9 +72,9 @@ Deux ressources distinctes dans le sol, consommées par les plantes pour croîtr
 
 | Saison | Ticks | Lumière | Pluie | Régénération sol | Croissance |
 |---|---|---|---|---|---|
-| Printemps | 0 – 249 | 0.8 | 1.2 | 1.5 | 1.3 |
-| Été | 250 – 499 | 1.0 | 0.5 | 0.8 | 1.0 |
-| Automne | 500 – 749 | 0.6 | 1.0 | 1.2 | 0.6 |
-| Hiver | 750 – 999 | 0.3 | 0.8 | 0.5 | 0.2 |
+| Printemps | 0 – 359 | 0.8 | 1.2 | 1.5 | 1.3 |
+| Été | 360 – 719 | 1.0 | 0.5 | 0.8 | 1.0 |
+| Automne | 720 – 1079 | 0.6 | 1.0 | 1.2 | 0.6 |
+| Hiver | 1080 – 1439 | 0.3 | 0.8 | 0.5 | 0.2 |
 
 La pluie forte au printemps remplit les mares et relance la végétation. L'été sec crée un stress hydrique — les plantes en crête souffrent, celles en vallée résistent. L'automne recharge modérément avant l'hiver.

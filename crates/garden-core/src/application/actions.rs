@@ -894,3 +894,501 @@ fn apply_transfer(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    use crate::application::config::SimConfig;
+    use crate::application::evolution::{GenerationCounter, PlantStats, SeedBank};
+    use crate::application::season::SeasonCycle;
+    use crate::application::sim::SimState;
+    use crate::domain::island::Island;
+    use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, Pos};
+    use crate::domain::rng::test_utils::MockRng;
+    use crate::domain::symbiosis::SymbiosisNetwork;
+    use crate::domain::world::World;
+
+    /// Cree un SimState minimal avec une seule plante germee au centre de la grille.
+    /// Le sol sous la plante est enrichi. Retourne (state, plant_id).
+    fn test_state_with_plant(exudate_type: ExudateType) -> (SimState, u64) {
+        let mut world = World::new();
+        let pos = Pos { x: 64, y: 64 };
+
+        // Enrichir le sol sous la plante
+        if let Some(cell) = world.get_mut(&pos) {
+            cell.set_altitude(0.8); // au-dessus du sea_level
+            cell.set_carbon(0.5);
+            cell.set_nitrogen(0.3);
+            cell.set_humidity(0.5);
+            cell.set_light(1.0);
+        }
+
+        // Ile : tout est terre (altitude > 0 dans le world)
+        let island = Island::from_world(&world, 0.0);
+
+        let genetics = GeneticTraits::new(20, 0.5, exudate_type, 8, 10.0, 10.0);
+        let lineage = Lineage::new(1, 0);
+        let mut plant = Plant::new(1, pos, genetics, lineage);
+        // Faire germer la plante
+        plant.germinate();
+        // Donner de l'energie
+        plant.gain_energy(50.0);
+
+        let config = SimConfig::default();
+        let mut plant_stats = HashMap::new();
+        plant_stats.insert(1_u64, PlantStats::default());
+
+        let state = SimState::from_raw(
+            world,
+            island,
+            vec![plant],
+            HashMap::new(), // pas de brains necessaires pour les tests unitaires
+            SymbiosisNetwork::new(),
+            SeedBank::new(10),
+            SeasonCycle::new(config.ticks_per_season),
+            GenerationCounter::new(),
+            plant_stats,
+            2, // next_plant_id
+            0, // tick_count
+            config,
+        );
+
+        (state, 1)
+    }
+
+    // --- Test 1 : la fixation d'azote enrichit le sol ---
+
+    #[test]
+    fn la_fixation_azote_enrichit_le_sol() {
+        let (mut state, plant_id) = test_state_with_plant(ExudateType::Nitrogen);
+        let plant_idx = 0;
+
+        // Mesurer l'azote du sol avant
+        let root_pos = state.plants[plant_idx].roots()[0];
+        let nitrogen_before = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+
+        // Appeler action_exudates avec un taux d'exsudat nul
+        // (pour isoler uniquement la fixation d'azote)
+        action_exudates(&mut state, plant_id, plant_idx, 0.0);
+
+        // Mesurer l'azote apres
+        let nitrogen_after = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+
+        assert!(
+            nitrogen_after > nitrogen_before,
+            "la fixation d'azote devrait enrichir le sol : avant={nitrogen_before}, apres={nitrogen_after}"
+        );
+    }
+
+    // --- Test 2 : la fixation d'azote coute de l'energie ---
+
+    #[test]
+    fn la_fixation_azote_coute_de_lenergie() {
+        let (mut state, plant_id) = test_state_with_plant(ExudateType::Nitrogen);
+        let plant_idx = 0;
+
+        let energy_before = state.plants[plant_idx].energy().value();
+
+        action_exudates(&mut state, plant_id, plant_idx, 0.0);
+
+        let energy_after = state.plants[plant_idx].energy().value();
+        let expected_cost = state.config.nitrogen_fixation_energy_cost;
+
+        assert!(
+            (energy_before - energy_after - expected_cost).abs() < 0.001,
+            "la fixation devrait couter {expected_cost} d'energie : avant={energy_before}, apres={energy_after}"
+        );
+    }
+
+    // --- Test 3 : la fixation skip si pas assez d'energie ---
+
+    #[test]
+    fn la_fixation_skip_si_pas_assez_energie() {
+        let (mut state, plant_id) = test_state_with_plant(ExudateType::Nitrogen);
+        let plant_idx = 0;
+
+        // Vider l'energie pour etre en dessous du cout de fixation
+        let energy = state.plants[plant_idx].energy().value();
+        state.plants[plant_idx].consume_energy(energy);
+        state.plants[plant_idx].gain_energy(0.1); // < nitrogen_fixation_energy_cost (0.5)
+
+        let root_pos = state.plants[plant_idx].roots()[0];
+        let nitrogen_before = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+
+        action_exudates(&mut state, plant_id, plant_idx, 0.0);
+
+        let nitrogen_after = state.world.get(&root_pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+
+        assert!(
+            (nitrogen_after - nitrogen_before).abs() < f32::EPSILON,
+            "pas de fixation si energie insuffisante : avant={nitrogen_before}, apres={nitrogen_after}"
+        );
+    }
+
+    // --- Test 4 : les graines ne font aucune action ---
+
+    #[test]
+    fn les_graines_ne_font_aucune_action() {
+        // Creer un SimState avec une plante en etat Seed (pas germee)
+        let mut world = World::new();
+        let pos = Pos { x: 64, y: 64 };
+        if let Some(cell) = world.get_mut(&pos) {
+            cell.set_altitude(0.8);
+            cell.set_carbon(0.5);
+            cell.set_nitrogen(0.3);
+            cell.set_humidity(0.5);
+            cell.set_light(1.0);
+        }
+        let island = Island::from_world(&world, 0.0);
+        let genetics = GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 10.0);
+        let lineage = Lineage::new(1, 0);
+        let plant = Plant::new(1, pos, genetics, lineage);
+        // La plante reste en Seed (pas de germinate())
+
+        let config = SimConfig::default();
+        let mut plant_stats = HashMap::new();
+        plant_stats.insert(1_u64, PlantStats::default());
+
+        let mut state = SimState::from_raw(
+            world,
+            island,
+            vec![plant],
+            HashMap::new(),
+            SymbiosisNetwork::new(),
+            SeedBank::new(10),
+            SeasonCycle::new(config.ticks_per_season),
+            GenerationCounter::new(),
+            plant_stats,
+            2,
+            0,
+            config,
+        );
+
+        // Mesurer l'etat avant
+        let energy_before = state.plants[0].energy().value();
+        let nitrogen_before = state.world.get(&pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+        let carbon_before = state.world.get(&pos).map(|c| c.carbon()).unwrap_or(0.0);
+
+        // Simuler un appel a phase_actions avec des decisions pour la graine
+        let decisions = vec![(1_u64, [1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])];
+        let mut rng = MockRng::new(0.5, 0.1);
+        let _events = phase_actions(&mut state, &decisions, &mut rng);
+
+        // Verifier : aucun changement
+        let energy_after = state.plants[0].energy().value();
+        let nitrogen_after = state.world.get(&pos).map(|c| c.nitrogen()).unwrap_or(0.0);
+        let carbon_after = state.world.get(&pos).map(|c| c.carbon()).unwrap_or(0.0);
+
+        assert!(
+            (energy_after - energy_before).abs() < f32::EPSILON,
+            "l'energie d'une graine ne devrait pas changer : avant={energy_before}, apres={energy_after}"
+        );
+        assert!(
+            (nitrogen_after - nitrogen_before).abs() < f32::EPSILON,
+            "l'azote sous une graine ne devrait pas changer"
+        );
+        assert!(
+            (carbon_after - carbon_before).abs() < f32::EPSILON,
+            "le carbone sous une graine ne devrait pas changer"
+        );
+    }
+
+    // --- Test 5 : l'invasion de graine est gratuite ---
+
+    #[test]
+    fn linvasion_de_graine_est_gratuite() {
+        let mut world = World::new();
+        let pos_a = Pos { x: 64, y: 64 };
+        let pos_b = Pos { x: 65, y: 64 }; // cellule adjacente
+
+        // Enrichir le sol pour les deux cellules
+        for pos in [&pos_a, &pos_b] {
+            if let Some(cell) = world.get_mut(pos) {
+                cell.set_altitude(0.8);
+                cell.set_carbon(0.5);
+                cell.set_nitrogen(0.3);
+                cell.set_humidity(0.5);
+                cell.set_light(1.0);
+            }
+        }
+
+        let island = Island::from_world(&world, 0.0);
+
+        // Plante A : germee avec de l'energie
+        let genetics_a = GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 10.0);
+        let mut plant_a = Plant::new(1, pos_a, genetics_a, Lineage::new(1, 0));
+        plant_a.germinate();
+        plant_a.gain_energy(50.0);
+
+        // Plante B : graine sur la cellule adjacente
+        let genetics_b = GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 10.0);
+        let plant_b = Plant::new(2, pos_b, genetics_b, Lineage::new(2, 0));
+        // B reste en Seed
+
+        let config = SimConfig::default();
+        let mut plant_stats = HashMap::new();
+        plant_stats.insert(1_u64, PlantStats::default());
+        plant_stats.insert(2_u64, PlantStats::default());
+
+        let mut state = SimState::from_raw(
+            world,
+            island,
+            vec![plant_a, plant_b],
+            HashMap::new(),
+            SymbiosisNetwork::new(),
+            SeedBank::new(10),
+            SeasonCycle::new(config.ticks_per_season),
+            GenerationCounter::new(),
+            plant_stats,
+            3,
+            0,
+            config,
+        );
+
+        let energy_before = state.plants[0].energy().value();
+
+        // Croissance de A vers pos_b (direction +x) avec canopy_vs_roots = 0.5 (footprint)
+        // grow_intensity = 1.0 (au-dessus du seuil), dir_x = 1.0, dir_y = 0.0
+        let mut footprint_map: HashMap<Pos, u64> = HashMap::new();
+        footprint_map.insert(pos_a, 1);
+        footprint_map.insert(pos_b, 2);
+
+        let modifiers = state.season_cycle.current_modifiers();
+        let decisions = vec![
+            (1_u64, [1.0, 1.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0]),
+            (2_u64, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        ];
+
+        let events = action_growth(
+            &mut state,
+            &decisions,
+            1,
+            0,
+            1.0,       // grow_intensity
+            1.0,       // grow_dir_x (+x)
+            0.0,       // grow_dir_y
+            0.5,       // canopy_vs_roots → footprint
+            &mut footprint_map,
+            &modifiers,
+        );
+
+        let energy_after = state.plants[0].energy().value();
+
+        // Verifier : A a pris la cellule
+        assert!(
+            state.plants[0].footprint().contains(&pos_b),
+            "A devrait avoir pris la cellule de B"
+        );
+        // La graine a recu des degats egaux a sa vitalite — sa vitalite est a zero
+        assert!(
+            state.plants[1].vitality().value() == 0.0,
+            "B (graine) devrait avoir une vitalite a zero, got {}",
+            state.plants[1].vitality().value()
+        );
+        // Verifier : A n'a pas paye le cout d'invasion (pas de consume_energy pour invasion)
+        assert!(
+            (energy_after - energy_before).abs() < f32::EPSILON,
+            "l'invasion de graine devrait etre gratuite : avant={energy_before}, apres={energy_after}"
+        );
+        // Verifier qu'un evenement d'invasion n'est PAS emis (c'est un ecrasement, pas une invasion)
+        let has_invaded_event = events.iter().any(|e| matches!(e, DomainEvent::Invaded { .. }));
+        assert!(
+            !has_invaded_event,
+            "l'ecrasement de graine ne devrait pas emettre d'evenement Invaded"
+        );
+    }
+
+    // --- Test 6 : l'ombre reduit la photosynthese ---
+
+    #[test]
+    fn lombre_reduit_la_photosynthese() {
+        let mut world = World::new();
+        let shared_pos = Pos { x: 64, y: 64 };
+        let pos_a_extra = Pos { x: 63, y: 64 }; // cellule en plus pour A (footprint plus grand)
+
+        // Enrichir le sol
+        for pos in [&shared_pos, &pos_a_extra] {
+            if let Some(cell) = world.get_mut(pos) {
+                cell.set_altitude(0.8);
+                cell.set_carbon(0.5);
+                cell.set_nitrogen(0.3);
+                cell.set_humidity(0.5);
+                cell.set_light(1.0);
+            }
+        }
+
+        let island = Island::from_world(&world, 0.0);
+
+        // Plante A : grande (footprint = 2 cellules), canopee sur shared_pos
+        let genetics_a = GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 10.0);
+        let mut plant_a = Plant::new(1, shared_pos, genetics_a, Lineage::new(1, 0));
+        plant_a.germinate();
+        plant_a.grow_footprint(pos_a_extra); // footprint = 2
+        // La canopee inclut deja shared_pos (position initiale)
+
+        // Plante B : petite (footprint = 1 cellule), canopee sur shared_pos aussi
+        let pos_b = Pos { x: 65, y: 64 };
+        if let Some(cell) = world.get_mut(&pos_b) {
+            cell.set_altitude(0.8);
+            cell.set_light(1.0);
+        }
+        let genetics_b = GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 10.0);
+        let mut plant_b = Plant::new(2, pos_b, genetics_b, Lineage::new(2, 0));
+        plant_b.germinate();
+        // Ajouter shared_pos a la canopee de B
+        plant_b.grow_canopy(shared_pos);
+
+        let config = SimConfig::default();
+        let mut plant_stats = HashMap::new();
+        plant_stats.insert(1_u64, PlantStats::default());
+        plant_stats.insert(2_u64, PlantStats::default());
+
+        let mut state = SimState::from_raw(
+            world,
+            island,
+            vec![plant_a, plant_b],
+            HashMap::new(),
+            SymbiosisNetwork::new(),
+            SeedBank::new(10),
+            SeasonCycle::new(config.ticks_per_season),
+            GenerationCounter::new(),
+            plant_stats,
+            3,
+            0,
+            config,
+        );
+
+        // Vider l'energie de B pour mesurer le gain net
+        let energy_b = state.plants[1].energy().value();
+        state.plants[1].consume_energy(energy_b);
+
+        // Photosynthese pour B (ombragee par A qui a un footprint plus grand)
+        action_photosynthesis(&mut state, 1); // plant_idx = 1 pour B
+
+        let energy_b_shaded = state.plants[1].energy().value();
+
+        // Calculer le gain attendu sans ombre
+        // B a 2 cellules de canopee : pos_b (light=1.0) + shared_pos (light=1.0)
+        // Sans ombre, le gain serait : 2 * 1.0 * photosynthesis_rate
+        let full_light_gain = 2.0 * 1.0 * state.config.photosynthesis_rate;
+
+        // Avec l'ombre, le gain sur shared_pos est canopy_light * photosynthesis_rate au lieu de 1.0 * photosynthesis_rate
+        assert!(
+            energy_b_shaded < full_light_gain,
+            "la plante ombragee devrait gagner moins d'energie : gain={energy_b_shaded}, pleine lumiere={full_light_gain}"
+        );
+        assert!(
+            energy_b_shaded > 0.0,
+            "la plante ombragee devrait quand meme gagner de l'energie"
+        );
+    }
+
+    // --- Test 7 : l'echange d'energie va du riche au pauvre ---
+
+    #[test]
+    fn lechange_energie_va_du_riche_au_pauvre() {
+        let mut world = World::new();
+        let pos_a = Pos { x: 64, y: 64 };
+        let pos_b = Pos { x: 66, y: 64 };
+        let shared_root = Pos { x: 65, y: 64 }; // racine partagee
+
+        // Enrichir le sol
+        for pos in [&pos_a, &pos_b, &shared_root] {
+            if let Some(cell) = world.get_mut(pos) {
+                cell.set_altitude(0.8);
+                cell.set_carbon(0.5);
+                cell.set_nitrogen(0.5);
+                cell.set_humidity(0.5);
+                cell.set_light(1.0);
+            }
+        }
+
+        let island = Island::from_world(&world, 0.0);
+
+        // Plante A : riche en energie
+        let genetics_a = GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 10.0);
+        let mut plant_a = Plant::new(1, pos_a, genetics_a, Lineage::new(1, 0));
+        plant_a.germinate();
+        plant_a.gain_energy(50.0); // riche
+
+        // Plante B : pauvre en energie
+        let genetics_b = GeneticTraits::new(20, 0.5, ExudateType::Nitrogen, 8, 10.0, 10.0);
+        let mut plant_b = Plant::new(2, pos_b, genetics_b, Lineage::new(2, 0));
+        plant_b.germinate();
+        // Vider l'energie de B
+        let energy_b = plant_b.energy().value();
+        plant_b.consume_energy(energy_b);
+        plant_b.gain_energy(2.0); // pauvre
+
+        // Donner une racine partagee a chacune
+        plant_a.grow_roots(shared_root);
+        plant_b.grow_roots(shared_root);
+
+        let config = SimConfig::default();
+        let mut plant_stats = HashMap::new();
+        plant_stats.insert(1_u64, PlantStats::default());
+        plant_stats.insert(2_u64, PlantStats::default());
+
+        // Creer le lien symbiotique
+        let mut symbiosis = SymbiosisNetwork::new();
+        symbiosis.create_link(1, 2);
+
+        let mut state = SimState::from_raw(
+            world,
+            island,
+            vec![plant_a, plant_b],
+            HashMap::new(),
+            symbiosis,
+            SeedBank::new(10),
+            SeasonCycle::new(config.ticks_per_season),
+            GenerationCounter::new(),
+            plant_stats,
+            3,
+            0,
+            config,
+        );
+
+        let energy_a_before = state.plants[0].energy().value();
+        let energy_b_before = state.plants[1].energy().value();
+
+        // Root map pour la symbiose
+        let mut root_map: HashMap<Pos, Vec<u64>> = HashMap::new();
+        root_map.entry(pos_a).or_default().push(1);
+        root_map.entry(shared_root).or_default().push(1);
+        root_map.entry(shared_root).or_default().push(2);
+        root_map.entry(pos_b).or_default().push(2);
+
+        // Decisions : les deux veulent se connecter (connect_signal > 0.5)
+        // et sont genereux (connect_generosity = 1.0)
+        let decisions = vec![
+            (1_u64, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0]),
+            (2_u64, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0]),
+        ];
+
+        let _events = action_symbiosis(
+            &mut state,
+            &decisions,
+            1,     // plant_id
+            0,     // plant_idx
+            1.0,   // connect_signal
+            1.0,   // connect_generosity
+            &root_map,
+        );
+
+        let energy_a_after = state.plants[0].energy().value();
+        let energy_b_after = state.plants[1].energy().value();
+
+        // A (riche) devrait avoir perdu de l'energie
+        assert!(
+            energy_a_after < energy_a_before,
+            "A (riche) devrait avoir perdu de l'energie : avant={energy_a_before}, apres={energy_a_after}"
+        );
+        // B (pauvre) devrait avoir gagne de l'energie
+        assert!(
+            energy_b_after > energy_b_before,
+            "B (pauvre) devrait avoir gagne de l'energie : avant={energy_b_before}, apres={energy_b_after}"
+        );
+    }
+}

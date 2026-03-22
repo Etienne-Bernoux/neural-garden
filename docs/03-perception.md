@@ -6,12 +6,13 @@
 
 Les plantes réelles ne « voient » pas leurs voisines. Elles perçoivent des **gradients chimiques** dans le sol (carbone, azote, signaux allomonés) et des **gradients lumineux** (ombre portée). Neural Garden reproduit ce modèle.
 
-Chaque plante possède deux zones concentriques :
+Chaque plante possède trois couches spatiales (voir 02-plants.md) :
 
-- **Zone de place** : les cellules physiquement occupées par la plante. Aucune autre plante ne peut s'y trouver. C'est la biomasse.
-- **Zone d'influence** : zone élargie autour de la plante. Le rayon scale avec la **biomasse** et l'investissement en **racines** (output `canopy_vs_roots` ≤ 0.5 → rayon plus grand). C'est la zone de récupération des ressources et d'interaction avec les voisins. Les gradients sont calculés sur cette zone.
+- **Emprise au sol (footprint)** : cellules exclusives. Le sol local (4 inputs) est calculé en moyenne sur cette zone.
+- **Canopée (canopy)** : couche aérienne partagée. Photosynthèse.
+- **Racines (roots)** : couche souterraine partagée. Les **gradients sont calculés sur les racines** et le barycentre est celui des racines. C'est aussi la zone d'absorption et d'interaction (exsudats, symbiose).
 
-Une graine (1 cellule) a une zone d'influence minimale — ce qui importe c'est l'endroit où elle se trouve. Un arbre mature a une large zone d'influence, perçoit plus loin, absorbe sur un rayon plus grand.
+Une graine (1 cellule) n'a qu'une seule racine — les gradients sont nuls (pas de différentiel possible). Un arbre mature a un large réseau racinaire (jusqu'à 5× l'emprise), perçoit plus loin, absorbe sur plus de cellules.
 
 ## Pourquoi des gradients ?
 
@@ -22,7 +23,7 @@ Une graine (1 cellule) a une zone d'influence minimale — ce qui importe c'est 
 
 ## Gradients calculés
 
-Les gradients sont calculés sur la **zone d'influence**, centrée sur le barycentre de la zone de place.
+Les gradients sont calculés sur les **cellules racines** de la plante, centrés sur le barycentre des racines.
 
 | Gradient | Inputs | Description |
 |---|---|---|
@@ -43,15 +44,17 @@ grad_x = Σ F(x,y) * sign(x - cx) / count
 grad_y = Σ F(x,y) * sign(y - cy) / count
 ```
 
-pour toutes les cellules `(x,y)` dans la zone d'influence. Résultat normalisé dans [-1, 1].
+pour toutes les cellules `(x,y)` racines de la plante. Résultat normalisé dans [-1, 1].
 
-## Zone d'influence — scaling
+## Étendue des racines
 
-| Biomasse | Rayon d'influence | Justification |
+La zone de perception n'est pas un rayon calculé — ce sont les **cellules racines physiques** de la plante. Plus la plante investit en racines (`canopy_vs_roots` < 0.33), plus elle ajoute de cellules racinaires (jusqu'à `footprint × 5`), élargissant sa zone de perception et d'absorption.
+
+| Biomasse | Racines max | Perception |
 |---|---|---|
-| 1 (graine) | 1-2 cellules | Perception minimale, ce qui compte c'est le sol local |
-| 5-10 | ~6 cellules | Jeune plante, commence à sentir les voisins |
-| 15-25 | ~10 cellules | Plante établie, bonne perception |
-| 30-40 | ~14 cellules | Arbre mature, large réseau racinaire |
+| 1 (graine) | 5 cellules | Gradients nuls (1 seule racine au départ) |
+| 5-10 | 25-50 cellules | Commence à percevoir les gradients |
+| 15-25 | 75-125 cellules | Perception étendue |
+| 30-40 | 150-200 cellules | Large réseau racinaire, perception maximale |
 
-Formule indicative : `rayon = base + sqrt(biomasse) * facteur * roots_bonus`. Où `roots_bonus` est modulé par l'output `canopy_vs_roots` (investir en racines agrandit la zone d'influence). À calibrer.
+La croissance racinaire est gratuite en énergie et suit un mécanisme de chimiotaxie vers les plantes voisines (facilite la formation de liens symbiotiques).

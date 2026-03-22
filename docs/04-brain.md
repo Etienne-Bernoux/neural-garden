@@ -51,16 +51,16 @@ Plage : de 252 paramètres (H=6) à 724 paramètres (H=14).
 
 ## Couche de sortie — 8 neurones
 
-| Output | Activation | Description |
-|---|---|---|
-| grow_dir_x | tanh → [-1, 1] | Direction X privilégiée pour la croissance |
-| grow_dir_y | tanh → [-1, 1] | Direction Y privilégiée |
-| grow_intensity | sigmoid → [0, 1] | Part d'énergie allouée à la croissance (0 = maintenance, 1 = croissance max) |
-| canopy_vs_roots | sigmoid → [0, 1] | Investir en canopée (> 0.5, emprise au sol + photosynthèse) ou en racines (≤ 0.5, zone d'influence + absorption) |
-| exudate_rate | sigmoid → [0, 1] | Volume d'exsudats injectés dans le sol. Le type exsudé (carbone ou azote) est un trait génétique, pas une décision. |
-| connect_signal | sigmoid → [0, 1] | Accepter une connexion mycorhizienne directe (> 0.5 = oui) |
-| connect_generosity | sigmoid → [0, 1] | Volume de l'échange C↔N via le lien direct. Chaque plante donne son surplus proportionnellement à ce curseur. 0 = parasitisme (reçoit sans donner). |
-| defense | sigmoid → [0, 1] | Durcir les racines (> 0.5). Augmente le seuil d'invasion de +10 à +20 énergie. Coûte 3 énergie/tick. |
+| Output | Index | Activation | Description |
+|---|---|---|---|
+| grow_intensity | 0 | sigmoid → [0, 1] | Part d'énergie allouée à la croissance (0 = maintenance, 1 = croissance max) |
+| grow_dir_x | 1 | sigmoid → [0, 1] (remap [-1, 1]) | Direction X privilégiée pour la croissance. Remap : `output * 2.0 - 1.0`. |
+| grow_dir_y | 2 | sigmoid → [0, 1] (remap [-1, 1]) | Direction Y privilégiée. Remap : `output * 2.0 - 1.0`. |
+| canopy_vs_roots | 3 | sigmoid → [0, 1] | 3 voies : canopée (> 0.66, couche aérienne + photosynthèse), emprise au sol (0.33 – 0.66, exclusive, invasion possible), racines (< 0.33, souterrain, chimiotaxie, gratuit) |
+| exudate_rate | 4 | sigmoid → [0, 1] | Volume d'exsudats injectés dans le sol. Le type exsudé (carbone ou azote) est un trait génétique, pas une décision. |
+| defense | 5 | sigmoid → [0, 1] | Durcir les racines (> 0.5). Augmente le seuil d'invasion de +10 à +20 énergie. Coûte 3 énergie/tick. |
+| connect_signal | 6 | sigmoid → [0, 1] | Accepter une connexion mycorhizienne directe (> 0.5 = oui) |
+| connect_generosity | 7 | sigmoid → [0, 1] | Volume de l'échange C↔N + énergie via le lien direct. Chaque plante donne son surplus proportionnellement à ce curseur. 0 = parasitisme (reçoit sans donner). |
 
 ## Traits génétiques liés au cerveau
 
@@ -73,15 +73,17 @@ Plage : de 252 paramètres (H=6) à 724 paramètres (H=14).
 
 ## Propagation
 
-> **Note** : l'implémentation utilise des vecteurs plats (`Vec<f32>`) pour chaque couche de poids, pas des vecteurs imbriqués. Voir `crates/garden-core/src/domain/brain.rs`.
-
-Le forward pass est un simple produit matrice-vecteur par couche, suivi de l'activation. Implémenté en Rust pur :
+Le forward pass est un simple produit matrice-vecteur par couche, suivi de l'activation. Implémenté en Rust pur avec des vecteurs plats (`Vec<f32>`) pour chaque couche :
 
 ```rust
 struct Brain {
-    weights: Vec<Vec<Vec<f32>>>,
-    biases: Vec<Vec<f32>>,
-    hidden_size: usize,
+    hidden_size: u8,
+    weights_ih: Vec<f32>,  // INPUT_SIZE × hidden_size
+    weights_hh: Vec<f32>,  // hidden_size × hidden_size
+    weights_ho: Vec<f32>,  // hidden_size × OUTPUT_SIZE
+    biases_h1: Vec<f32>,   // hidden_size
+    biases_h2: Vec<f32>,   // hidden_size
+    biases_o: Vec<f32>,    // OUTPUT_SIZE
 }
 
 fn forward(&self, inputs: &[f32; 18]) -> [f32; 8]
