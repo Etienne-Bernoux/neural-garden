@@ -170,6 +170,7 @@ fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
 
     let mut last_snapshot = SimSnapshot::default();
     let mut app_mode = AppMode::Dashboard;
+    let mut island_layer: u8 = 0;
 
     loop {
         // Verifier si Ctrl+C a ete recu via le handler
@@ -181,6 +182,9 @@ fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
         while let Ok(snap) = rx.try_recv() {
             last_snapshot = snap;
         }
+
+        // Injecter le calque actif dans le snapshot
+        last_snapshot.active_layer = island_layer;
 
         // Dessiner avec le mode actif
         tui.draw(&last_snapshot, app_mode)
@@ -225,11 +229,13 @@ fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
                             };
                         }
                         KeyCode::Char('4') => {
-                            app_mode = if app_mode == AppMode::Island {
-                                AppMode::Dashboard
+                            if app_mode == AppMode::Island {
+                                app_mode = AppMode::Dashboard;
+                                controls.island_active.store(false, Ordering::Relaxed);
                             } else {
-                                AppMode::Island
-                            };
+                                app_mode = AppMode::Island;
+                                controls.island_active.store(true, Ordering::Relaxed);
+                            }
                         }
                         KeyCode::Char('5') => {
                             app_mode = if app_mode == AppMode::Logs {
@@ -238,8 +244,43 @@ fn run_with_tui(state: SimState, rng: SeededRng) -> Result<(), String> {
                                 AppMode::Logs
                             };
                         }
+                        // Calques ile (uniquement en mode Island)
+                        KeyCode::Char('a') if app_mode == AppMode::Island => {
+                            island_layer = 1;
+                            controls.island_layer.store(1, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('b') if app_mode == AppMode::Island => {
+                            island_layer = 2;
+                            controls.island_layer.store(2, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('c') if app_mode == AppMode::Island => {
+                            island_layer = 3;
+                            controls.island_layer.store(3, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('d') if app_mode == AppMode::Island => {
+                            island_layer = 4;
+                            controls.island_layer.store(4, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('e') if app_mode == AppMode::Island => {
+                            island_layer = 5;
+                            controls.island_layer.store(5, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('f') if app_mode == AppMode::Island => {
+                            island_layer = 6;
+                            controls.island_layer.store(6, Ordering::Relaxed);
+                        }
+                        KeyCode::Char('0') if app_mode == AppMode::Island => {
+                            island_layer = 0;
+                            controls.island_layer.store(0, Ordering::Relaxed);
+                        }
                         KeyCode::Esc => {
+                            // Desactiver le scan ile si on quitte la vue
+                            if app_mode == AppMode::Island {
+                                controls.island_active.store(false, Ordering::Relaxed);
+                            }
                             app_mode = AppMode::Dashboard;
+                            island_layer = 0;
+                            controls.island_layer.store(0, Ordering::Relaxed);
                         }
                         _ => {}
                     }

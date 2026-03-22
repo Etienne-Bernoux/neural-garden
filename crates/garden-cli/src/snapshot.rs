@@ -35,6 +35,22 @@ pub struct SimSnapshot {
     /// 0=mer, 1=terre vide, 2=plante, 3=plante mature
     pub minimap: Vec<Vec<u8>>,
 
+    /// Calques de l'ile (minimaps 32x32, valeurs 0-255)
+    /// Chaque calque est une grille simplifiee ou 0=min, 255=max
+    pub layer_carbon: Vec<Vec<u8>>,
+    pub layer_nitrogen: Vec<Vec<u8>>,
+    pub layer_humidity: Vec<Vec<u8>>,
+    pub layer_roots: Vec<Vec<u8>>,
+    pub layer_canopy: Vec<Vec<u8>>,
+    pub layer_footprint: Vec<Vec<u8>>,
+    /// Calque actif (0=vue plantes, 1=C, 2=N, 3=Hum, 4=Racines, 5=Canopee, 6=Footprint)
+    pub active_layer: u8,
+
+    /// Donnees du calque ile actif (128x128, f32). Vide si pas de calque actif.
+    pub island_layer_data: Vec<f32>,
+    /// Numero du calque (0=plantes, 1=C, 2=N, 3=H, 4=racines, 5=canopee, 6=footprint)
+    pub island_layer_id: u8,
+
     // --- Demographie ---
     /// Naissances depuis le dernier reset annuel.
     pub births_count: u32,
@@ -98,6 +114,15 @@ impl Default for SimSnapshot {
             paused: false,
             ticks_per_second: 0.0,
             minimap: Vec::new(),
+            layer_carbon: Vec::new(),
+            layer_nitrogen: Vec::new(),
+            layer_humidity: Vec::new(),
+            layer_roots: Vec::new(),
+            layer_canopy: Vec::new(),
+            layer_footprint: Vec::new(),
+            active_layer: 0,
+            island_layer_data: Vec::new(),
+            island_layer_id: 0,
             births_count: 0,
             deaths_count: 0,
             births_last_year: 0,
