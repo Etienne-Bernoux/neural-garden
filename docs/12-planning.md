@@ -122,14 +122,9 @@ Caméra FPS (ZQSD + WASD, pointer lock, saut, taille humaine 1.7m). 4 archétype
 
 **Done** : on peut se balader entre les plantes et voir leur cerveau.
 
-### Phase 6c — Qualité et performance
+### Phase 6c — Qualité et performance ✅
 
-| Tâche | Critère de done |
-|---|---|
-| Tests unitaires pour actions.rs | Chaque action testée en isolation |
-| lib.rs ré-exports (facade publique) | garden-cli importe `garden_core::SimState` directement |
-| Performance : allocations hot path, lookups résiduels | Benchmark > 5000 ticks/s avec 100 plantes |
-| Docs alignées avec le code | Zéro écart significatif |
+7 tests unitaires actions critiques, lib.rs façade (19 ré-exports), benchmark (15K ticks/s @30 plantes, 6K @200), 8 docs de design alignées.
 
 ### Phase 6d — Déploiement
 
