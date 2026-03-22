@@ -84,7 +84,7 @@ garden-core/src/
 ├── domain/           # Cœur métier — zéro dépendance externe
 │   ├── mod.rs
 │   ├── rng.rs        # Trait Rng pour l'injection de l'aléatoire
-│   ├── plant.rs      # BoundedF32, Vitality, Energy, Biomass, Lineage, GeneticTraits, Entity Plant
+│   ├── plant.rs      # BoundedF32, Vitality, Energy, Biomass, Lineage, GeneticTraits, Entity Plant (3 couches : footprint/canopy/roots)
 │   ├── brain.rs      # Entity Brain, forward pass 18→H→H→8
 │   ├── world.rs      # Entity World, Grid 128×128, Cell
 │   ├── island.rs     # Île : topographie, masque terre/mer

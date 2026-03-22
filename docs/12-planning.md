@@ -140,6 +140,8 @@ Refactoring du modèle spatial de Plant. 3 couches distinctes au lieu de 2.
 
 **Done quand** : le modèle 3 couches fonctionne, les tests passent, la simulation tourne.
 
+**Done** ✅ — Modèle 3 couches implémenté (footprint/canopy/roots). Graines inertes (invasion gratuite, timeout 360). Saisons allongées (360 ticks). Ombre dynamique par taille d'emprise. 137 Rust + 16 Gherkin + 28 Vitest.
+
 ### Phase 6a-R2 — Recalibrage avec le nouveau modèle
 
 | Tâche | Critère de done |

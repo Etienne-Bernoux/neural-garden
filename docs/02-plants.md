@@ -1,8 +1,15 @@
 # Les Plantes : Anatomie et Cycle de Vie
 
+> **Modèle 3 couches (Phase 6a-R1)** : chaque plante occupe 3 couches spatiales distinctes.
+> - **Emprise au sol (footprint)** : position physique exclusive. Seule couche où l'invasion est possible.
+> - **Canopée (canopy)** : couche aérienne partagée avec priorité par hauteur. Ombre dynamique — la plante avec la plus grande emprise projette de l'ombre sur les plus petites.
+> - **Racines (roots)** : couche souterraine partagée librement. Absorption C/N/H₂O, symbiose mycorhizienne. Pas d'invasion.
+>
+> Ratios max : `canopy = footprint × 4`, `roots = footprint × 5`.
+
 ## Représentation
 
-Chaque plante est un **ensemble de cellules contiguës** sur la grille. Deux plantes ne partagent jamais une cellule. La plante grandit en ajoutant des cellules adjacentes. Visuellement, chaque cellule est colorée selon l'espèce (teinte) et la santé (luminosité/saturation).
+Chaque plante est un **ensemble de cellules contiguës** sur la grille. Deux plantes ne partagent jamais une cellule d'emprise au sol. La plante grandit en ajoutant des cellules adjacentes. Visuellement, chaque cellule est colorée selon l'espèce (teinte) et la santé (luminosité/saturation).
 
 ## Stats vitales
 
