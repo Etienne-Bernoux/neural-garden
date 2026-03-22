@@ -438,7 +438,17 @@ impl Plant {
     /// Transition d'etat basee sur la vitalite et la biomasse actuelles.
     /// Retourne un evenement si l'etat change (StateChanged ou Died).
     pub fn update_state(&mut self) -> Option<DomainEvent> {
+        // Les graines avec vitalite 0 meurent (timeout de dormance)
         if self.state == PlantState::Seed {
+            if self.vitality.is_zero() {
+                self.state = PlantState::Dead;
+                return Some(DomainEvent::Died {
+                    plant_id: self.id,
+                    position: self.footprint[0],
+                    age: self.age,
+                    biomass: self.biomass.value(),
+                });
+            }
             return None;
         }
         let old_state = self.state;
