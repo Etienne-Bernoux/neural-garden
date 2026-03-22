@@ -83,87 +83,42 @@ Dashboard de monitoring ratatui.
 
 **Done quand** : on peut regarder un montage de clips en 3D et se balader sur l'île en live. Tests E2E Playwright passent.
 
-### Phase 6a — Calibrage (itératif)
+### Phase 6a — Calibrage (itératif) ✅ Itérations 1-4
 
 Boucle : Brainstorm → Plan → Work → Review → Observer → Ajuster → Repeat
 
-| Tâche | Critère de done |
-|---|---|
-| Banque compartimentée (hidden_size × exudate_type), 100 slots | La diversité génétique se maintient (spread > 20%) |
-| Placement intelligent des graines (près des plantes existantes) | Les racines se chevauchent, la symbiose peut émerger |
-| Graines fraîches (10% de la pluie = génome aléatoire) | La banque ne converge plus |
-| Population initiale 50, densité augmentée | Plus de contacts entre plantes |
-| Échange C↔N bidirectionnel (remplacer l'échange énergie) | Les plantes spécialisées C/N deviennent complémentaires |
-| LineageExtinction highlight implémenté | La disparition d'une lignée est détectée |
-| Ajustement itératif des coûts/gains (maintenance, aging, absorption, etc.) | La fitness progresse, la coopération émerge |
+Implémenté : banque compartimentée 100 slots, placement intelligent (80% près des plantes), graines fraîches 10%, échange C↔N bidirectionnel, LineageExtinction, chimiotaxie racinaire, racines gratuites, bonus croissance, biais connect_signal. Fitness rééquilibrée (symbiose ×8, lifetime ×0.3).
 
-**Done quand** : la fitness progresse au-delà de 1000, des liens mycorhiziens se forment, la banque reste diversifiée, la population est dynamique (pas statique à 13).
+Résultats : fitness jusqu'à 1941, symbiose sporadique (0-14 liens), pop régulée.
 
-#### État après itération 4
-
-✅ Implémenté :
-- Banque compartimentée (hidden_size × exudate_type), 100 slots
-- Placement intelligent (80% près des plantes, 20% aléatoire)
-- Graines fraîches 10%
-- Échange C↔N bidirectionnel via le sol
-- LineageExtinction highlight
-- Chimiotaxie racinaire (racines poussent vers le voisin le plus proche)
-- Racines gratuites, bonus croissance, maintenance réduite matures
-- Biais initiaux grow_intensity + connect_signal
-
-📊 Résultats observés :
-- Fitness : 79 → 811 (progresse, critère >1000 pas encore atteint)
-- Symbiose : apparaît sporadiquement (0-8 liens), pas encore stable
-- Population : plateau naturel ~210 (années 4-9), puis remonte vers 1500+
-- Diversité : 60-70 lignées actives (bonne diversité)
-
-⚠️ Itérations 5+ : Refonte modèle spatial 3 couches + recalibrage.
-
-### Phase 6a-R1 — Refonte domain : modèle 3 couches
-
-Refactoring du modèle spatial de Plant. 3 couches distinctes au lieu de 2.
+### Phase 6a-R1 — Refonte modèle 3 couches ✅
 
 | Couche | Partage | Rôle |
 |---|---|---|
-| Racines (sous-sol) | Partagé | Absorption C/N/H₂O, symbiose. Pas d'invasion. |
-| Emprise au sol | Exclusive | Position physique. Invasion possible. |
-| Canopée (aérien) | Partagé avec priorité | Photosynthèse. Ombre dynamique par hauteur. |
+| Footprint (emprise au sol) | Exclusive | Invasion possible, biomass = footprint.len() |
+| Canopy (canopée aérienne) | Partagée avec priorité | Photosynthèse, ombre dynamique (max = footprint × 4) |
+| Roots (racines sous-sol) | Partagée | Absorption, symbiose, chimiotaxie (max = footprint × 5) |
+
+Graines inertes (0 consommation, invasion gratuite, timeout 360). Saisons allongées (360 ticks/saison). Ombre dynamique par taille d'emprise.
+
+### Phase 6a-R2 — Recalibrage avec le nouveau modèle ⏸
+
+📊 Observation post-refonte : pop stable ~20, fitness 641 (stagne), symbiose sporadique puis disparaît. L'écosystème est stable mais la coopération n'est pas durable.
 
 | Tâche | Critère de done |
 |---|---|
-| Refactoring Plant : `footprint`, `canopy` (partagé), `roots` (partagé) | Plant a 3 vecteurs de Pos distincts |
-| Ratio emprise → canopy/roots : `max_canopy = emprise * 4`, `max_roots = emprise * 5` | Les limites sont respectées dans la croissance |
-| Graines inertes : 0 consommation, invasion gratuite, timeout 360 ticks | Les graines ne bloquent plus le sol |
-| Saisons allongées : ticks_per_season = 360, 1 an = 1440 ticks | Saisons plus longues, lumière moyenne |
-| Ombre dynamique : la plante avec la plus grande emprise est plus haute → ombre | Compétition verticale fonctionnelle |
-| Adapter events, perception, DTOs, live snapshot | Tout compile et tourne |
-
-**Done quand** : le modèle 3 couches fonctionne, les tests passent, la simulation tourne.
-
-**Done** ✅ — Modèle 3 couches implémenté (footprint/canopy/roots). Graines inertes (invasion gratuite, timeout 360). Saisons allongées (360 ticks). Ombre dynamique par taille d'emprise. 137 Rust + 16 Gherkin + 28 Vitest.
-
-### Phase 6a-R2 — Recalibrage avec le nouveau modèle
-
-| Tâche | Critère de done |
-|---|---|
-| Ajuster les coûts/gains pour le nouveau modèle | La fitness progresse |
-| Les racines poussent sous les voisins (chimiotaxie maintenue) | Racines partagées, symbiose émerge |
+| Ajuster les coûts/gains pour le nouveau modèle | La fitness progresse au-delà de 1000 |
+| La symbiose doit être un avantage de survie | Liens stables > 5 en permanence |
 | Les canopées se superposent avec compétition lumière | Les petites plantes sous les grandes souffrent |
-| Itérer jusqu'à : fitness > 1000, symbiose stable, pop dynamique | L'écosystème vit |
+| Itérer | L'écosystème vit avec diversité |
 
-**Done quand** : la coopération émerge naturellement, la diversité se maintient, la population est régulée par les ressources.
+⚠️ Piste : la symbiose doit donner un avantage nutritionnel VITAL, pas juste un bonus fitness. Les plantes qui coopèrent doivent survivre PLUS LONGTEMPS que celles qui ne coopèrent pas.
 
-### Phase 6b — Viewer V2
+### Phase 6b — Viewer V2 ✅
 
-| Tâche | Critère de done |
-|---|---|
-| Caméra exploration WASD (perspective, souris) | Balade au sol fonctionnelle |
-| Visualisation cerveau (brain-viz) de la plante sélectionnée | Réseau 18→H→H→8 visible avec valeurs colorées |
-| Particules de décomposition | Effet visuel à la mort des plantes |
+Caméra FPS (ZQSD + WASD, pointer lock, saut, taille humaine 1.7m). 4 archétypes procéduraux (herbe/buisson/arbre/conifère). Système de particules décomposition. Brain-viz Canvas 2D. Textures procédurales (terrain/eau/plantes/biomes). Soleil + nuages. Contrôle vitesse. Graines et racines invisibles.
 
-**Done quand** : on peut se balader entre les plantes et voir leur cerveau.
-
-**Done** ✅ — Caméra FPS (WASD, pointer lock, suivi relief), 4 archétypes de plantes procédurales (herbe/buisson/arbre/conifère), système de particules décomposition, brain-viz Canvas 2D dans le panneau. Touche V pour switcher caméra, B pour le cerveau.
+**Done** : on peut se balader entre les plantes et voir leur cerveau.
 
 ### Phase 6c — Qualité et performance
 
