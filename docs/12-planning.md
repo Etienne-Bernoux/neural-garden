@@ -126,12 +126,27 @@ Caméra FPS (ZQSD + WASD, pointer lock, saut, taille humaine 1.7m). 4 archétype
 
 7 tests unitaires actions critiques, lib.rs façade (19 ré-exports), benchmark (15K ticks/s @30 plantes, 6K @200), 8 docs de design alignées.
 
-### Phase 6d — Déploiement
+### Phase 6d — Déploiement (reportée)
 
 | Tâche | Critère de done |
 |---|---|
 | GitHub Pages : viewer déployé statiquement | Accessible en ligne avec un montage de démo |
 | README + GIF/vidéo de démonstration | Le projet est présentable |
+
+### Phase 7 — Refonte TUI
+
+| Tâche | Critère de done |
+|---|---|
+| Panneau Fitness : fitness max banque + stats accumulées vivantes (biomasse, connexions, exsudats, état croissance) | On voit la santé des plantes vivantes |
+| Panneau Diversité : tableau lignées trié par fitness moyenne, graines exclues | On voit quelles lignées dominent |
+| Panneau Banque de graines (nouveau) : compartiments actifs, top 5 génomes, spread | On voit le réservoir évolutif |
+| Panneau Coopération : liens actifs + ressources transférées (fenêtre 2 ans = 2880 ticks) | On voit si la coopération est durable |
+| Panneau Île : ressources moyennes sol (C/N), couverture végétale, cases vides | On voit la santé de l'île |
+| Minimap plein écran (toggle M) | Vue d'ensemble de l'île |
+| Toggle panneaux (touches 1-5) | Chaque panneau peut être affiché/caché |
+| Barre de raccourcis en bas : espace, q, s, 1-5, m | L'utilisateur voit les commandes dispo |
+
+**Done quand** : le TUI raconte l'histoire de la simulation en un coup d'œil, les panneaux sont toggleables, les raccourcis sont visibles.
 
 ## Commandes CLI
 
