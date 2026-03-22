@@ -22,13 +22,13 @@ pub fn phase_actions(
 
     // Construire la footprint map : pos -> plant_id (pour eliminer find_occupant O(n))
     // L'emprise au sol est exclusive, chaque cellule n'appartient qu'a une plante.
-    let mut canopy_map: HashMap<Pos, u64> = HashMap::new();
+    let mut footprint_map: HashMap<Pos, u64> = HashMap::new();
     for plant in state.plants.iter() {
         if plant.is_dead() {
             continue;
         }
         for &pos in plant.footprint() {
-            canopy_map.insert(pos, plant.id());
+            footprint_map.insert(pos, plant.id());
         }
     }
 
@@ -88,7 +88,7 @@ pub fn phase_actions(
             grow_dir_x,
             grow_dir_y,
             canopy_vs_roots,
-            &mut canopy_map,
+            &mut footprint_map,
             &modifiers,
         );
         events.append(&mut growth_events);
@@ -118,7 +118,7 @@ pub fn phase_actions(
         events.append(&mut symbiosis_events);
 
         // h+i+j) Maintenance, vieillissement, famine, monoculture
-        action_maintenance(state, plant_id, plant_idx, &canopy_map, &root_map);
+        action_maintenance(state, plant_id, plant_idx, &footprint_map, &root_map);
     }
 
     events
@@ -146,7 +146,7 @@ fn action_growth(
     grow_dir_x: f32,
     grow_dir_y: f32,
     canopy_vs_roots: f32,
-    canopy_map: &mut HashMap<Pos, u64>,
+    footprint_map: &mut HashMap<Pos, u64>,
     modifiers: &SeasonModifiers,
 ) -> Vec<DomainEvent> {
     let mut events = Vec::new();
@@ -194,7 +194,7 @@ fn action_growth(
     match growth_type {
         GrowthType::Footprint => {
             // Verifier si la cellule est occupee par une autre plante (lookup O(1))
-            let occupant_id = canopy_map
+            let occupant_id = footprint_map
                 .get(&target_pos)
                 .copied()
                 .filter(|&id| id != plant_id);
@@ -213,7 +213,7 @@ fn action_growth(
                         // L'attaquant gagne la cellule en emprise
                         let event = state.plants[plant_idx].grow_footprint(target_pos);
                         events.push(event);
-                        canopy_map.insert(target_pos, plant_id);
+                        footprint_map.insert(target_pos, plant_id);
                     } else {
                         // Tentative d'invasion classique
                         let attacker_energy = state.plants[plant_idx].energy().value();
@@ -238,7 +238,7 @@ fn action_growth(
                                 .consume_energy(state.config.invasion_energy_cost);
                             state.plants[vi].damage(state.config.invasion_damage);
 
-                            canopy_map.insert(target_pos, plant_id);
+                            footprint_map.insert(target_pos, plant_id);
 
                             // Rompre la symbiose entre les deux
                             if state.symbiosis.remove_link(plant_id, victim_id) {
@@ -274,7 +274,7 @@ fn action_growth(
                     // Bonus croissance : la plante qui grandit gagne de l'energie
                     state.plants[plant_idx].gain_energy(2.0);
 
-                    canopy_map.insert(target_pos, plant_id);
+                    footprint_map.insert(target_pos, plant_id);
 
                     // Deduire les ressources du sol
                     if let Some(cell) = state.world.get_mut(&target_pos) {
@@ -566,7 +566,7 @@ fn action_maintenance(
     state: &mut SimState,
     plant_id: u64,
     plant_idx: usize,
-    canopy_map: &HashMap<Pos, u64>,
+    footprint_map: &HashMap<Pos, u64>,
     root_map: &HashMap<Pos, Vec<u64>>,
 ) {
     let config = &state.config;
@@ -625,7 +625,7 @@ fn action_maintenance(
         let mut total_occupied = 0usize;
         let mut counted: std::collections::HashSet<u64> = std::collections::HashSet::new();
         for pos in &root_cells {
-            if let Some(&occ_id) = canopy_map.get(pos) {
+            if let Some(&occ_id) = footprint_map.get(pos) {
                 if occ_id != plant_id && counted.insert(occ_id) {
                     total_occupied += 1;
                     if let Some(other) = state.plants.iter().find(|p| p.id() == occ_id) {

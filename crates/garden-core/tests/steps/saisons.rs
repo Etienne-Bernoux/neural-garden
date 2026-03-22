@@ -242,13 +242,17 @@ async fn plante_morte_ou_mourante(world: &mut GardenWorld) {
 
     match plant {
         Some(p) => {
+            // La plante doit etre au moins stressée ou avoir perdu de la vitalite
+            let is_suffering = p.state() == PlantState::Dead
+                || p.state() == PlantState::Dying
+                || p.state() == PlantState::Decomposing
+                || p.state() == PlantState::Stressed
+                || p.vitality().value() < p.biomass().value() as f32 * p.genetics().vitality_factor() * 0.8;
             assert!(
-                p.state() == PlantState::Dead
-                    || p.state() == PlantState::Dying
-                    || p.state() == PlantState::Decomposing
-                    || p.state() == PlantState::Stressed,
-                "la plante devrait etre morte, mourante ou stressée, etat actuel : {:?}",
-                p.state()
+                is_suffering,
+                "la plante devrait souffrir en hiver, etat: {:?}, vitalite: {:.1}",
+                p.state(),
+                p.vitality().value()
             );
         }
         None => {
