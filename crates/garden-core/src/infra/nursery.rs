@@ -110,11 +110,7 @@ pub fn load_nursery_environments(path: &Path) -> Result<Vec<(String, BedConfig)>
     let yaml: YamlEnvFile =
         serde_yaml::from_str(&content).map_err(|e| format!("Erreur YAML: {}", e))?;
 
-    let envs = yaml
-        .environments
-        .into_iter()
-        .map(Into::into)
-        .collect();
+    let envs = yaml.environments.into_iter().map(Into::into).collect();
 
     Ok(envs)
 }
@@ -125,18 +121,21 @@ mod tests {
 
     #[test]
     fn charger_envs_depuis_yaml() {
-        let envs =
-            load_nursery_environments(Path::new("../../configs/nursery/environments.yaml"));
+        let envs = load_nursery_environments(Path::new("../../configs/nursery/environments.yaml"));
         assert!(envs.is_ok(), "Erreur chargement YAML: {:?}", envs.err());
         let envs = envs.expect("already checked");
-        assert_eq!(envs.len(), 10, "Expected 10 environments, got {}", envs.len());
+        assert_eq!(
+            envs.len(),
+            10,
+            "Expected 10 environments, got {}",
+            envs.len()
+        );
     }
 
     #[test]
     fn yaml_contient_les_bons_noms() {
-        let envs =
-            load_nursery_environments(Path::new("../../configs/nursery/environments.yaml"))
-                .expect("YAML should load");
+        let envs = load_nursery_environments(Path::new("../../configs/nursery/environments.yaml"))
+            .expect("YAML should load");
         let names: Vec<&str> = envs.iter().map(|(n, _)| n.as_str()).collect();
         assert!(names.contains(&"Solo riche"));
         assert!(names.contains(&"Mixte"));
@@ -145,10 +144,12 @@ mod tests {
 
     #[test]
     fn yaml_fixtures_deserializees_correctement() {
-        let envs =
-            load_nursery_environments(Path::new("../../configs/nursery/environments.yaml"))
-                .expect("YAML should load");
-        let mixte = envs.iter().find(|(n, _)| n == "Mixte").expect("Mixte should exist");
+        let envs = load_nursery_environments(Path::new("../../configs/nursery/environments.yaml"))
+            .expect("YAML should load");
+        let mixte = envs
+            .iter()
+            .find(|(n, _)| n == "Mixte")
+            .expect("Mixte should exist");
         assert_eq!(mixte.1.fixtures.len(), 2);
     }
 }

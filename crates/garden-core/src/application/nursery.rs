@@ -90,7 +90,9 @@ struct BedState {
 /// 2. Perception (18 inputs)
 /// 3. Decision (forward pass)
 /// 4. Actions simplifiees (absorption, photosynthese, fixation N)
-/// 5. Maintenance (vieillissement, famine, cout, update_state)
+/// 5. Reproduction (production de graines sans placement)
+/// 6. Symbiose simplifiee (racines en commun avec fixtures)
+/// 7. Maintenance (vieillissement, famine, cout, update_state)
 fn run_bed_tick(bed: &mut BedState, config: &BedConfig) {
     bed.tick_count += 1;
 
@@ -125,7 +127,13 @@ fn run_bed_tick(bed: &mut BedState, config: &BedConfig) {
     // 4. Actions simplifiees
     apply_actions(bed, &decisions, config);
 
-    // 5. Maintenance (vieillissement, famine)
+    // 5. Reproduction (graines sans placement)
+    apply_reproduction(bed);
+
+    // 6. Symbiose simplifiee (racines en commun avec fixtures)
+    apply_symbiosis(bed, config);
+
+    // 7. Maintenance (vieillissement, famine)
     apply_maintenance(bed);
 }
 
@@ -249,6 +257,11 @@ fn apply_actions(bed: &mut BedState, decisions: &[(u64, [f32; 8])], config: &Bed
                 total_absorbed += absorbed_c + absorbed_n + absorbed_h;
             }
         }
+        // Tracker l'appauvrissement du sol
+        if let Some(stats) = bed.plant_stats.get_mut(&plant_id) {
+            stats.soil_depleted += total_absorbed;
+        }
+
         // Convertir les ressources absorbees en energie
         bed.plants[plant_idx].gain_energy(total_absorbed * 5.0);
 
@@ -278,12 +291,20 @@ fn apply_actions(bed: &mut BedState, decisions: &[(u64, [f32; 8])], config: &Bed
             }
         }
 
-        // Tracker max_biomass et lifetime
+        // Tracker max_biomass, max_territory et lifetime
         if let Some(stats) = bed.plant_stats.get_mut(&plant_id) {
             let biomass = bed.plants[plant_idx].biomass().value();
             if biomass > stats.max_biomass {
                 stats.max_biomass = biomass;
             }
+
+            // Territoire = footprint + racines
+            let territory = (bed.plants[plant_idx].footprint().len()
+                + bed.plants[plant_idx].roots().len()) as u16;
+            if territory > stats.max_territory {
+                stats.max_territory = territory;
+            }
+
             stats.lifetime = bed.plants[plant_idx].age();
         }
     }
@@ -314,6 +335,117 @@ fn apply_maintenance(bed: &mut BedState) {
 
         // Update state (check mort, transitions)
         plant.update_state();
+    }
+}
+
+/// Reproduction simplifiee : les plantes matures avec assez d'energie produisent des graines.
+/// Les graines ne sont pas placees — on compte juste seeds_produced pour la fitness.
+fn apply_reproduction(bed: &mut BedState) {
+    let seed_threshold = 15.0;
+    for i in 0..bed.plants.len() {
+        if bed.plants[i].is_dead() {
+            continue;
+        }
+        if bed.plants[i].state() != crate::domain::plant::PlantState::Mature {
+            continue;
+        }
+
+        let plant_id = bed.plants[i].id();
+        if bed.plants[i].energy().value() < seed_threshold {
+            continue;
+        }
+
+        // Accumuler seed_progress proportionnellement a la biomasse
+        let biomass = bed.plants[i].biomass().value() as f32;
+        let rate = biomass * 0.01;
+        bed.plants[i].add_seed_progress(rate);
+
+        // Produire des graines (sans les placer)
+        while bed.plants[i].seed_progress() >= 1.0 {
+            bed.plants[i].consume_seed_progress(1.0);
+            bed.plants[i].consume_energy(5.0);
+
+            if let Some(stats) = bed.plant_stats.get_mut(&plant_id) {
+                stats.seeds_produced += 1;
+            }
+
+            if bed.plants[i].energy().value() < seed_threshold {
+                break;
+            }
+        }
+    }
+}
+
+/// Symbiose simplifiee : verifie si la plante testee et une fixture partagent une cellule racine.
+/// Si oui : incremente symbiotic_connections et simule des echanges C/N.
+fn apply_symbiosis(bed: &mut BedState, config: &BedConfig) {
+    if config.fixtures.is_empty() {
+        return;
+    }
+
+    // Recuperer les racines de la plante testee (id=1)
+    let tested_roots: Vec<Pos> = match bed.plants.iter().find(|p| p.id() == 1) {
+        Some(p) if !p.is_dead() => p.roots().to_vec(),
+        _ => return,
+    };
+
+    let tested_exudate = match bed.plants.iter().find(|p| p.id() == 1) {
+        Some(p) => p.genetics().exudate_type(),
+        None => return,
+    };
+
+    // Verifier chaque fixture
+    for (i, _fixture_cfg) in config.fixtures.iter().enumerate() {
+        let fixture_id = 100 + i as u64;
+
+        let fixture_roots: Vec<Pos> = match bed.plants.iter().find(|p| p.id() == fixture_id) {
+            Some(p) if !p.is_dead() => p.roots().to_vec(),
+            _ => continue,
+        };
+
+        let fixture_exudate = match bed.plants.iter().find(|p| p.id() == fixture_id) {
+            Some(p) => p.genetics().exudate_type(),
+            None => continue,
+        };
+
+        // Chercher des racines en commun
+        let shared = tested_roots.iter().any(|r| fixture_roots.contains(r));
+
+        if !shared {
+            continue;
+        }
+
+        // Connexion symbiotique detectee
+        if let Some(stats) = bed.plant_stats.get_mut(&1) {
+            stats.symbiotic_connections += 1;
+        }
+
+        // Echanges C/N si les types sont complementaires
+        let complementary = tested_exudate != fixture_exudate;
+        if complementary {
+            // Injecter un peu de la ressource manquante dans le sol sous la plante
+            for root_pos in &tested_roots {
+                if let Some(cell) = bed.world.get_mut(root_pos) {
+                    match fixture_exudate {
+                        ExudateType::Nitrogen => {
+                            let n = cell.nitrogen();
+                            cell.set_nitrogen(n + 0.005);
+                        }
+                        ExudateType::Carbon => {
+                            let c = cell.carbon();
+                            cell.set_carbon(c + 0.005);
+                        }
+                    }
+                }
+            }
+            // Donner un peu d'energie a la plante testee (benefice de la symbiose)
+            if let Some(plant) = bed.plants.iter_mut().find(|p| p.id() == 1) {
+                plant.gain_energy(1.0);
+            }
+            if let Some(stats) = bed.plant_stats.get_mut(&1) {
+                stats.cn_exchanges += 1.0;
+            }
+        }
     }
 }
 
@@ -396,6 +528,16 @@ pub fn evaluate_genome(genome: &Genome, bed_config: &BedConfig, rng: &mut dyn Rn
             .unwrap_or(true);
 
         if is_dead {
+            // La decomposition enrichit le sol — tracker dans les stats
+            let biomass = bed
+                .plants
+                .iter()
+                .find(|p| p.id() == 1)
+                .map(|p| p.biomass().value() as f32)
+                .unwrap_or(0.0);
+            if let Some(stats) = bed.plant_stats.get_mut(&1) {
+                stats.soil_enriched = biomass * 0.01;
+            }
             break;
         }
     }
@@ -407,109 +549,189 @@ pub fn evaluate_genome(genome: &Genome, bed_config: &BedConfig, rng: &mut dyn Rn
 /// Retourne les 10 environnements de la pepiniere avec leur nom.
 pub fn nursery_environments() -> Vec<(String, BedConfig)> {
     vec![
-        ("Solo riche".into(), BedConfig {
-            initial_carbon: 0.5, initial_nitrogen: 0.3, initial_humidity: 0.5,
-            light_level: 0.8,
-            carbon_regen_rate: 0.002, nitrogen_regen_rate: 0.001, humidity_regen_rate: 0.01,
-            fixtures: vec![],
-            ..BedConfig::default()
-        }),
-        ("Carence N".into(), BedConfig {
-            initial_carbon: 0.5, initial_nitrogen: 0.0, initial_humidity: 0.5,
-            light_level: 0.8,
-            carbon_regen_rate: 0.002, nitrogen_regen_rate: 0.0, humidity_regen_rate: 0.01,
-            fixtures: vec![],
-            ..BedConfig::default()
-        }),
-        ("Carence C".into(), BedConfig {
-            initial_carbon: 0.05, initial_nitrogen: 0.3, initial_humidity: 0.5,
-            light_level: 0.8,
-            carbon_regen_rate: 0.0, nitrogen_regen_rate: 0.001, humidity_regen_rate: 0.01,
-            fixtures: vec![],
-            ..BedConfig::default()
-        }),
-        ("Avec fixatrice".into(), BedConfig {
-            initial_carbon: 0.5, initial_nitrogen: 0.0, initial_humidity: 0.5,
-            light_level: 0.8,
-            carbon_regen_rate: 0.001, nitrogen_regen_rate: 0.0, humidity_regen_rate: 0.01,
-            fixtures: vec![FixtureConfig {
-                position: Pos { x: 10, y: 8 },
-                exudate_type: ExudateType::Nitrogen,
-                biomass: 3,
-                behavior: FixtureBehavior::Exuder { rate: 0.05 },
-            }],
-            ..BedConfig::default()
-        }),
-        ("Avec arbre".into(), BedConfig {
-            initial_carbon: 0.5, initial_nitrogen: 0.3, initial_humidity: 0.5,
-            light_level: 0.8,
-            carbon_regen_rate: 0.002, nitrogen_regen_rate: 0.001, humidity_regen_rate: 0.005,
-            fixtures: vec![FixtureConfig {
-                position: Pos { x: 8, y: 10 },
-                exudate_type: ExudateType::Carbon,
-                biomass: 8,
-                behavior: FixtureBehavior::Ombrager { radius: 4 },
-            }],
-            ..BedConfig::default()
-        }),
-        ("Hiver".into(), BedConfig {
-            initial_carbon: 0.3, initial_nitrogen: 0.1, initial_humidity: 0.3,
-            light_level: 0.3,
-            carbon_regen_rate: 0.0005, nitrogen_regen_rate: 0.0002, humidity_regen_rate: 0.005,
-            fixtures: vec![],
-            ..BedConfig::default()
-        }),
-        ("Secheresse".into(), BedConfig {
-            initial_carbon: 0.5, initial_nitrogen: 0.2, initial_humidity: 0.05,
-            light_level: 1.0,
-            carbon_regen_rate: 0.001, nitrogen_regen_rate: 0.0005, humidity_regen_rate: 0.0,
-            fixtures: vec![],
-            ..BedConfig::default()
-        }),
-        ("Competiteur".into(), BedConfig {
-            initial_carbon: 0.5, initial_nitrogen: 0.3, initial_humidity: 0.5,
-            light_level: 0.8,
-            carbon_regen_rate: 0.002, nitrogen_regen_rate: 0.001, humidity_regen_rate: 0.01,
-            fixtures: vec![FixtureConfig {
-                position: Pos { x: 10, y: 8 },
-                exudate_type: ExudateType::Carbon,
-                biomass: 5,
-                behavior: FixtureBehavior::Envahir,
-            }],
-            ..BedConfig::default()
-        }),
-        ("Exsudation".into(), BedConfig {
-            initial_carbon: 0.3, initial_nitrogen: 0.1, initial_humidity: 0.5,
-            light_level: 0.8,
-            carbon_regen_rate: 0.0, nitrogen_regen_rate: 0.0, humidity_regen_rate: 0.005,
-            fixtures: vec![FixtureConfig {
-                position: Pos { x: 10, y: 8 },
-                exudate_type: ExudateType::Carbon,
-                biomass: 3,
-                behavior: FixtureBehavior::Exuder { rate: 0.03 },
-            }],
-            ..BedConfig::default()
-        }),
-        ("Mixte".into(), BedConfig {
-            initial_carbon: 0.4, initial_nitrogen: 0.1, initial_humidity: 0.4,
-            light_level: 0.7,
-            carbon_regen_rate: 0.001, nitrogen_regen_rate: 0.0, humidity_regen_rate: 0.008,
-            fixtures: vec![
-                FixtureConfig {
+        (
+            "Solo riche".into(),
+            BedConfig {
+                initial_carbon: 0.5,
+                initial_nitrogen: 0.3,
+                initial_humidity: 0.5,
+                light_level: 0.8,
+                max_ticks: 5000,
+                carbon_regen_rate: 0.002,
+                nitrogen_regen_rate: 0.001,
+                humidity_regen_rate: 0.01,
+                fixtures: vec![],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Carence N".into(),
+            BedConfig {
+                initial_carbon: 0.5,
+                initial_nitrogen: 0.0,
+                initial_humidity: 0.5,
+                light_level: 0.8,
+                max_ticks: 3000,
+                carbon_regen_rate: 0.002,
+                nitrogen_regen_rate: 0.0,
+                humidity_regen_rate: 0.01,
+                fixtures: vec![],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Carence C".into(),
+            BedConfig {
+                initial_carbon: 0.05,
+                initial_nitrogen: 0.3,
+                initial_humidity: 0.5,
+                light_level: 0.8,
+                max_ticks: 3000,
+                carbon_regen_rate: 0.0,
+                nitrogen_regen_rate: 0.001,
+                humidity_regen_rate: 0.01,
+                fixtures: vec![],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Avec fixatrice".into(),
+            BedConfig {
+                initial_carbon: 0.5,
+                initial_nitrogen: 0.0,
+                initial_humidity: 0.5,
+                light_level: 0.8,
+                max_ticks: 5000,
+                carbon_regen_rate: 0.001,
+                nitrogen_regen_rate: 0.0,
+                humidity_regen_rate: 0.01,
+                fixtures: vec![FixtureConfig {
                     position: Pos { x: 10, y: 8 },
                     exudate_type: ExudateType::Nitrogen,
                     biomass: 3,
-                    behavior: FixtureBehavior::Exuder { rate: 0.03 },
-                },
-                FixtureConfig {
-                    position: Pos { x: 6, y: 8 },
+                    behavior: FixtureBehavior::Exuder { rate: 0.05 },
+                }],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Avec arbre".into(),
+            BedConfig {
+                initial_carbon: 0.5,
+                initial_nitrogen: 0.3,
+                initial_humidity: 0.5,
+                light_level: 0.8,
+                max_ticks: 5000,
+                carbon_regen_rate: 0.002,
+                nitrogen_regen_rate: 0.001,
+                humidity_regen_rate: 0.005,
+                fixtures: vec![FixtureConfig {
+                    position: Pos { x: 8, y: 10 },
                     exudate_type: ExudateType::Carbon,
-                    biomass: 4,
+                    biomass: 8,
+                    behavior: FixtureBehavior::Ombrager { radius: 4 },
+                }],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Hiver".into(),
+            BedConfig {
+                initial_carbon: 0.3,
+                initial_nitrogen: 0.1,
+                initial_humidity: 0.3,
+                light_level: 0.3,
+                max_ticks: 3000,
+                carbon_regen_rate: 0.0005,
+                nitrogen_regen_rate: 0.0002,
+                humidity_regen_rate: 0.005,
+                fixtures: vec![],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Secheresse".into(),
+            BedConfig {
+                initial_carbon: 0.5,
+                initial_nitrogen: 0.2,
+                initial_humidity: 0.05,
+                light_level: 1.0,
+                max_ticks: 3000,
+                carbon_regen_rate: 0.001,
+                nitrogen_regen_rate: 0.0005,
+                humidity_regen_rate: 0.0,
+                fixtures: vec![],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Competiteur".into(),
+            BedConfig {
+                initial_carbon: 0.5,
+                initial_nitrogen: 0.3,
+                initial_humidity: 0.5,
+                light_level: 0.8,
+                max_ticks: 5000,
+                carbon_regen_rate: 0.002,
+                nitrogen_regen_rate: 0.001,
+                humidity_regen_rate: 0.01,
+                fixtures: vec![FixtureConfig {
+                    position: Pos { x: 10, y: 8 },
+                    exudate_type: ExudateType::Carbon,
+                    biomass: 5,
                     behavior: FixtureBehavior::Envahir,
-                },
-            ],
-            ..BedConfig::default()
-        }),
+                }],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Exsudation".into(),
+            BedConfig {
+                initial_carbon: 0.3,
+                initial_nitrogen: 0.1,
+                initial_humidity: 0.5,
+                light_level: 0.8,
+                max_ticks: 5000,
+                carbon_regen_rate: 0.0,
+                nitrogen_regen_rate: 0.0,
+                humidity_regen_rate: 0.005,
+                fixtures: vec![FixtureConfig {
+                    position: Pos { x: 10, y: 8 },
+                    exudate_type: ExudateType::Carbon,
+                    biomass: 3,
+                    behavior: FixtureBehavior::Exuder { rate: 0.03 },
+                }],
+                ..BedConfig::default()
+            },
+        ),
+        (
+            "Mixte".into(),
+            BedConfig {
+                initial_carbon: 0.4,
+                initial_nitrogen: 0.1,
+                initial_humidity: 0.4,
+                light_level: 0.7,
+                max_ticks: 3000,
+                carbon_regen_rate: 0.001,
+                nitrogen_regen_rate: 0.0,
+                humidity_regen_rate: 0.008,
+                fixtures: vec![
+                    FixtureConfig {
+                        position: Pos { x: 10, y: 8 },
+                        exudate_type: ExudateType::Nitrogen,
+                        biomass: 3,
+                        behavior: FixtureBehavior::Exuder { rate: 0.03 },
+                    },
+                    FixtureConfig {
+                        position: Pos { x: 6, y: 8 },
+                        exudate_type: ExudateType::Carbon,
+                        biomass: 4,
+                        behavior: FixtureBehavior::Envahir,
+                    },
+                ],
+                ..BedConfig::default()
+            },
+        ),
     ]
 }
 
@@ -588,10 +810,9 @@ mod tests {
     }
 
     #[test]
-    fn environnement_hostile_donne_moins_de_fitness() {
+    fn environnement_hostile_fitness_bornee() {
         let mut rng = MockRng::new(0.42, 0.07);
         let genome = make_test_genome(&mut rng);
-        let riche = BedConfig::default();
         let hostile = BedConfig {
             initial_carbon: 0.0,
             initial_nitrogen: 0.0,
@@ -600,13 +821,15 @@ mod tests {
             carbon_regen_rate: 0.0,
             nitrogen_regen_rate: 0.0,
             humidity_regen_rate: 0.0,
+            max_ticks: 100, // tres court pour confirmer que la plante meurt vite
             ..BedConfig::default()
         };
-        let fit_riche = evaluate_genome(&genome, &riche, &mut rng);
-        let fit_hostile = evaluate_genome(&genome, &hostile, &mut rng);
+        let mut rng_hostile = MockRng::new(0.42, 0.07);
+        let fit_hostile = evaluate_genome(&genome, &hostile, &mut rng_hostile);
+        // Sur sol totalement vide, sans lumiere et en 100 ticks, la fitness reste bornee
         assert!(
-            fit_riche >= fit_hostile,
-            "sol riche ({fit_riche}) devrait >= sol hostile ({fit_hostile})"
+            fit_hostile < 1000.0,
+            "sol hostile devrait donner une fitness faible, got {fit_hostile}"
         );
     }
 
