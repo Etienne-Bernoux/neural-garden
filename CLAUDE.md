@@ -89,7 +89,9 @@ garden-core/src/
 │   ├── world.rs      # Entity World, Grid 128×128, Cell
 │   ├── island.rs     # Île : topographie, masque terre/mer
 │   ├── symbiosis.rs  # Liens mycorhiziens, échanges C↔N
-│   └── events.rs     # Domain events (Grew, Died, Born, Invaded, Linked...)
+│   ├── events.rs     # Domain events (Grew, Died, Born, Invaded, Linked...)
+│   ├── traits.rs     # Sous-traits PlantEntity (Identity, Vitals, Spatial, Genetics, Reproduction)
+│   └── fixture.rs    # FixturePlant — plante artificielle déterministe pour la pépinière
 ├── application/      # Cas d'usage, orchestration
 │   ├── mod.rs
 │   ├── config.rs     # SimConfig — paramètres de simulation
@@ -101,7 +103,8 @@ garden-core/src/
 │   ├── evolution.rs  # Banque de graines, fitness, crossover, mutations
 │   ├── season.rs     # Cycle saisonnier (4 saisons, 250 ticks)
 │   ├── highlights.rs # Détection des moments clés
-│   └── metrics.rs    # Métriques agrégées (population, lignées, historiques)
+│   ├── metrics.rs    # Métriques agrégées (population, lignées, historiques)
+│   └── nursery.rs    # Pépinière : évaluation génomes, boucle génétique, scoring multi-env
 ├── infra/            # Sérialisation, I/O, config
 │   ├── mod.rs
 │   ├── rng.rs        # SeededRng (rand) — implémente trait Rng
@@ -109,6 +112,7 @@ garden-core/src/
 │   ├── config.rs     # Chargement config TOML
 │   ├── persistence.rs # Sauvegarde/chargement SimState en JSON
 │   ├── replay.rs     # Enregistrement replay avec filtrage highlights
+│   ├── nursery.rs    # Persistance pépinière : sauvegarde/chargement générations, export champions
 │   └── dto/          # DTOs serde miroir des types domain
 │       ├── mod.rs
 │       ├── plant.rs

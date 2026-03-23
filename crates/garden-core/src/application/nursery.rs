@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 
 use crate::domain::brain::Brain;
-use crate::domain::island::Island;
 use crate::domain::plant::{ExudateType, Lineage, Plant, Pos};
 use crate::domain::rng::Rng;
 use crate::domain::traits::PlantEntity;
@@ -77,8 +76,6 @@ impl Default for BedConfig {
 /// Etat d'un bac de pepiniere — structure allegee sans SimState.
 struct BedState {
     world: World,
-    #[allow(dead_code)]
-    island: Island,
     plants: Vec<Box<dyn PlantEntity>>,
     brains: HashMap<u64, Brain>,
     plant_stats: HashMap<u64, PlantStats>,
@@ -454,8 +451,12 @@ fn apply_symbiosis(bed: &mut BedState, config: &BedConfig) {
 // --- Evaluation ---
 
 /// Evalue un genome dans un bac isole.
-/// Place le genome, fait tourner jusqu'a la mort ou max_ticks, retourne la fitness.
-pub fn evaluate_genome(genome: &Genome, bed_config: &BedConfig, rng: &mut dyn Rng) -> f32 {
+/// Place le genome, fait tourner jusqu'a la mort ou max_ticks, retourne la fitness et les stats.
+pub fn evaluate_genome(
+    genome: &Genome,
+    bed_config: &BedConfig,
+    rng: &mut dyn Rng,
+) -> (f32, PlantStats) {
     // 1. Creer le World
     let mut world = World::new(bed_config.grid_size);
 
@@ -473,10 +474,7 @@ pub fn evaluate_genome(genome: &Genome, bed_config: &BedConfig, rng: &mut dyn Rn
         }
     }
 
-    // 3. Creer l'ile (tout est terre)
-    let island = Island::from_world(&world, 0.1);
-
-    // 4. Placer le genome au centre
+    // 3. Placer le genome au centre
     let center = bed_config.grid_size / 2;
     let plant_pos = Pos {
         x: center,
@@ -510,7 +508,6 @@ pub fn evaluate_genome(genome: &Genome, bed_config: &BedConfig, rng: &mut dyn Rn
     // 6. Creer le BedState
     let mut bed = BedState {
         world,
-        island,
         plants,
         brains,
         plant_stats,
@@ -544,8 +541,14 @@ pub fn evaluate_genome(genome: &Genome, bed_config: &BedConfig, rng: &mut dyn Rn
         }
     }
 
-    // 8. Calculer la fitness
-    bed.plant_stats.get(&1).map(evaluate_fitness).unwrap_or(0.0)
+    // 8. Calculer la fitness et retourner les stats
+    let stats = bed
+        .plant_stats
+        .get(&1)
+        .cloned()
+        .unwrap_or_default();
+    let fitness = evaluate_fitness(&stats);
+    (fitness, stats)
 }
 
 /// Retourne les 10 environnements de la pepiniere avec leur nom.
@@ -748,7 +751,7 @@ pub fn evaluate_genome_multi(
     let mut total = 0.0;
 
     for (name, config) in envs {
-        let fitness = evaluate_genome(genome, config, rng);
+        let (fitness, _) = evaluate_genome(genome, config, rng);
         total += fitness;
         scores.push((name.clone(), fitness));
     }
@@ -766,6 +769,23 @@ pub struct NurseryResult {
     pub generations_run: u32,
 }
 
+/// Rapport de progression d'une generation dans la pepiniere.
+/// Transmis via le callback pour le reporting en temps reel.
+pub struct GenerationReport {
+    /// Numero de la generation (0-indexed)
+    pub generation: u32,
+    /// Meilleure fitness de cette generation
+    pub best_fitness: f32,
+    /// Fitness moyenne de cette generation
+    pub avg_fitness: f32,
+    /// Pire fitness de cette generation
+    pub worst_fitness: f32,
+    /// Temps ecoule pour cette generation (en secondes)
+    pub elapsed_secs: f64,
+    /// Stats detaillees du champion (pour le mode verbose)
+    pub champion_stats: Option<PlantStats>,
+}
+
 /// Lance la boucle genetique pour un seul environnement.
 /// Retourne le meilleur genome apres `generations` iterations.
 /// Le rng est injecte par l'appelant (infra ou tests).
@@ -775,22 +795,40 @@ pub fn run_nursery_env(
     generations: u32,
     population: usize,
     rng: &mut dyn Rng,
-    on_generation: Option<&(dyn Fn(u32, f32, f32) + Sync)>,
+    on_generation: Option<&(dyn Fn(&GenerationReport) + Sync)>,
+    initial_genomes: Option<&[Genome]>,
 ) -> NurseryResult {
     // 1. Generer la population initiale
-    let mut genomes: Vec<Genome> = (0..population)
-        .map(|_| SeedBank::produce_fresh_seed(rng))
-        .collect();
+    let mut genomes: Vec<Genome> = if let Some(init) = initial_genomes {
+        // Partir des genomes fournis + mutations pour remplir
+        let mut pop = Vec::with_capacity(population);
+        for g in init {
+            pop.push(g.clone());
+        }
+        while pop.len() < population {
+            let parent = &init[pop.len() % init.len()];
+            let mut child = parent.clone();
+            mutate_genome(&mut child, rng);
+            pop.push(child);
+        }
+        pop
+    } else {
+        (0..population)
+            .map(|_| SeedBank::produce_fresh_seed(rng))
+            .collect()
+    };
 
     let mut best_genome = genomes[0].clone();
     let mut best_fitness = 0.0_f32;
 
     for gen in 0..generations {
+        let gen_start = std::time::Instant::now();
+
         // 2. Evaluer chaque genome
         let mut scored: Vec<(Genome, f32)> = genomes
             .into_iter()
             .map(|g| {
-                let fitness = evaluate_genome(&g, bed_config, rng);
+                let (fitness, _) = evaluate_genome(&g, bed_config, rng);
                 (g, fitness)
             })
             .collect();
@@ -800,16 +838,30 @@ pub fn run_nursery_env(
 
         // 4. Stats de la generation
         let gen_best = scored[0].1;
+        let gen_worst = scored.last().map(|(_, f)| *f).unwrap_or(0.0);
         let gen_avg = scored.iter().map(|(_, f)| f).sum::<f32>() / scored.len() as f32;
+        let elapsed = gen_start.elapsed().as_secs_f64();
 
         if gen_best > best_fitness {
             best_fitness = gen_best;
             best_genome = scored[0].0.clone();
         }
 
-        // Callback optionnel
+        // Callback optionnel avec report detaille
         if let Some(cb) = &on_generation {
-            cb(gen, gen_best, gen_avg);
+            // Stats du champion (un seul re-calcul)
+            let champion_stats = {
+                let (_, stats) = evaluate_genome(&scored[0].0, bed_config, rng);
+                Some(stats)
+            };
+            cb(&GenerationReport {
+                generation: gen,
+                best_fitness: gen_best,
+                avg_fitness: gen_avg,
+                worst_fitness: gen_worst,
+                elapsed_secs: elapsed,
+                champion_stats,
+            });
         }
 
         // 5. Garder les top 10 (ou moins si population < 10)
@@ -859,7 +911,7 @@ mod tests {
         let mut rng = MockRng::new(0.42, 0.07);
         let genome = make_test_genome(&mut rng);
         let config = BedConfig::default();
-        let fitness = evaluate_genome(&genome, &config, &mut rng);
+        let (fitness, _) = evaluate_genome(&genome, &config, &mut rng);
         assert!(
             fitness > 0.0,
             "fitness sur sol riche devrait etre > 0, got {fitness}"
@@ -877,7 +929,7 @@ mod tests {
             light_level: 0.0,
             ..BedConfig::default()
         };
-        let fitness = evaluate_genome(&genome, &config, &mut rng);
+        let (fitness, _) = evaluate_genome(&genome, &config, &mut rng);
         // Sur sol vide sans lumiere, la plante devrait mourir tres vite
         // Fitness peut etre > 0 car lifetime compte (meme petit)
         assert!(fitness >= 0.0);
@@ -915,7 +967,7 @@ mod tests {
             ..BedConfig::default()
         };
         let mut rng_hostile = MockRng::new(0.42, 0.07);
-        let fit_hostile = evaluate_genome(&genome, &hostile, &mut rng_hostile);
+        let (fit_hostile, _) = evaluate_genome(&genome, &hostile, &mut rng_hostile);
         // Sur sol totalement vide, sans lumiere et en 100 ticks, la fitness reste bornee
         assert!(
             fit_hostile < 1000.0,
@@ -941,7 +993,7 @@ mod tests {
             }],
             ..BedConfig::default()
         };
-        let fitness = evaluate_genome(&genome, &config, &mut rng);
+        let (fitness, _) = evaluate_genome(&genome, &config, &mut rng);
         assert!(
             fitness > 0.0,
             "avec une fixture fixatrice, la plante devrait survivre, got {fitness}"
@@ -952,7 +1004,7 @@ mod tests {
     fn boucle_genetique_ameliore_fitness() {
         let mut rng = MockRng::new(0.42, 0.07);
         let config = BedConfig::default();
-        let result = run_nursery_env("test", &config, 5, 20, &mut rng, None);
+        let result = run_nursery_env("test", &config, 5, 20, &mut rng, None, None);
         assert!(
             result.fitness > 0.0,
             "fitness apres 5 generations devrait etre > 0, got {}",
@@ -960,5 +1012,40 @@ mod tests {
         );
         assert_eq!(result.generations_run, 5);
         assert_eq!(result.env_name, "test");
+    }
+
+    #[test]
+    fn le_report_contient_worst_fitness_et_timing() {
+        let config = BedConfig::default();
+        let mut rng = crate::infra::rng::SeededRng::new(42);
+        let reports = std::sync::Mutex::new(Vec::new());
+        let cb = |report: &GenerationReport| {
+            reports.lock().expect("lock").push((
+                report.generation,
+                report.best_fitness,
+                report.worst_fitness,
+                report.elapsed_secs,
+            ));
+        };
+        run_nursery_env("test", &config, 3, 10, &mut rng, Some(&cb), None);
+        let reports = reports.lock().expect("lock");
+        assert_eq!(reports.len(), 3);
+        for (_, best, worst, elapsed) in reports.iter() {
+            assert!(best >= worst, "best ({}) >= worst ({})", best, worst);
+            assert!(*elapsed >= 0.0);
+        }
+    }
+
+    #[test]
+    fn population_initiale_injectee_remplace_random() {
+        let config = BedConfig::default();
+        let mut rng = crate::infra::rng::SeededRng::new(42);
+        // Creer un genome connu
+        let genome = SeedBank::produce_fresh_seed(&mut rng);
+        let initial = vec![genome.clone()];
+        let result = run_nursery_env("test", &config, 2, 5, &mut rng, None, Some(&initial));
+        // Le champion doit avoir une fitness >= 0
+        assert!(result.fitness >= 0.0);
+        assert_eq!(result.generations_run, 2);
     }
 }

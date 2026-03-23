@@ -81,12 +81,52 @@ enum Commands {
         #[arg(long, default_value = "8080")]
         ws_port: u16,
     },
+    /// Pepiniere — pre-entrainement genetique des graines
+    Nursery {
+        /// Chemin vers le fichier de config des environnements
+        #[arg(short, long, default_value = "configs/nursery/environments.yaml")]
+        config: String,
+
+        /// Nombre de generations
+        #[arg(long, default_value_t = 50)]
+        generations: u32,
+
+        /// Taille de la population par generation
+        #[arg(long, default_value_t = 50)]
+        population: usize,
+
+        /// Seed pour la reproductibilite
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+
+        /// Mode verbose — affiche les stats detaillees du champion
+        #[arg(long)]
+        verbose: bool,
+
+        /// Banque de graines pour reprendre un entrainement
+        #[arg(long)]
+        bank: Option<String>,
+
+        /// Action optionnelle (commit)
+        #[command(subcommand)]
+        action: Option<NurseryAction>,
+    },
 }
 
 #[derive(Subcommand)]
 enum ConfigAction {
     /// Generer un fichier de configuration par defaut
     Init,
+}
+
+#[derive(Subcommand)]
+enum NurseryAction {
+    /// Figer les meilleurs genomes dans une banque versionnable
+    Commit {
+        /// Fichier de sortie (ex: seeds/v1.json)
+        #[arg(long)]
+        output: String,
+    },
 }
 
 fn main() {
@@ -107,6 +147,15 @@ fn main() {
             port,
             ws_port,
         } => cmd_live(&config, port, ws_port),
+        Commands::Nursery {
+            config,
+            generations,
+            population,
+            seed,
+            verbose,
+            bank,
+            action,
+        } => cmd_nursery(&config, generations, population, seed, verbose, bank.as_deref(), action),
     };
 
     if let Err(e) = result {
@@ -402,5 +451,125 @@ fn cmd_config_init() -> Result<(), String> {
     fs::write(path, content).map_err(|e| format!("impossible d'ecrire garden.toml: {e}"))?;
 
     println!("Fichier garden.toml cree");
+    Ok(())
+}
+
+/// Pepiniere — pre-entrainement genetique des graines.
+fn cmd_nursery(
+    config_path: &str,
+    generations: u32,
+    population: usize,
+    seed: u64,
+    verbose: bool,
+    bank: Option<&str>,
+    action: Option<NurseryAction>,
+) -> Result<(), String> {
+    // 1. Charger les environnements
+    let path = Path::new(config_path);
+    let envs = garden_core::load_nursery_environments(path)
+        .map_err(|e| format!("Erreur chargement config: {e}"))?;
+
+    // Charger la banque si --bank fourni
+    let initial_genomes = match bank {
+        Some(bank_path) => {
+            let bank_file = Path::new(bank_path);
+            match garden_core::load_seed_bank(bank_file) {
+                Ok((dto, genomes)) => {
+                    let best = dto
+                        .champions
+                        .iter()
+                        .map(|c| c.fitness)
+                        .fold(0.0_f32, f32::max);
+                    println!(
+                        "Reprise depuis {} ({} champions, best: {:.4})",
+                        bank_path,
+                        genomes.len(),
+                        best
+                    );
+                    Some(genomes)
+                }
+                Err(e) => {
+                    return Err(format!("Erreur chargement banque: {}", e));
+                }
+            }
+        }
+        None => None,
+    };
+
+    println!(
+        "Pepiniere — {} environnements, {} generations, pop {}, seed {}",
+        envs.len(),
+        generations,
+        population,
+        seed
+    );
+
+    let multi = envs.len() > 1;
+
+    // 2. Callback d'affichage
+    let cb = move |env_name: &str, report: &garden_core::GenerationReport| {
+        if multi {
+            print!("[{:15}] ", env_name);
+        }
+        println!(
+            "Gen {:4} | best: {:.4} | avg: {:.4} | worst: {:.4} | {:.1}s",
+            report.generation,
+            report.best_fitness,
+            report.avg_fitness,
+            report.worst_fitness,
+            report.elapsed_secs,
+        );
+
+        if verbose {
+            if let Some(stats) = &report.champion_stats {
+                if multi {
+                    print!("{:18}", "");
+                }
+                println!(
+                    "  champion: biomass={} territory={} seeds={} symbiosis={} cn_exchanges={:.1}",
+                    stats.max_biomass,
+                    stats.max_territory,
+                    stats.seeds_produced,
+                    stats.symbiotic_connections,
+                    stats.cn_exchanges,
+                );
+            }
+        }
+    };
+
+    // 3. Lancer la nursery
+    let results = garden_core::run_nursery_all(
+        &envs,
+        generations,
+        population,
+        seed,
+        Some(&cb),
+        initial_genomes.as_deref(),
+    );
+
+    // 4. Resume final
+    println!("\n--- Resume ---");
+    for r in &results {
+        println!(
+            "{:20} | fitness: {:.4} | {} generations",
+            r.env_name, r.fitness, r.generations_run
+        );
+    }
+
+    // 5. Export si commit demande
+    if let Some(NurseryAction::Commit { output }) = &action {
+        let output_path = Path::new(output);
+        match garden_core::export_seed_bank(&results, output_path) {
+            Ok(()) => println!(
+                "Seed bank exportee vers {} ({} champions)",
+                output,
+                results.len()
+            ),
+            Err(e) => {
+                return Err(format!("Erreur export: {}", e));
+            }
+        }
+    }
+
     Ok(())
 }

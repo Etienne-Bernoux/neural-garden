@@ -21,11 +21,12 @@ pub use domain::traits::{
 };
 pub use domain::world::{Cell, World, DEFAULT_GRID_SIZE};
 
-pub use application::nursery::{run_nursery_env, NurseryResult};
+pub use application::nursery::{run_nursery_env, BedConfig, GenerationReport, NurseryResult};
 pub use infra::config::{generate_default_toml, load_config};
 pub use infra::noise::generate_island;
 pub use infra::nursery::{
-    export_champions, load_champions, load_nursery_environments, run_nursery_all, save_generation,
+    export_champions, export_seed_bank, load_champions, load_nursery_environments, load_seed_bank,
+    run_nursery_all, save_generation, SeedBankExportDto,
 };
 pub use infra::persistence::{
     auto_save, get_auto_save_slot, load_state, save_state, should_auto_save,
