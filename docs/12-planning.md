@@ -190,6 +190,8 @@ Algorithme génétique en bacs isolés. Chaque génome est testé individuelleme
 | 10 configs d'environnement avec fixtures | Chaque env sélectionne une stratégie |
 | Score multi-env pondéré | Score global pour un génome |
 
+**Done** ✅ — 10 environnements avec régénération sol variable. Scoring multi-env. 6 tests nursery.
+
 #### Phase 9c — Boucle génétique + multi-thread
 
 | Tâche | Critère de done |
