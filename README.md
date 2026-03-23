@@ -59,6 +59,32 @@ cargo run --release -- live
 
 Lance la simulation avec WebSocket. Le viewer se met à jour en temps réel.
 
+### Pépinière (nursery)
+
+La pépinière entraîne les réseaux de neurones par évolution génétique sur plusieurs environnements en parallèle.
+
+```bash
+# TUI interactif (défaut)
+cargo run --release -- nursery
+
+# Mode headless avec logs texte
+cargo run --release -- nursery --no-tui
+
+# Détail par graine en mode headless
+cargo run --release -- nursery --verbose
+
+# Paramètres personnalisés
+cargo run --release -- nursery --generations 100 --population 50
+
+# Exporter les champions
+cargo run --release -- nursery commit --output seeds/v1.json
+
+# Reprendre un entraînement depuis une banque existante
+cargo run --release -- nursery --bank seeds/v1.json
+```
+
+Contrôles TUI : `espace` pause, `q` quit, `tab` bascule entre vue récap et vue zoom.
+
 ### Générer la config par défaut
 
 ```bash

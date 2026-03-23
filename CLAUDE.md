@@ -122,6 +122,29 @@ garden-core/src/
 └── lib.rs
 ```
 
+### Structure de garden-cli
+
+```
+garden-cli/src/
+├── main.rs              # Point d'entrée CLI (clap)
+├── runner.rs            # Thread simulation + contrôles (pause/quit)
+├── snapshot.rs          # Snapshot état simulation pour le TUI
+├── tui.rs               # Boucle TUI ratatui (simulation)
+├── nursery_runner.rs    # Thread nursery + NurseryControls (pause/quit)
+├── nursery_snapshot.rs  # Snapshot état nursery pour le TUI
+├── live.rs              # Mode live (WebSocket)
+├── server.rs            # Serveur WebSocket
+└── ui/                  # Widgets TUI
+    ├── mod.rs
+    ├── population.rs    # Panneau population
+    ├── evolution.rs     # Panneau évolution / fitness
+    ├── cooperation.rs   # Panneau coopération / symbiose
+    ├── island.rs        # Panneau santé de l'île
+    ├── logs.rs          # Panneau logs / alertes
+    ├── nursery_recap.rs # Vue récap nursery (tableau envs + champion)
+    └── nursery_zoom.rs  # Vue zoom nursery (historique + détail + config env)
+```
+
 ### Structure DDD du web viewer
 
 ```
