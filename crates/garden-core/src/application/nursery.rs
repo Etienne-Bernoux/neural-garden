@@ -10,14 +10,11 @@ use crate::domain::rng::Rng;
 use crate::domain::traits::PlantEntity;
 use crate::domain::world::World;
 
-use rayon::prelude::*;
-
 use crate::application::evolution::{
     evaluate_fitness, mutate_genome, Genome, PlantStats, SeedBank,
 };
 use crate::application::perception::compute_inputs;
 use crate::domain::fixture::FixturePlant;
-use crate::infra::rng::SeededRng;
 
 // --- Configuration ---
 
@@ -771,20 +768,18 @@ pub struct NurseryResult {
 
 /// Lance la boucle genetique pour un seul environnement.
 /// Retourne le meilleur genome apres `generations` iterations.
-/// Chaque appel cree son propre rng a partir du seed fourni.
+/// Le rng est injecte par l'appelant (infra ou tests).
 pub fn run_nursery_env(
     env_name: &str,
     bed_config: &BedConfig,
     generations: u32,
     population: usize,
-    seed: u64,
+    rng: &mut dyn Rng,
     on_generation: Option<&(dyn Fn(u32, f32, f32) + Sync)>,
 ) -> NurseryResult {
-    let mut rng = SeededRng::new(seed);
-
     // 1. Generer la population initiale
     let mut genomes: Vec<Genome> = (0..population)
-        .map(|_| SeedBank::produce_fresh_seed(&mut rng))
+        .map(|_| SeedBank::produce_fresh_seed(rng))
         .collect();
 
     let mut best_genome = genomes[0].clone();
@@ -795,7 +790,7 @@ pub fn run_nursery_env(
         let mut scored: Vec<(Genome, f32)> = genomes
             .into_iter()
             .map(|g| {
-                let fitness = evaluate_genome(&g, bed_config, &mut rng);
+                let fitness = evaluate_genome(&g, bed_config, rng);
                 (g, fitness)
             })
             .collect();
@@ -830,14 +825,14 @@ pub fn run_nursery_env(
         for parent in &top {
             for _ in 0..mutations_per_parent {
                 let mut child = parent.clone();
-                mutate_genome(&mut child, &mut rng);
+                mutate_genome(&mut child, rng);
                 genomes.push(child);
             }
         }
         // Completer si arrondi insuffisant
         while genomes.len() < population {
             let mut child = top[0].clone();
-            mutate_genome(&mut child, &mut rng);
+            mutate_genome(&mut child, rng);
             genomes.push(child);
         }
     }
@@ -848,23 +843,6 @@ pub fn run_nursery_env(
         fitness: best_fitness,
         generations_run: generations,
     }
-}
-
-/// Lance la pepiniere sur tous les environnements en parallele.
-/// Chaque environnement recoit un seed distinct derive du seed de base.
-pub fn run_nursery_all(
-    envs: &[(String, BedConfig)],
-    generations: u32,
-    population: usize,
-    seed: u64,
-) -> Vec<NurseryResult> {
-    envs.par_iter()
-        .enumerate()
-        .map(|(i, (name, config))| {
-            // Chaque env a son propre seed pour la reproductibilite
-            run_nursery_env(name, config, generations, population, seed + i as u64, None)
-        })
-        .collect()
 }
 
 #[cfg(test)]
@@ -972,8 +950,9 @@ mod tests {
 
     #[test]
     fn boucle_genetique_ameliore_fitness() {
+        let mut rng = MockRng::new(0.42, 0.07);
         let config = BedConfig::default();
-        let result = run_nursery_env("test", &config, 5, 20, 42, None);
+        let result = run_nursery_env("test", &config, 5, 20, &mut rng, None);
         assert!(
             result.fitness > 0.0,
             "fitness apres 5 generations devrait etre > 0, got {}",
@@ -981,25 +960,5 @@ mod tests {
         );
         assert_eq!(result.generations_run, 5);
         assert_eq!(result.env_name, "test");
-    }
-
-    #[test]
-    fn run_nursery_all_retourne_un_resultat_par_env() {
-        let envs = vec![
-            ("env_a".to_string(), BedConfig::default()),
-            (
-                "env_b".to_string(),
-                BedConfig {
-                    light_level: 0.5,
-                    ..BedConfig::default()
-                },
-            ),
-        ];
-        let results = run_nursery_all(&envs, 2, 10, 42);
-        assert_eq!(results.len(), 2);
-        // Chaque resultat a le bon nom d'environnement
-        let names: Vec<&str> = results.iter().map(|r| r.env_name.as_str()).collect();
-        assert!(names.contains(&"env_a"));
-        assert!(names.contains(&"env_b"));
     }
 }

@@ -116,10 +116,35 @@ pub fn load_nursery_environments(path: &Path) -> Result<Vec<(String, BedConfig)>
     Ok(envs)
 }
 
-// --- Persistance intermediaire ---
+// --- Parallelisation ---
+
+use rayon::prelude::*;
 
 use crate::application::evolution::Genome;
-use crate::application::nursery::NurseryResult;
+use crate::application::nursery::{run_nursery_env, NurseryResult};
+use crate::infra::rng::SeededRng;
+
+/// Lance la pepiniere sur tous les environnements en parallele.
+/// Chaque environnement recoit un seed distinct derive du seed de base.
+/// La parallelisation (rayon) et la creation des SeededRng vivent ici dans infra.
+pub fn run_nursery_all(
+    envs: &[(String, BedConfig)],
+    generations: u32,
+    population: usize,
+    seed: u64,
+) -> Vec<NurseryResult> {
+    envs.par_iter()
+        .enumerate()
+        .map(|(i, (name, config))| {
+            // Chaque env a son propre seed pour la reproductibilite
+            let mut rng = SeededRng::new(seed + i as u64);
+            run_nursery_env(name, config, generations, population, &mut rng, None)
+        })
+        .collect()
+}
+
+// --- Persistance intermediaire ---
+
 use crate::infra::dto::GenomeDto;
 use serde::Serialize;
 use std::fs;
@@ -232,10 +257,12 @@ mod tests {
 
     #[test]
     fn export_et_reload_champions() {
-        use crate::application::nursery::{run_nursery_env, BedConfig};
+        use crate::application::nursery::BedConfig;
+        use crate::infra::rng::SeededRng;
 
+        let mut rng = SeededRng::new(42);
         let config = BedConfig::default();
-        let result = run_nursery_env("test_export", &config, 3, 10, 42, None);
+        let result = run_nursery_env("test_export", &config, 3, 10, &mut rng, None);
 
         let dir = std::env::temp_dir().join("neural_garden_test_seeds");
         let _ = fs::remove_dir_all(&dir);
@@ -246,6 +273,28 @@ mod tests {
         assert_eq!(loaded.len(), 1, "devrait charger 1 champion");
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_nursery_all_retourne_un_resultat_par_env() {
+        use crate::application::nursery::BedConfig;
+
+        let envs = vec![
+            ("env_a".to_string(), BedConfig::default()),
+            (
+                "env_b".to_string(),
+                BedConfig {
+                    light_level: 0.5,
+                    ..BedConfig::default()
+                },
+            ),
+        ];
+        let results = run_nursery_all(&envs, 2, 10, 42);
+        assert_eq!(results.len(), 2);
+        // Chaque resultat a le bon nom d'environnement
+        let names: Vec<&str> = results.iter().map(|r| r.env_name.as_str()).collect();
+        assert!(names.contains(&"env_a"));
+        assert!(names.contains(&"env_b"));
     }
 
     #[test]
