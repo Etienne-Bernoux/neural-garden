@@ -372,13 +372,14 @@ fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudat
         let fixation_amount = avg_light * avg_carbon * state.config.nitrogen_fixation_rate;
 
         if fixation_amount > 0.001 {
-            let fix_cost = fixation_amount * state.config.nitrogen_fixation_energy_cost;
+            // Cout : consommer du carbone du sol (la fixation convertit C → N)
+            // Pas de cout en energie — le gain est net positif
+            let c_cost_per_cell = fixation_amount * 0.3 / root_count;
+            let has_carbon = root_cells.iter().any(|pos| {
+                state.world.get(pos).map(|c| c.carbon() > c_cost_per_cell).unwrap_or(false)
+            });
 
-            if state.plants[plant_idx].energy().value() > fix_cost {
-                state.plants[plant_idx].consume_energy(fix_cost);
-
-                // Consommer du carbone du sol (la fixation coute du C)
-                let c_cost_per_cell = fixation_amount * 0.5 / root_count;
+            if has_carbon {
                 for pos in &root_cells {
                     if let Some(cell) = state.world.get_mut(pos) {
                         let c = cell.carbon();
@@ -386,8 +387,9 @@ fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudat
                     }
                 }
 
-                // La fixatrice GARDE le N : gain d'energie interne (le N nourrit la plante)
-                state.plants[plant_idx].gain_energy(fixation_amount * 2.0);
+                // La fixatrice GARDE le N pour sa croissance (pas de gain d'energie)
+                // L'energie vient de la photosynthese comme tout le monde
+                // Le profit vient du COMMERCE : vendre du N via symbiose en echange d'energie
 
                 // Stats
                 if let Some(stats) = state.find_stats_mut(plant_id) {
@@ -520,64 +522,69 @@ fn action_symbiosis(
             if let Some(oi) = other_idx {
                 let other_roots: Vec<Pos> = state.plants[oi].roots().to_vec();
 
-                // Carbone moyen sous mes racines vs les siennes
-                let my_carbon = avg_resource(&state.world, &my_roots, Cell::carbon);
-                let other_carbon = avg_resource(&state.world, &other_roots, Cell::carbon);
+                // Troc asymetrique : N contre Energie
+                // Si une des deux est fixatrice (Nitrogen), elle VEND du N
+                // et recoit de l'energie en echange.
+                let my_type = state.plants[plant_idx].genetics().exudate_type();
+                let other_type = state.plants[oi].genetics().exudate_type();
 
-                // Azote moyen sous mes racines vs les siennes
-                let my_nitrogen = avg_resource(&state.world, &my_roots, Cell::nitrogen);
-                let other_nitrogen = avg_resource(&state.world, &other_roots, Cell::nitrogen);
+                let mut total_exchanged = 0.0_f32;
 
-                // Echange C : du plus riche vers le plus pauvre
-                let c_diff = my_carbon - other_carbon;
-                let c_transfer = c_diff * transfer_rate;
-
-                // Echange N : du plus riche vers le plus pauvre
-                let n_diff = my_nitrogen - other_nitrogen;
-                let n_transfer = n_diff * transfer_rate;
-
-                // Appliquer les transferts dans le sol
-                if c_transfer.abs() > 0.001 {
-                    apply_transfer(
-                        &mut state.world,
-                        &my_roots,
-                        &other_roots,
-                        c_transfer,
-                        Cell::carbon,
-                        Cell::set_carbon,
-                    );
+                if my_type == ExudateType::Nitrogen && other_type == ExudateType::Carbon {
+                    // Je suis fixatrice, l'autre est Carbon → je donne N, je recois energie
+                    let n_amount = avg_generosity * transfer_rate * 5.0;
+                    // Injecter N dans le sol sous les racines du partenaire
+                    let n_per = n_amount / other_roots.len().max(1) as f32;
+                    for pos in &other_roots {
+                        if let Some(cell) = state.world.get_mut(pos) {
+                            let n = cell.nitrogen();
+                            cell.set_nitrogen(n + n_per);
+                        }
+                    }
+                    // Recevoir de l'energie du partenaire
+                    let energy_payment = n_amount * 10.0;
+                    let available = state.plants[oi].energy().value() * 0.1; // max 10% de son energie
+                    let actual_payment = energy_payment.min(available);
+                    state.plants[oi].consume_energy(actual_payment);
+                    state.plants[plant_idx].gain_energy(actual_payment);
+                    total_exchanged = n_amount + actual_payment;
+                } else if my_type == ExudateType::Carbon && other_type == ExudateType::Nitrogen {
+                    // L'autre est fixatrice → elle donne N, je donne energie
+                    let n_amount = avg_generosity * transfer_rate * 5.0;
+                    // L'autre injecte N dans le sol sous mes racines
+                    let my_roots_vec: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
+                    let n_per = n_amount / my_roots_vec.len().max(1) as f32;
+                    for pos in &my_roots_vec {
+                        if let Some(cell) = state.world.get_mut(pos) {
+                            let n = cell.nitrogen();
+                            cell.set_nitrogen(n + n_per);
+                        }
+                    }
+                    // Je paie en energie
+                    let energy_payment = n_amount * 10.0;
+                    let available = state.plants[plant_idx].energy().value() * 0.1;
+                    let actual_payment = energy_payment.min(available);
+                    state.plants[plant_idx].consume_energy(actual_payment);
+                    state.plants[oi].gain_energy(actual_payment);
+                    total_exchanged = n_amount + actual_payment;
+                } else {
+                    // Meme type → echange d'energie simple (du riche vers le pauvre)
+                    let my_energy = state.plants[plant_idx].energy().value();
+                    let other_energy = state.plants[oi].energy().value();
+                    let energy_diff = my_energy - other_energy;
+                    let energy_transfer = energy_diff * avg_generosity * 0.05;
+                    if energy_transfer > 0.1 {
+                        state.plants[plant_idx].consume_energy(energy_transfer);
+                        state.plants[oi].gain_energy(energy_transfer);
+                        total_exchanged = energy_transfer;
+                    } else if energy_transfer < -0.1 {
+                        state.plants[oi].consume_energy(-energy_transfer);
+                        state.plants[plant_idx].gain_energy(-energy_transfer);
+                        total_exchanged = -energy_transfer;
+                    }
                 }
-                if n_transfer.abs() > 0.001 {
-                    apply_transfer(
-                        &mut state.world,
-                        &my_roots,
-                        &other_roots,
-                        n_transfer,
-                        Cell::nitrogen,
-                        Cell::set_nitrogen,
-                    );
-                }
 
-                // Gain d'energie via l'echange (l'echange nourrit les deux plantes)
-                let total_exchanged = c_transfer.abs() + n_transfer.abs();
-                state.plants[plant_idx].gain_energy(total_exchanged * 0.5);
-                state.plants[oi].gain_energy(total_exchanged * 0.5);
-
-                // Echange d'energie : la plante avec le plus d'energie donne a celle qui en a le moins
-                let my_energy = state.plants[plant_idx].energy().value();
-                let other_energy = state.plants[oi].energy().value();
-                let energy_diff = my_energy - other_energy;
-                let energy_transfer = energy_diff * avg_generosity * 0.05; // 5% du gradient
-
-                if energy_transfer > 0.1 {
-                    state.plants[plant_idx].consume_energy(energy_transfer);
-                    state.plants[oi].gain_energy(energy_transfer);
-                } else if energy_transfer < -0.1 {
-                    state.plants[oi].consume_energy(-energy_transfer);
-                    state.plants[plant_idx].gain_energy(-energy_transfer);
-                }
-
-                // Accumuler les echanges du tick pour la fenetre glissante
+                // Accumuler les echanges du tick
                 state.metrics.tick_exchanges += total_exchanged;
 
                 if let Some(stats) = state.find_stats_mut(plant_id) {
@@ -1013,46 +1020,40 @@ mod tests {
     // --- Test 1 : la fixation d'azote enrichit le sol ---
 
     #[test]
-    fn la_fixation_azote_donne_de_lenergie_a_la_fixatrice() {
+    fn la_fixation_ne_modifie_pas_lenergie() {
         let (mut state, plant_id) = test_state_with_plant(ExudateType::Nitrogen);
         let plant_idx = 0;
 
-        // Vider l'energie puis en donner un peu
-        let current_e = state.plants[plant_idx].energy().value();
-        state.plants[plant_idx].consume_energy(current_e);
-        state.plants[plant_idx].gain_energy(10.0);
         let energy_before = state.plants[plant_idx].energy().value();
 
-        // La fixation coute de l'energie (C sol × lumiere × cost) mais donne aussi de l'energie
-        // Le gain net depend des conditions. On verifie juste que l'energie a change.
+        // La fixation consomme du C du sol mais ne touche PAS l'energie
+        // L'energie vient de la photosynthese, pas de la fixation
         action_exudates(&mut state, plant_id, plant_idx, 0.0);
 
         let energy_after = state.plants[plant_idx].energy().value();
-        // L'energie doit avoir change (cout - gain ou gain - cout)
         assert!(
-            (energy_after - energy_before).abs() > 0.001,
-            "la fixation devrait modifier l'energie : avant={energy_before}, apres={energy_after}"
+            (energy_after - energy_before).abs() < 0.001,
+            "la fixation ne devrait PAS modifier l'energie : avant={energy_before}, apres={energy_after}"
         );
     }
 
     // --- Test 2 : la fixation d'azote coute de l'energie ---
 
     #[test]
-    fn la_fixation_azote_coute_de_lenergie() {
+    fn la_fixation_azote_consomme_du_carbone_du_sol() {
         let (mut state, plant_id) = test_state_with_plant(ExudateType::Nitrogen);
         let plant_idx = 0;
 
-        let energy_before = state.plants[plant_idx].energy().value();
+        let root_pos = state.plants[plant_idx].roots()[0];
+        let carbon_before = state.world.get(&root_pos).map(|c| c.carbon()).unwrap_or(0.0);
 
         action_exudates(&mut state, plant_id, plant_idx, 0.0);
 
-        let energy_after = state.plants[plant_idx].energy().value();
+        let carbon_after = state.world.get(&root_pos).map(|c| c.carbon()).unwrap_or(0.0);
 
-        // Le cout est proportionnel a lumiere × carbone × fixation_rate × energy_cost
-        // Il doit etre > 0 (la plante a perdu de l'energie)
         assert!(
-            energy_after < energy_before,
-            "la fixation devrait couter de l'energie : avant={energy_before}, apres={energy_after}"
+            carbon_after < carbon_before,
+            "la fixation devrait consommer du carbone du sol : avant={carbon_before}, apres={carbon_after}"
         );
     }
 
