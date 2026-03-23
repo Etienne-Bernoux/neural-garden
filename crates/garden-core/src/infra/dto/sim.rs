@@ -314,7 +314,11 @@ impl From<&SimState> for SimStateDto {
         Self {
             world: WorldDto::from(&s.world),
             island: IslandDto::from(&s.island),
-            plants: s.plants.iter().map(|p| PlantDto::from(p.as_ref())).collect(),
+            plants: s
+                .plants
+                .iter()
+                .map(|p| PlantDto::from(p.as_ref()))
+                .collect(),
             brains: s
                 .brains
                 .iter()
@@ -355,7 +359,10 @@ impl SimStateDto {
         Some(SimState::from_raw(
             self.world.to_domain(),
             self.island.to_domain(),
-            self.plants.iter().map(|p| Box::new(p.to_domain()) as Box<dyn crate::domain::traits::PlantEntity>).collect(),
+            self.plants
+                .iter()
+                .map(|p| Box::new(p.to_domain()) as Box<dyn crate::domain::traits::PlantEntity>)
+                .collect(),
             brains,
             self.symbiosis.to_domain(),
             seed_bank,

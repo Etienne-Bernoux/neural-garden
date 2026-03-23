@@ -10,7 +10,6 @@ use std::time::Instant;
 use garden_core::application::highlights::{Highlight, HighlightType};
 use garden_core::application::sim::{run_tick, SimState};
 use garden_core::domain::plant::{PlantState, Pos};
-use garden_core::domain::world::GRID_SIZE;
 use garden_core::infra::persistence::{auto_save, get_auto_save_slot, should_auto_save};
 use garden_core::infra::replay::{ReplayConfig, ReplayRecorder};
 use garden_core::infra::rng::SeededRng;
@@ -124,8 +123,7 @@ pub fn spawn_simulation(
             }
 
             // Scan calque ile toutes les 500ms si actif
-            if island_active.load(Ordering::Relaxed)
-                && last_island_scan.elapsed().as_millis() > 500
+            if island_active.load(Ordering::Relaxed) && last_island_scan.elapsed().as_millis() > 500
             {
                 let requested = island_layer.load(Ordering::Relaxed);
                 island_cache = scan_island_layer(&state, requested);
@@ -157,7 +155,8 @@ fn build_snapshot(
     island_cache_layer: u8,
 ) -> SimSnapshot {
     // Mini-carte : reduire la grille (chaque pixel = 4x4 cellules)
-    let map_size = (GRID_SIZE / 4) as usize;
+    let grid_size = state.world.size();
+    let map_size = (grid_size / 4) as usize;
     let mut minimap = vec![vec![0u8; map_size]; map_size];
 
     for (my, row) in minimap.iter_mut().enumerate() {
@@ -320,18 +319,18 @@ fn build_snapshot(
     }
 }
 
-/// Scan un calque de l'ile a pleine resolution (GRID_SIZE x GRID_SIZE).
-/// Retourne un Vec<f32> de taille GRID_SIZE*GRID_SIZE.
+/// Scan un calque de l'ile a pleine resolution (world.size() x world.size()).
+/// Retourne un Vec<f32> de taille world.size()*world.size().
 /// layer: 0=rien, 1=carbone, 2=azote, 3=humidite, 4=racines, 5=canopee, 6=footprint
 fn scan_island_layer(state: &SimState, layer: u8) -> Vec<f32> {
-    let size = GRID_SIZE as usize;
+    let size = state.world.size() as usize;
     let mut data = vec![0.0f32; size * size];
 
     match layer {
         1 => {
             // Carbone
-            for y in 0..GRID_SIZE {
-                for x in 0..GRID_SIZE {
+            for y in 0..state.world.size() {
+                for x in 0..state.world.size() {
                     let pos = Pos { x, y };
                     if let Some(cell) = state.world.get(&pos) {
                         data[y as usize * size + x as usize] = cell.carbon();
@@ -341,8 +340,8 @@ fn scan_island_layer(state: &SimState, layer: u8) -> Vec<f32> {
         }
         2 => {
             // Azote
-            for y in 0..GRID_SIZE {
-                for x in 0..GRID_SIZE {
+            for y in 0..state.world.size() {
+                for x in 0..state.world.size() {
                     let pos = Pos { x, y };
                     if let Some(cell) = state.world.get(&pos) {
                         data[y as usize * size + x as usize] = cell.nitrogen();
@@ -352,8 +351,8 @@ fn scan_island_layer(state: &SimState, layer: u8) -> Vec<f32> {
         }
         3 => {
             // Humidite
-            for y in 0..GRID_SIZE {
-                for x in 0..GRID_SIZE {
+            for y in 0..state.world.size() {
+                for x in 0..state.world.size() {
                     let pos = Pos { x, y };
                     if let Some(cell) = state.world.get(&pos) {
                         data[y as usize * size + x as usize] = cell.humidity();

@@ -22,8 +22,8 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(6),  // resume demographique
-            Constraint::Length(8),  // distribution des ages
+            Constraint::Length(6), // resume demographique
+            Constraint::Length(8), // distribution des ages
             Constraint::Min(1),    // lignees
         ])
         .split(inner);
@@ -70,12 +70,7 @@ fn render_age_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
         .zip(buckets.iter())
         .map(|(label, &count)| {
             let bar_len = (count * max_bar / max_val) as usize;
-            Line::from(format!(
-                "{} {} {}",
-                label,
-                "█".repeat(bar_len),
-                count,
-            ))
+            Line::from(format!("{} {} {}", label, "█".repeat(bar_len), count,))
         })
         .collect();
 

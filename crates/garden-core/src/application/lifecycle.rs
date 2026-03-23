@@ -1,21 +1,22 @@
 // Phase vie et mort — reproduction, mortalite, pluie de graines, germination et GC.
 
+use super::sim::SimState;
 use crate::application::evolution::{
     evaluate_fitness, mutate_genome, Genome, PlantStats, SeedBank,
 };
 use crate::domain::events::DomainEvent;
 use crate::domain::plant::{Lineage, Plant, PlantState, Pos};
 use crate::domain::rng::Rng;
-use crate::domain::world::GRID_SIZE;
-
-use super::sim::SimState;
 
 /// Phase 4 : reproduction, verification des morts, pluie de graines, dormance/germination et GC.
 pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
     let mut events = Vec::new();
 
     // a) Production continue de graines — plantes matures avec assez d'energie
-    let mut new_seeds: Vec<(Box<dyn crate::domain::traits::PlantEntity>, crate::domain::brain::Brain)> = Vec::new();
+    let mut new_seeds: Vec<(
+        Box<dyn crate::domain::traits::PlantEntity>,
+        crate::domain::brain::Brain,
+    )> = Vec::new();
 
     for i in 0..state.plants.len() {
         let plant = &state.plants[i];
@@ -49,7 +50,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
 
             // Dispersion gradient
             let base_pos = state.plants[i].footprint()[0];
-            let target = disperse_seed(&base_pos, rng);
+            let target = disperse_seed(&base_pos, state.world.size(), rng);
 
             // Verifier cellule valide
             if !state.island.is_land(&target) {
@@ -206,7 +207,8 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         if !land_cells.is_empty() {
             // 80% : placer pres d'une plante existante, 20% : position aleatoire
             let pos = if rng.next_f32() < 0.8 && !state.plants.is_empty() {
-                let alive: Vec<&Box<dyn crate::domain::traits::PlantEntity>> = state.plants.iter().filter(|p| !p.is_dead()).collect();
+                let alive: Vec<&Box<dyn crate::domain::traits::PlantEntity>> =
+                    state.plants.iter().filter(|p| !p.is_dead()).collect();
                 if alive.is_empty() {
                     random_land_pos(land_cells, rng)
                 } else {
@@ -218,7 +220,8 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
                     let distance = 3.0 + rng.next_f32() * 5.0;
                     let tx = (base_pos.x as f32 + angle.cos() * distance).round();
                     let ty = (base_pos.y as f32 + angle.sin() * distance).round();
-                    if tx >= 0.0 && tx < GRID_SIZE as f32 && ty >= 0.0 && ty < GRID_SIZE as f32 {
+                    let grid_size = state.world.size();
+                    if tx >= 0.0 && tx < grid_size as f32 && ty >= 0.0 && ty < grid_size as f32 {
                         let target = Pos {
                             x: tx as u16,
                             y: ty as u16,
@@ -316,7 +319,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
 
 /// Disperse une graine avec un gradient de distance :
 /// 70% proche (1-3 cellules), 20% moyen (3-6), 10% loin (6-15).
-fn disperse_seed(base: &Pos, rng: &mut dyn Rng) -> Pos {
+fn disperse_seed(base: &Pos, grid_size: u16, rng: &mut dyn Rng) -> Pos {
     let angle = rng.next_f32() * 2.0 * core::f32::consts::PI;
     let roll = rng.next_f32();
 
@@ -335,8 +338,8 @@ fn disperse_seed(base: &Pos, rng: &mut dyn Rng) -> Pos {
     let ty = (base.y as f32 + angle.sin() * distance).round();
 
     Pos {
-        x: tx.clamp(0.0, (GRID_SIZE - 1) as f32) as u16,
-        y: ty.clamp(0.0, (GRID_SIZE - 1) as f32) as u16,
+        x: tx.clamp(0.0, (grid_size - 1) as f32) as u16,
+        y: ty.clamp(0.0, (grid_size - 1) as f32) as u16,
     }
 }
 

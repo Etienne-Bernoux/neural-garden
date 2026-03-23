@@ -7,7 +7,7 @@ use garden_core::application::evolution::PlantStats;
 use garden_core::domain::brain::Brain;
 use garden_core::domain::island::Island;
 use garden_core::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, Pos};
-use garden_core::domain::world::World;
+use garden_core::domain::world::{World, DEFAULT_GRID_SIZE};
 
 use crate::GardenWorld;
 
@@ -15,7 +15,7 @@ use crate::GardenWorld;
 /// - Plante A a (10, 10)
 /// - Plante B a (11, 10) — canopee adjacente a A
 fn setup_two_adjacent_plants(world: &mut GardenWorld) {
-    let mut new_world = World::new();
+    let mut new_world = World::new(DEFAULT_GRID_SIZE);
 
     // Mettre l'altitude haute pour que les cellules soient terrestres
     for x in 8..16 {

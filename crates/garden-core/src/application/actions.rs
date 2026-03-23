@@ -6,9 +6,9 @@ use super::season::SeasonModifiers;
 use super::sim::SimState;
 use crate::domain::events::DomainEvent;
 use crate::domain::plant::{energy_cap, ExudateType, PlantState, Pos};
-use crate::domain::traits::PlantEntity;
 use crate::domain::rng::Rng;
-use crate::domain::world::{Cell, World, GRID_SIZE};
+use crate::domain::traits::PlantEntity;
+use crate::domain::world::{Cell, World};
 
 /// Phase 3 : execution des actions decidees par les plantes.
 /// Orchestre les sous-fonctions dans l'ordre pour chaque plante.
@@ -171,18 +171,32 @@ fn action_growth(
     }
 
     // Trouver la cellule cible selon le type de croissance
+    let grid_size = state.world.size();
     let target = match growth_type {
-        GrowthType::Footprint => {
-            find_growth_target(state.plants[plant_idx].as_ref(), grow_dir_x, grow_dir_y)
-        }
+        GrowthType::Footprint => find_growth_target(
+            state.plants[plant_idx].as_ref(),
+            grow_dir_x,
+            grow_dir_y,
+            grid_size,
+        ),
         GrowthType::Canopy => {
             // Chercher voisin de l'emprise OU de la canopee existante
-            find_canopy_growth_target(state.plants[plant_idx].as_ref(), grow_dir_x, grow_dir_y)
+            find_canopy_growth_target(
+                state.plants[plant_idx].as_ref(),
+                grow_dir_x,
+                grow_dir_y,
+                grid_size,
+            )
         }
         GrowthType::Roots => {
             // Chimiotaxie d'abord, fallback sur la direction du brain
             find_root_growth_toward_neighbor(state, plant_idx, plant_id).or_else(|| {
-                find_root_growth_target(state.plants[plant_idx].as_ref(), grow_dir_x, grow_dir_y)
+                find_root_growth_target(
+                    state.plants[plant_idx].as_ref(),
+                    grow_dir_x,
+                    grow_dir_y,
+                    grid_size,
+                )
             })
         }
     };
@@ -260,7 +274,8 @@ fn action_growth(
             } else {
                 // Cellule libre : verifier les ressources du sol
                 // Les fixatrices d'azote n'ont PAS besoin de N du sol (elles le fabriquent)
-                let is_fixer = state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
+                let is_fixer =
+                    state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
                 let can_grow = if let Some(cell) = state.world.get(&target_pos) {
                     cell.carbon() >= state.config.growth_carbon_cost
                         && (is_fixer || cell.nitrogen() >= state.config.growth_nitrogen_cost)
@@ -298,7 +313,8 @@ fn action_growth(
                 return events;
             }
             // Verifier les ressources du sol (fixatrices n'ont pas besoin de N)
-            let is_fixer = state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
+            let is_fixer =
+                state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
             let can_grow = if let Some(cell) = state.world.get(&target_pos) {
                 cell.carbon() >= state.config.growth_carbon_cost
                     && (is_fixer || cell.nitrogen() >= state.config.growth_nitrogen_cost)
@@ -377,7 +393,11 @@ fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudat
             // Pas de cout en energie — le gain est net positif
             let c_cost_per_cell = fixation_amount * 0.3 / root_count;
             let has_carbon = root_cells.iter().any(|pos| {
-                state.world.get(pos).map(|c| c.carbon() > c_cost_per_cell).unwrap_or(false)
+                state
+                    .world
+                    .get(pos)
+                    .map(|c| c.carbon() > c_cost_per_cell)
+                    .unwrap_or(false)
             });
 
             if has_carbon {
@@ -760,7 +780,12 @@ fn action_maintenance(
 
 /// Trouve la cellule cible de croissance la plus proche de la direction souhaitee.
 /// Cherche parmi les voisins de l'emprise au sol (footprint).
-pub fn find_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Option<Pos> {
+pub fn find_growth_target(
+    plant: &dyn PlantEntity,
+    dir_x: f32,
+    dir_y: f32,
+    grid_size: u16,
+) -> Option<Pos> {
     let mut best: Option<(Pos, f32)> = None;
 
     for fp_pos in plant.footprint() {
@@ -772,7 +797,7 @@ pub fn find_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Op
         ];
 
         for (nx, ny, ndx, ndy) in &neighbors {
-            if *nx >= GRID_SIZE || *ny >= GRID_SIZE {
+            if *nx >= grid_size || *ny >= grid_size {
                 continue;
             }
             let candidate = Pos { x: *nx, y: *ny };
@@ -792,7 +817,12 @@ pub fn find_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Op
 
 /// Trouve la cellule cible de croissance de canopee la plus alignee avec la direction souhaitee.
 /// Cherche parmi les voisins de l'emprise au sol (footprint) ET de la canopee existante.
-pub fn find_canopy_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Option<Pos> {
+pub fn find_canopy_growth_target(
+    plant: &dyn PlantEntity,
+    dir_x: f32,
+    dir_y: f32,
+    grid_size: u16,
+) -> Option<Pos> {
     let mut best: Option<(Pos, f32)> = None;
 
     // Collecter toutes les positions sources (footprint + canopy)
@@ -812,7 +842,7 @@ pub fn find_canopy_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32
         ];
 
         for (nx, ny, ndx, ndy) in &neighbors {
-            if *nx >= GRID_SIZE || *ny >= GRID_SIZE {
+            if *nx >= grid_size || *ny >= grid_size {
                 continue;
             }
             let candidate = Pos { x: *nx, y: *ny };
@@ -870,11 +900,17 @@ fn find_root_growth_toward_neighbor(
     }
 
     // Chercher parmi les voisins des racines existantes
-    find_root_growth_target(plant, closest_dir.0, closest_dir.1)
+    let grid_size = state.world.size();
+    find_root_growth_target(plant, closest_dir.0, closest_dir.1, grid_size)
 }
 
 /// Trouve la cellule voisine d'une racine la plus alignee avec la direction souhaitee.
-fn find_root_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Option<Pos> {
+fn find_root_growth_target(
+    plant: &dyn PlantEntity,
+    dir_x: f32,
+    dir_y: f32,
+    grid_size: u16,
+) -> Option<Pos> {
     let mut best: Option<(Pos, f32)> = None;
 
     for root_pos in plant.roots() {
@@ -886,7 +922,7 @@ fn find_root_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> O
         ];
 
         for (nx, ny, ndx, ndy) in &neighbors {
-            if *nx >= GRID_SIZE || *ny >= GRID_SIZE {
+            if *nx >= grid_size || *ny >= grid_size {
                 continue;
             }
             let candidate = Pos { x: *nx, y: *ny };
@@ -970,12 +1006,12 @@ mod tests {
     use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, Pos};
     use crate::domain::rng::test_utils::MockRng;
     use crate::domain::symbiosis::SymbiosisNetwork;
-    use crate::domain::world::World;
+    use crate::domain::world::{World, DEFAULT_GRID_SIZE};
 
     /// Cree un SimState minimal avec une seule plante germee au centre de la grille.
     /// Le sol sous la plante est enrichi. Retourne (state, plant_id).
     fn test_state_with_plant(exudate_type: ExudateType) -> (SimState, u64) {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         let pos = Pos { x: 64, y: 64 };
 
         // Enrichir le sol sous la plante
@@ -1048,11 +1084,19 @@ mod tests {
         let plant_idx = 0;
 
         let root_pos = state.plants[plant_idx].roots()[0];
-        let carbon_before = state.world.get(&root_pos).map(|c| c.carbon()).unwrap_or(0.0);
+        let carbon_before = state
+            .world
+            .get(&root_pos)
+            .map(|c| c.carbon())
+            .unwrap_or(0.0);
 
         action_exudates(&mut state, plant_id, plant_idx, 0.0);
 
-        let carbon_after = state.world.get(&root_pos).map(|c| c.carbon()).unwrap_or(0.0);
+        let carbon_after = state
+            .world
+            .get(&root_pos)
+            .map(|c| c.carbon())
+            .unwrap_or(0.0);
 
         assert!(
             carbon_after < carbon_before,
@@ -1098,7 +1142,7 @@ mod tests {
     #[test]
     fn les_graines_ne_font_aucune_action() {
         // Creer un SimState avec une plante en etat Seed (pas germee)
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         let pos = Pos { x: 64, y: 64 };
         if let Some(cell) = world.get_mut(&pos) {
             cell.set_altitude(0.8);
@@ -1165,7 +1209,7 @@ mod tests {
 
     #[test]
     fn linvasion_de_graine_est_gratuite() {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         let pos_a = Pos { x: 64, y: 64 };
         let pos_b = Pos { x: 65, y: 64 }; // cellule adjacente
 
@@ -1272,7 +1316,7 @@ mod tests {
 
     #[test]
     fn lombre_reduit_la_photosynthese() {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         let shared_pos = Pos { x: 64, y: 64 };
         let pos_a_extra = Pos { x: 63, y: 64 }; // cellule en plus pour A (footprint plus grand)
 
@@ -1357,7 +1401,7 @@ mod tests {
 
     #[test]
     fn lechange_energie_va_du_riche_au_pauvre() {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         let pos_a = Pos { x: 64, y: 64 };
         let pos_b = Pos { x: 66, y: 64 };
         let shared_root = Pos { x: 65, y: 64 }; // racine partagee

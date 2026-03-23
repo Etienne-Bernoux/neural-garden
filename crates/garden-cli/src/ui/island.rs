@@ -1,6 +1,6 @@
 // Deep dive Ile — minimap plein ecran + stats globales + calques.
 
-use garden_core::domain::world::GRID_SIZE;
+use garden_core::domain::world::DEFAULT_GRID_SIZE;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -25,13 +25,13 @@ const LAYER_KEYS: [&str; 7] = ["0", "A", "B", "C", "D", "E", "F"];
 
 /// Couleurs associees a chaque calque (pour le rendu heatmap).
 const LAYER_COLORS: [Color; 7] = [
-    Color::Green,       // 0 = plantes (non utilise pour heatmap)
-    Color::Yellow,      // 1 = carbone
-    Color::Blue,        // 2 = azote
-    Color::Cyan,        // 3 = humidite
-    Color::Red,         // 4 = racines
-    Color::Green,       // 5 = canopee
-    Color::Magenta,     // 6 = footprint
+    Color::Green,   // 0 = plantes (non utilise pour heatmap)
+    Color::Yellow,  // 1 = carbone
+    Color::Blue,    // 2 = azote
+    Color::Cyan,    // 3 = humidite
+    Color::Red,     // 4 = racines
+    Color::Green,   // 5 = canopee
+    Color::Magenta, // 6 = footprint
 ];
 
 /// Rendu du deep dive Ile : stats + calques + minimap/heatmap plein ecran.
@@ -50,7 +50,7 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
         .constraints([
             Constraint::Length(2), // stats globales
             Constraint::Length(1), // selecteur calques
-            Constraint::Min(1),   // minimap ou heatmap
+            Constraint::Min(1),    // minimap ou heatmap
             Constraint::Length(1), // legende
         ])
         .split(inner);
@@ -105,10 +105,7 @@ fn render_layer_selector(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) 
                     .add_modifier(Modifier::BOLD | Modifier::REVERSED),
             ));
         } else {
-            spans.push(Span::styled(
-                label,
-                Style::default().fg(Color::DarkGray),
-            ));
+            spans.push(Span::styled(label, Style::default().fg(Color::DarkGray)));
         }
     }
 
@@ -119,7 +116,7 @@ fn render_layer_selector(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) 
 /// Rendu heatmap du calque actif a partir des donnees f32 pleine resolution.
 fn render_heatmap(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     let data = &snapshot.island_layer_data;
-    let grid_size = GRID_SIZE as usize;
+    let grid_size = DEFAULT_GRID_SIZE as usize;
 
     // Verifier que les donnees ont la bonne taille
     if data.len() != grid_size * grid_size {
@@ -188,8 +185,8 @@ fn render_heatmap(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
 /// 0=mer, 1=terre vide, 2=plante, 3=plante mature.
 fn render_minimap(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     if snapshot.minimap.is_empty() {
-        let paragraph = Paragraph::new("(minimap non disponible)")
-            .style(Style::default().fg(Color::DarkGray));
+        let paragraph =
+            Paragraph::new("(minimap non disponible)").style(Style::default().fg(Color::DarkGray));
         frame.render_widget(paragraph, area);
         return;
     }
@@ -257,10 +254,10 @@ fn render_legend(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
 /// Convertit une valeur de cellule minimap en span colore.
 fn cell_to_span(cell: u8) -> Span<'static> {
     match cell {
-        0 => Span::styled("░", Style::default().fg(Color::Blue)),        // mer
-        1 => Span::styled("·", Style::default().fg(Color::DarkGray)),    // terre vide
-        2 => Span::styled("▪", Style::default().fg(Color::Green)),       // plante
-        3 => Span::styled("▪", Style::default().fg(Color::LightGreen)),  // plante mature
+        0 => Span::styled("░", Style::default().fg(Color::Blue)), // mer
+        1 => Span::styled("·", Style::default().fg(Color::DarkGray)), // terre vide
+        2 => Span::styled("▪", Style::default().fg(Color::Green)), // plante
+        3 => Span::styled("▪", Style::default().fg(Color::LightGreen)), // plante mature
         _ => Span::styled(" ", Style::default()),
     }
 }

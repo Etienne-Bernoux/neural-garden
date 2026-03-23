@@ -16,7 +16,7 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use garden_core::application::sim::{run_tick, SimState};
-use garden_core::domain::world::World;
+use garden_core::domain::world::{World, DEFAULT_GRID_SIZE};
 use garden_core::infra::config::{generate_default_toml, load_config};
 use garden_core::infra::noise::generate_island;
 use garden_core::infra::persistence::{
@@ -137,7 +137,7 @@ fn cmd_run(config_path: &str, resume: Option<&str>, no_tui: bool) -> Result<(), 
         let mut rng = SeededRng::new(seed);
 
         // Generer le terrain Perlin
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         let island = generate_island(&mut world, seed as u32, 0.2);
         let state = SimState::with_terrain(world, island, config, &mut rng);
 
@@ -379,7 +379,7 @@ fn cmd_live(config_path: &str, port: u16, ws_port: u16) -> Result<(), String> {
     let pop = config.initial_population;
     let mut rng = SeededRng::new(seed);
 
-    let mut world = World::new();
+    let mut world = World::new(DEFAULT_GRID_SIZE);
     let island = generate_island(&mut world, seed as u32, 0.2);
     let state = SimState::with_terrain(world, island, config, &mut rng);
 

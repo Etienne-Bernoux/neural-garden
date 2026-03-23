@@ -4,19 +4,20 @@ use noise::{NoiseFn, Perlin};
 
 use crate::domain::island::Island;
 use crate::domain::plant::Pos;
-use crate::domain::world::{World, GRID_SIZE};
+use crate::domain::world::World;
 
 /// Genere les altitudes de l'ile via Perlin noise + masque circulaire.
 /// Le masque circulaire force les bords de la grille a etre sous le niveau de la mer,
 /// creant une ile naturelle au centre.
 pub fn generate_terrain(world: &mut World, seed: u32) {
     let perlin = Perlin::new(seed);
-    let size = GRID_SIZE as f64;
+    let grid_size = world.size();
+    let size = grid_size as f64;
     let center = size / 2.0;
     let max_radius = center * 0.95; // l'ile occupe ~95% de la grille
 
-    for y in 0..GRID_SIZE {
-        for x in 0..GRID_SIZE {
+    for y in 0..grid_size {
+        for x in 0..grid_size {
             let pos = Pos { x, y };
 
             // Bruit Perlin multi-octaves
@@ -57,16 +58,17 @@ pub fn generate_island(world: &mut World, seed: u32, sea_level: f32) -> Island {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::world::DEFAULT_GRID_SIZE;
 
     #[test]
     fn le_terrain_perlin_a_des_altitudes_variees() {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         generate_terrain(&mut world, 42);
 
         // Collecter quelques altitudes et verifier qu'elles ne sont pas toutes identiques
         let mut altitudes = Vec::new();
-        for y in 0..GRID_SIZE {
-            for x in 0..GRID_SIZE {
+        for y in 0..DEFAULT_GRID_SIZE {
+            for x in 0..DEFAULT_GRID_SIZE {
                 let pos = Pos { x, y };
                 if let Some(cell) = world.get(&pos) {
                     altitudes.push(cell.altitude());
@@ -84,23 +86,23 @@ mod tests {
 
     #[test]
     fn le_masque_circulaire_force_les_bords_a_zero() {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         generate_terrain(&mut world, 42);
 
         // Les coins de la grille doivent avoir une altitude tres basse
         let coins = [
             Pos { x: 0, y: 0 },
             Pos {
-                x: GRID_SIZE - 1,
+                x: DEFAULT_GRID_SIZE - 1,
                 y: 0,
             },
             Pos {
                 x: 0,
-                y: GRID_SIZE - 1,
+                y: DEFAULT_GRID_SIZE - 1,
             },
             Pos {
-                x: GRID_SIZE - 1,
-                y: GRID_SIZE - 1,
+                x: DEFAULT_GRID_SIZE - 1,
+                y: DEFAULT_GRID_SIZE - 1,
             },
         ];
 
@@ -117,26 +119,26 @@ mod tests {
 
     #[test]
     fn lile_perlin_a_terre_et_mer() {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         let island = generate_island(&mut world, 42, 0.3);
 
         let land = island.land_count();
-        let total = GRID_SIZE as usize * GRID_SIZE as usize;
+        let total = DEFAULT_GRID_SIZE as usize * DEFAULT_GRID_SIZE as usize;
         assert!(land > 0, "l'ile devrait avoir de la terre");
         assert!(land < total, "l'ile devrait avoir de la mer");
     }
 
     #[test]
     fn le_meme_seed_donne_la_meme_ile() {
-        let mut world1 = World::new();
+        let mut world1 = World::new(DEFAULT_GRID_SIZE);
         generate_terrain(&mut world1, 123);
 
-        let mut world2 = World::new();
+        let mut world2 = World::new(DEFAULT_GRID_SIZE);
         generate_terrain(&mut world2, 123);
 
         // Verifier que toutes les altitudes sont identiques
-        for y in 0..GRID_SIZE {
-            for x in 0..GRID_SIZE {
+        for y in 0..DEFAULT_GRID_SIZE {
+            for x in 0..DEFAULT_GRID_SIZE {
                 let pos = Pos { x, y };
                 let a1 = world1.get(&pos).expect("valide").altitude();
                 let a2 = world2.get(&pos).expect("valide").altitude();

@@ -1,7 +1,9 @@
 // Plante artificielle deterministe pour la pepiniere (tests et benchmarks).
 
 use super::events::{DomainEvent, GrowthLayer};
-use super::plant::{Biomass, Energy, ExudateType, GeneticTraits, Lineage, PlantState, Pos, Vitality};
+use super::plant::{
+    Biomass, Energy, ExudateType, GeneticTraits, Lineage, PlantState, Pos, Vitality,
+};
 use super::traits::{
     PlantEntity, PlantGenetics, PlantIdentity, PlantReproduction, PlantSpatial, PlantVitals,
 };

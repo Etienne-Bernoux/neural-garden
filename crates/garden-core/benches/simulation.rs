@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use garden_core::application::config::SimConfig;
 use garden_core::application::sim::{run_tick, SimState};
-use garden_core::domain::world::World;
+use garden_core::domain::world::{World, DEFAULT_GRID_SIZE};
 use garden_core::infra::noise::generate_island;
 use garden_core::infra::rng::SeededRng;
 
@@ -16,7 +16,7 @@ fn bench_ticks(population: usize, num_ticks: u32) -> f64 {
     };
 
     let mut rng = SeededRng::new(42);
-    let mut world = World::new();
+    let mut world = World::new(DEFAULT_GRID_SIZE);
     let island = generate_island(&mut world, 42, 0.2);
     let mut state = SimState::with_terrain(world, island, config, &mut rng);
 

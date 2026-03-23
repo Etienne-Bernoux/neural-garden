@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::PosDto;
 use crate::domain::island::Island;
 use crate::domain::symbiosis::{MycorrhizalLink, SymbiosisNetwork};
-use crate::domain::world::{Cell, World, GRID_SIZE};
+use crate::domain::world::{Cell, World};
 
 // --- Cell ---
 
@@ -49,28 +49,33 @@ impl CellDto {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WorldDto {
+    pub size: u16,
     pub cells: Vec<CellDto>,
 }
 
 impl From<&World> for WorldDto {
     fn from(w: &World) -> Self {
-        let mut cells = Vec::with_capacity(GRID_SIZE as usize * GRID_SIZE as usize);
-        for y in 0..GRID_SIZE {
-            for x in 0..GRID_SIZE {
+        let grid_size = w.size();
+        let mut cells = Vec::with_capacity(grid_size as usize * grid_size as usize);
+        for y in 0..grid_size {
+            for x in 0..grid_size {
                 let pos = crate::domain::plant::Pos { x, y };
                 if let Some(cell) = w.get(&pos) {
                     cells.push(CellDto::from(cell));
                 }
             }
         }
-        Self { cells }
+        Self {
+            size: grid_size,
+            cells,
+        }
     }
 }
 
 impl WorldDto {
     pub fn to_domain(&self) -> World {
         let cells: Vec<Cell> = self.cells.iter().map(|c| c.to_domain()).collect();
-        World::from_cells(cells)
+        World::from_cells(cells, self.size)
     }
 }
 
@@ -81,6 +86,7 @@ pub struct IslandDto {
     pub land_mask: Vec<bool>,
     pub sea_level: f32,
     pub land_cells: Vec<PosDto>,
+    pub size: u16,
 }
 
 impl From<&Island> for IslandDto {
@@ -89,6 +95,7 @@ impl From<&Island> for IslandDto {
             land_mask: i.land_mask().to_vec(),
             sea_level: i.sea_level(),
             land_cells: i.land_cells().iter().map(PosDto::from).collect(),
+            size: i.size(),
         }
     }
 }
@@ -99,6 +106,7 @@ impl IslandDto {
             self.land_mask.clone(),
             self.sea_level,
             self.land_cells.iter().map(|p| p.to_domain()).collect(),
+            self.size,
         )
     }
 }

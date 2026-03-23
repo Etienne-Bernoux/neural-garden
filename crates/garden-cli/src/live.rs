@@ -13,7 +13,6 @@ use tungstenite::accept;
 use garden_core::application::sim::{run_tick, SimState};
 use garden_core::domain::events::DomainEvent;
 use garden_core::domain::plant::Pos;
-use garden_core::domain::world::GRID_SIZE;
 use garden_core::infra::dto::DomainEventDto;
 use garden_core::infra::persistence::{auto_save, get_auto_save_slot, should_auto_save};
 use garden_core::infra::rng::SeededRng;
@@ -295,7 +294,7 @@ struct TickMessage {
 // --- Construction des messages ---
 
 fn build_initial_snapshot(state: &SimState) -> InitialSnapshot {
-    let grid_size = GRID_SIZE;
+    let grid_size = state.world.size();
 
     // Extraire les altitudes du terrain
     let mut terrain_heights = vec![vec![0.0f32; grid_size as usize]; grid_size as usize];

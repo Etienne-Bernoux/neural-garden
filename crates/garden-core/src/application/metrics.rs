@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 
 use crate::domain::plant::{ExudateType, PlantState};
-use crate::domain::traits::PlantEntity;
 use crate::domain::symbiosis::SymbiosisNetwork;
+use crate::domain::traits::PlantEntity;
 
 use super::evolution::SeedBank;
 use super::highlights::{Highlight, HighlightDetector};

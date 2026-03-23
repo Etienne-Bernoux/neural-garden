@@ -18,11 +18,11 @@ use crate::snapshot::SimSnapshot;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AppMode {
     Dashboard,
-    Evolution,  // touche 1
-    Population, // touche 2
+    Evolution,   // touche 1
+    Population,  // touche 2
     Cooperation, // touche 3
-    Island,     // touche 4
-    Logs,       // touche 5
+    Island,      // touche 4
+    Logs,        // touche 5
 }
 
 /// Rendu principal — dispatch selon le mode actif.
@@ -34,7 +34,7 @@ pub fn render(frame: &mut Frame, snapshot: &SimSnapshot, mode: AppMode) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(2), // barre d'etat
-            Constraint::Min(1),   // contenu
+            Constraint::Min(1),    // contenu
             Constraint::Length(1), // raccourcis
         ])
         .split(main_area);

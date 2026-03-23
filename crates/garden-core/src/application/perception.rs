@@ -112,7 +112,7 @@ pub fn compute_inputs(plant: &dyn PlantEntity, world: &World) -> [f32; 18] {
 mod tests {
     use super::*;
     use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, Pos};
-    use crate::domain::world::World;
+    use crate::domain::world::{World, DEFAULT_GRID_SIZE};
 
     fn test_genetics() -> GeneticTraits {
         GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 5.0)
@@ -126,7 +126,7 @@ mod tests {
     fn une_graine_a_des_gradients_nuls() {
         // Une graine a 1 seule racine → tous les gradients doivent etre 0
         let plant = test_plant_at(Pos { x: 5, y: 5 });
-        let world = World::new();
+        let world = World::new(DEFAULT_GRID_SIZE);
         let inputs = compute_inputs(&plant, &world);
 
         for i in 8..18 {
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn les_inputs_internes_sont_normalises() {
         let plant = test_plant_at(Pos { x: 5, y: 5 });
-        let world = World::new();
+        let world = World::new(DEFAULT_GRID_SIZE);
         let inputs = compute_inputs(&plant, &world);
 
         for i in 0..4 {
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn le_sol_local_reflete_la_canopee() {
         let plant = test_plant_at(Pos { x: 5, y: 5 });
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
 
         // Mettre du carbone sous la canopee (une seule cellule)
         if let Some(cell) = world.get_mut(&Pos { x: 5, y: 5 }) {
@@ -179,7 +179,7 @@ mod tests {
         plant.grow_roots(Pos { x: 4, y: 5 }); // racine
         plant.grow_roots(Pos { x: 6, y: 5 }); // racine
 
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         // Carbon seulement a la racine droite
         if let Some(cell) = world.get_mut(&Pos { x: 6, y: 5 }) {
             cell.set_carbon(1.0);
@@ -201,7 +201,7 @@ mod tests {
         plant.grow_roots(Pos { x: 4, y: 5 });
         plant.grow_roots(Pos { x: 6, y: 5 });
 
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         // Mettre des valeurs extremes partout
         for x in 4..=6 {
             if let Some(cell) = world.get_mut(&Pos { x, y: 5 }) {

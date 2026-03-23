@@ -15,11 +15,11 @@ pub use domain::events::{DomainEvent, GrowthLayer};
 pub use domain::island::Island;
 pub use domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, PlantState, Pos};
 pub use domain::rng::Rng;
+pub use domain::symbiosis::{MycorrhizalLink, SymbiosisNetwork};
 pub use domain::traits::{
     PlantEntity, PlantGenetics, PlantIdentity, PlantReproduction, PlantSpatial, PlantVitals,
 };
-pub use domain::symbiosis::{MycorrhizalLink, SymbiosisNetwork};
-pub use domain::world::{Cell, World, GRID_SIZE};
+pub use domain::world::{Cell, World, DEFAULT_GRID_SIZE};
 
 pub use infra::config::{generate_default_toml, load_config};
 pub use infra::noise::generate_island;

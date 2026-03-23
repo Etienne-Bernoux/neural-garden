@@ -22,9 +22,9 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),  // fitness vivantes
-            Constraint::Length(7),  // banque de graines
-            Constraint::Length(6),  // distribution C/N
+            Constraint::Length(5), // fitness vivantes
+            Constraint::Length(7), // banque de graines
+            Constraint::Length(6), // distribution C/N
             Constraint::Min(1),    // age buckets
         ])
         .split(inner);
@@ -56,9 +56,7 @@ fn render_fitness_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot)
         )),
     ];
 
-    let block = Block::default()
-        .title(" Fitness ")
-        .borders(Borders::ALL);
+    let block = Block::default().title(" Fitness ").borders(Borders::ALL);
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
 }
@@ -125,8 +123,16 @@ fn render_distribution_section(frame: &mut Frame, area: Rect, snapshot: &SimSnap
 
     // Barres proportionnelles sur 30 caracteres max
     let max_bar = 30;
-    let c_bar = if total > 0 { snapshot.carbon_count * max_bar / total } else { 0 };
-    let n_bar = if total > 0 { snapshot.nitrogen_count * max_bar / total } else { 0 };
+    let c_bar = if total > 0 {
+        snapshot.carbon_count * max_bar / total
+    } else {
+        0
+    };
+    let n_bar = if total > 0 {
+        snapshot.nitrogen_count * max_bar / total
+    } else {
+        0
+    };
 
     let lines = vec![
         Line::from(format!(
@@ -162,12 +168,7 @@ fn render_age_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
         .zip(buckets.iter())
         .map(|(label, &count)| {
             let bar_len = (count * max_bar / max_val) as usize;
-            Line::from(format!(
-                "{} {} {}",
-                label,
-                "█".repeat(bar_len),
-                count,
-            ))
+            Line::from(format!("{} {} {}", label, "█".repeat(bar_len), count,))
         })
         .collect();
 

@@ -47,7 +47,7 @@ mod tests {
     use crate::domain::events::DomainEvent;
     use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant};
     use crate::domain::rng::test_utils::MockRng;
-    use crate::domain::world::World;
+    use crate::domain::world::{World, DEFAULT_GRID_SIZE};
 
     fn test_genetics() -> GeneticTraits {
         GeneticTraits::new(20, 0.5, ExudateType::Carbon, 8, 10.0, 5.0)
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn aller_retour_world_dto() {
-        let mut world = World::new();
+        let mut world = World::new(DEFAULT_GRID_SIZE);
         // Modifier quelques cellules
         let pos = Pos { x: 10, y: 20 };
         if let Some(cell) = world.get_mut(&pos) {

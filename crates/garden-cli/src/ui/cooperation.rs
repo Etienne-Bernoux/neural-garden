@@ -22,8 +22,8 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(6),  // resume cooperation
-            Constraint::Length(6),  // echanges
+            Constraint::Length(6), // resume cooperation
+            Constraint::Length(6), // echanges
             Constraint::Min(1),    // tendance
         ])
         .split(inner);
@@ -35,7 +35,9 @@ pub fn render(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
 
 /// Resume des liens de cooperation.
 fn render_summary_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
-    let solitaires = snapshot.alive_count.saturating_sub(snapshot.cooperators_count);
+    let solitaires = snapshot
+        .alive_count
+        .saturating_sub(snapshot.cooperators_count);
     let solitaires_pct = if snapshot.alive_count > 0 {
         (solitaires as f32 / snapshot.alive_count as f32) * 100.0
     } else {
@@ -85,9 +87,7 @@ fn render_exchanges_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapsho
         Line::from(format!("Moyenne/tick: {:.3}", avg_per_tick)),
     ];
 
-    let block = Block::default()
-        .title(" Échanges ")
-        .borders(Borders::ALL);
+    let block = Block::default().title(" Échanges ").borders(Borders::ALL);
     let paragraph = Paragraph::new(lines).block(block);
     frame.render_widget(paragraph, area);
 }
@@ -108,9 +108,7 @@ fn render_trend_section(frame: &mut Frame, area: Rect, snapshot: &SimSnapshot) {
         Line::from("(Détail des liens non disponible dans le snapshot)"),
     ];
 
-    let block = Block::default()
-        .title(" Tendance ")
-        .borders(Borders::ALL);
+    let block = Block::default().title(" Tendance ").borders(Borders::ALL);
     let paragraph = Paragraph::new(lines)
         .style(Style::default().fg(Color::White))
         .block(block);
@@ -132,8 +130,8 @@ fn compute_trend(history: &std::collections::VecDeque<usize>) -> Trend {
 
     let mid = history.len() / 2;
     let old_avg: f64 = history.iter().take(mid).sum::<usize>() as f64 / mid as f64;
-    let new_avg: f64 = history.iter().skip(mid).sum::<usize>() as f64
-        / (history.len() - mid) as f64;
+    let new_avg: f64 =
+        history.iter().skip(mid).sum::<usize>() as f64 / (history.len() - mid) as f64;
 
     let diff = new_avg - old_avg;
     let threshold = old_avg * 0.1; // 10% de variation

@@ -8,14 +8,14 @@ use garden_core::application::sim::SimState;
 use garden_core::domain::brain::Brain;
 use garden_core::domain::island::Island;
 use garden_core::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, Pos};
-use garden_core::domain::world::World;
+use garden_core::domain::world::{World, DEFAULT_GRID_SIZE};
 
 use crate::GardenWorld;
 
 /// Cree un SimState vide avec un terrain riche autour de (10, 10).
 /// initial_population = 0, les plantes seront ajoutees manuellement.
 fn setup_rich_terrain(rng: &mut dyn garden_core::domain::rng::Rng) -> SimState {
-    let mut world = World::new();
+    let mut world = World::new(DEFAULT_GRID_SIZE);
 
     // Mettre l'altitude haute pour que les cellules soient terrestres
     for x in 8..16 {

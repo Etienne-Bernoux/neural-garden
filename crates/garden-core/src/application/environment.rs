@@ -2,7 +2,6 @@
 
 use super::sim::SimState;
 use crate::domain::plant::{PlantState, Pos};
-use crate::domain::world::GRID_SIZE;
 
 /// Phase 1 : mise a jour de l'environnement (pluie, evaporation, regeneration, ombrage).
 /// Retourne Some(Season) si la saison a change pendant ce tick.
@@ -12,25 +11,27 @@ pub fn phase_environment(state: &mut SimState) -> Option<super::season::Season> 
 
     let modifiers = state.season_cycle.current_modifiers();
 
+    let grid_size = state.world.size();
+
     // Construire un ensemble des cellules occupees par l'emprise physique (footprint)
     // L'ombrage est lie a l'emprise au sol pour l'instant (T4 ajoutera l'ombre de la canopee aerienne)
-    let mut occupied = vec![false; GRID_SIZE as usize * GRID_SIZE as usize];
+    let mut occupied = vec![false; grid_size as usize * grid_size as usize];
     for plant in &state.plants {
         if plant.is_dead() {
             continue;
         }
         for pos in plant.footprint() {
-            if pos.x < GRID_SIZE && pos.y < GRID_SIZE {
-                occupied[pos.y as usize * GRID_SIZE as usize + pos.x as usize] = true;
+            if pos.x < grid_size && pos.y < grid_size {
+                occupied[pos.y as usize * grid_size as usize + pos.x as usize] = true;
             }
         }
     }
 
-    for y in 0..GRID_SIZE {
-        for x in 0..GRID_SIZE {
+    for y in 0..grid_size {
+        for x in 0..grid_size {
             let pos = Pos { x, y };
             let is_land = state.island.is_land(&pos);
-            let idx = y as usize * GRID_SIZE as usize + x as usize;
+            let idx = y as usize * grid_size as usize + x as usize;
             let under_canopy = occupied[idx];
 
             if let Some(cell) = state.world.get_mut(&pos) {
@@ -52,14 +53,16 @@ pub fn phase_environment(state: &mut SimState) -> Option<super::season::Season> 
                 // Plafonnee aux seuils de base (ne regenere pas au-dela du naturel)
                 if is_land {
                     let c = cell.carbon();
-                    let c_baseline = 0.3;  // seuil naturel max de regeneration C
+                    let c_baseline = 0.3; // seuil naturel max de regeneration C
                     if c < c_baseline {
                         cell.set_carbon(c + state.config.carbon_regen_rate * modifiers.soil_regen);
                     }
                     let n = cell.nitrogen();
-                    let n_baseline = 0.05;  // seuil naturel max de regeneration N (tres bas)
+                    let n_baseline = 0.05; // seuil naturel max de regeneration N (tres bas)
                     if n < n_baseline {
-                        cell.set_nitrogen(n + state.config.nitrogen_regen_rate * modifiers.soil_regen);
+                        cell.set_nitrogen(
+                            n + state.config.nitrogen_regen_rate * modifiers.soil_regen,
+                        );
                     }
                 }
 

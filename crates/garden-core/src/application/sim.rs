@@ -16,9 +16,9 @@ use crate::domain::brain::Brain;
 use crate::domain::events::DomainEvent;
 use crate::domain::island::Island;
 use crate::domain::plant::{Lineage, Plant, PlantState};
-use crate::domain::traits::PlantEntity;
 use crate::domain::rng::Rng;
 use crate::domain::symbiosis::SymbiosisNetwork;
+use crate::domain::traits::PlantEntity;
 use crate::domain::world::World;
 
 /// Etat complet de la simulation.
@@ -50,7 +50,7 @@ impl SimState {
 
     /// Cree un nouvel etat de simulation avec une config personnalisee.
     pub fn with_config(sea_level: f32, config: SimConfig, rng: &mut dyn Rng) -> Self {
-        let mut world = World::new();
+        let mut world = World::new(crate::domain::world::DEFAULT_GRID_SIZE);
         let island = Island::generate(&mut world, sea_level, rng);
         Self::populate(world, island, config, rng)
     }
@@ -76,9 +76,9 @@ impl SimState {
                 let alt = cell.altitude();
                 // Vallees (alt basse) = sol riche, cretes (alt haute) = sol pauvre
                 let richness = (1.0 - alt).clamp(0.0, 1.0);
-                cell.set_carbon(0.2 + richness * 0.4);   // 0.2 à 0.6
+                cell.set_carbon(0.2 + richness * 0.4); // 0.2 à 0.6
                 cell.set_nitrogen(0.05 + richness * 0.15); // 0.05 à 0.2
-                cell.set_humidity(0.3 + richness * 0.4);  // 0.3 à 0.7
+                cell.set_humidity(0.3 + richness * 0.4); // 0.3 à 0.7
             }
         }
 
@@ -622,10 +622,7 @@ mod tests {
             .iter()
             .flat_map(|p| p.footprint().to_vec())
             .collect();
-        let fixture_pos = land_cells
-            .iter()
-            .find(|p| !occupied.contains(p))
-            .copied();
+        let fixture_pos = land_cells.iter().find(|p| !occupied.contains(p)).copied();
         let Some(pos) = fixture_pos else { return };
 
         let fixture = FixturePlant::new(999, pos, ExudateType::Carbon, 3);
@@ -643,6 +640,9 @@ mod tests {
             .find(|p| p.id() == 999)
             .map(|p| !p.is_dead())
             .unwrap_or(false);
-        assert!(fixture_alive, "la fixture doit toujours etre vivante apres 10 ticks");
+        assert!(
+            fixture_alive,
+            "la fixture doit toujours etre vivante apres 10 ticks"
+        );
     }
 }

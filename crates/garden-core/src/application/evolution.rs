@@ -48,7 +48,7 @@ pub fn evaluate_fitness(stats: &PlantStats) -> f32 {
         + stats.seeds_produced as f32 * 500.0              // se reproduire = DOMINANT (monte de 50)
         + stats.soil_enriched * 10.0                       // enrichir le sol = moyen
         - stats.soil_depleted * 1.0                        // penalite legere
-        - stats.monoculture_penalty * 5.0;                 // penalite monoculture
+        - stats.monoculture_penalty * 5.0; // penalite monoculture
 
     (own_fitness + stats.inherited_fitness).max(0.0)
 }
