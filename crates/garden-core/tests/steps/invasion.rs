@@ -67,8 +67,8 @@ fn setup_two_adjacent_plants(world: &mut GardenWorld) {
     let brain_a = Brain::new(8, &mut world.rng);
     let brain_b = Brain::new(8, &mut world.rng);
 
-    state.plants.push(plant_a);
-    state.plants.push(plant_b);
+    state.plants.push(Box::new(plant_a));
+    state.plants.push(Box::new(plant_b));
     state.brains.insert(1, brain_a);
     state.brains.insert(2, brain_b);
     state.plant_stats.insert(1, PlantStats::default());

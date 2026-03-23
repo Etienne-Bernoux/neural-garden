@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 
-use crate::domain::plant::{ExudateType, Plant, PlantState};
+use crate::domain::plant::{ExudateType, PlantState};
+use crate::domain::traits::PlantEntity;
 use crate::domain::symbiosis::SymbiosisNetwork;
 
 use super::evolution::SeedBank;
@@ -150,7 +151,7 @@ impl Default for SimMetrics {
 /// Met a jour les metriques a partir de l'etat courant de la simulation.
 pub fn update_metrics(
     metrics: &mut SimMetrics,
-    plants: &[Plant],
+    plants: &[Box<dyn PlantEntity>],
     symbiosis: &SymbiosisNetwork,
     world: &crate::domain::world::World,
     island: &crate::domain::island::Island,

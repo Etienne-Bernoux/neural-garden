@@ -1,6 +1,6 @@
 // Service de perception — calcule les 18 inputs du cerveau pour une plante.
 
-use crate::domain::plant::Plant;
+use crate::domain::traits::PlantEntity;
 use crate::domain::world::{Cell, World};
 
 /// Signe d'un flottant : -1.0, 0.0 ou 1.0.
@@ -15,7 +15,7 @@ fn sign(x: f32) -> f32 {
 }
 
 /// Calcule la moyenne d'un champ sur les cellules d'emprise (footprint).
-fn average_field(plant: &Plant, world: &World, field: fn(&Cell) -> f32) -> f32 {
+fn average_field(plant: &dyn PlantEntity, world: &World, field: fn(&Cell) -> f32) -> f32 {
     let footprint = plant.footprint();
     if footprint.is_empty() {
         return 0.0;
@@ -34,7 +34,7 @@ fn average_field(plant: &Plant, world: &World, field: fn(&Cell) -> f32) -> f32 {
 /// - [0..4]  : etat interne (vitality, energy, biomass, age) normalises [0, 1]
 /// - [4..8]  : sol local (carbon, nitrogen, humidity, light) moyennes sur la canopee
 /// - [8..18] : gradients (5 champs x 2 composantes x/y) sur les racines, bornes [-1, 1]
-pub fn compute_inputs(plant: &Plant, world: &World) -> [f32; 18] {
+pub fn compute_inputs(plant: &dyn PlantEntity, world: &World) -> [f32; 18] {
     let mut inputs = [0.0_f32; 18];
 
     // --- Etat interne (normalise [0, 1]) ---

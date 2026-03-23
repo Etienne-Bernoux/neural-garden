@@ -15,7 +15,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
     let mut events = Vec::new();
 
     // a) Production continue de graines — plantes matures avec assez d'energie
-    let mut new_seeds: Vec<(Plant, crate::domain::brain::Brain)> = Vec::new();
+    let mut new_seeds: Vec<(Box<dyn crate::domain::traits::PlantEntity>, crate::domain::brain::Brain)> = Vec::new();
 
     for i in 0..state.plants.len() {
         let plant = &state.plants[i];
@@ -90,7 +90,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
                 state.plants[i].ancestors(),
             );
 
-            new_seeds.push((child, genome.brain));
+            new_seeds.push((Box::new(child), genome.brain));
 
             events.push(DomainEvent::Born {
                 plant_id: child_id,
@@ -206,7 +206,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         if !land_cells.is_empty() {
             // 80% : placer pres d'une plante existante, 20% : position aleatoire
             let pos = if rng.next_f32() < 0.8 && !state.plants.is_empty() {
-                let alive: Vec<&Plant> = state.plants.iter().filter(|p| !p.is_dead()).collect();
+                let alive: Vec<&Box<dyn crate::domain::traits::PlantEntity>> = state.plants.iter().filter(|p| !p.is_dead()).collect();
                 if alive.is_empty() {
                     random_land_pos(land_cells, rng)
                 } else {
@@ -248,7 +248,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
                 let lineage = Lineage::new(child_id, gen);
 
                 let child = Plant::new(child_id, pos, genome.traits, lineage.clone());
-                state.plants.push(child);
+                state.plants.push(Box::new(child));
                 state.brains.insert(child_id, genome.brain);
                 state.plant_stats.insert(child_id, PlantStats::default());
 

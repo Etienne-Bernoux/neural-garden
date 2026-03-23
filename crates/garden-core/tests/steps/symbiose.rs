@@ -61,8 +61,8 @@ fn add_two_plants_shared_roots(state: &mut SimState, rng: &mut dyn garden_core::
     let brain_a = Brain::new(8, rng);
     let brain_b = Brain::new(8, rng);
 
-    state.plants.push(plant_a);
-    state.plants.push(plant_b);
+    state.plants.push(Box::new(plant_a));
+    state.plants.push(Box::new(plant_b));
     state.brains.insert(1, brain_a);
     state.brains.insert(2, brain_b);
     state.plant_stats.insert(1, PlantStats::default());
@@ -189,7 +189,7 @@ fn plante_perd_racine(world: &mut GardenWorld) {
     new_plant.gain_energy(100.0);
     // Ne PAS ajouter la racine partagee (11, 10) — on ne fait pas grow(shared, false)
 
-    state.plants[plant_a_idx] = new_plant;
+    state.plants[plant_a_idx] = Box::new(new_plant);
 
     // Rompre le lien puisque les racines ne se chevauchent plus
     state.symbiosis.remove_link(1, 2);

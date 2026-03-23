@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use super::season::SeasonModifiers;
 use super::sim::SimState;
 use crate::domain::events::DomainEvent;
-use crate::domain::plant::{energy_cap, ExudateType, Plant, PlantState, Pos};
+use crate::domain::plant::{energy_cap, ExudateType, PlantState, Pos};
+use crate::domain::traits::PlantEntity;
 use crate::domain::rng::Rng;
 use crate::domain::world::{Cell, World, GRID_SIZE};
 
@@ -172,16 +173,16 @@ fn action_growth(
     // Trouver la cellule cible selon le type de croissance
     let target = match growth_type {
         GrowthType::Footprint => {
-            find_growth_target(&state.plants[plant_idx], grow_dir_x, grow_dir_y)
+            find_growth_target(state.plants[plant_idx].as_ref(), grow_dir_x, grow_dir_y)
         }
         GrowthType::Canopy => {
             // Chercher voisin de l'emprise OU de la canopee existante
-            find_canopy_growth_target(&state.plants[plant_idx], grow_dir_x, grow_dir_y)
+            find_canopy_growth_target(state.plants[plant_idx].as_ref(), grow_dir_x, grow_dir_y)
         }
         GrowthType::Roots => {
             // Chimiotaxie d'abord, fallback sur la direction du brain
             find_root_growth_toward_neighbor(state, plant_idx, plant_id).or_else(|| {
-                find_root_growth_target(&state.plants[plant_idx], grow_dir_x, grow_dir_y)
+                find_root_growth_target(state.plants[plant_idx].as_ref(), grow_dir_x, grow_dir_y)
             })
         }
     };
@@ -516,7 +517,7 @@ fn action_symbiosis(
             let transfer_rate = avg_generosity * 0.02; // taux de transfert par tick
 
             // Calculer les ressources moyennes sous les racines de chaque plante
-            let my_roots: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
+            let _my_roots: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
             let other_idx = state.plants.iter().position(|p| p.id() == other_id);
 
             if let Some(oi) = other_idx {
@@ -759,7 +760,7 @@ fn action_maintenance(
 
 /// Trouve la cellule cible de croissance la plus proche de la direction souhaitee.
 /// Cherche parmi les voisins de l'emprise au sol (footprint).
-pub fn find_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> {
+pub fn find_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Option<Pos> {
     let mut best: Option<(Pos, f32)> = None;
 
     for fp_pos in plant.footprint() {
@@ -791,7 +792,7 @@ pub fn find_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> 
 
 /// Trouve la cellule cible de croissance de canopee la plus alignee avec la direction souhaitee.
 /// Cherche parmi les voisins de l'emprise au sol (footprint) ET de la canopee existante.
-pub fn find_canopy_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> {
+pub fn find_canopy_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Option<Pos> {
     let mut best: Option<(Pos, f32)> = None;
 
     // Collecter toutes les positions sources (footprint + canopy)
@@ -837,7 +838,7 @@ fn find_root_growth_toward_neighbor(
     plant_idx: usize,
     plant_id: u64,
 ) -> Option<Pos> {
-    let plant = &state.plants[plant_idx];
+    let plant = state.plants[plant_idx].as_ref();
     let my_center = plant.footprint()[0];
 
     // Trouver la plante vivante la plus proche (autre que soi)
@@ -873,7 +874,7 @@ fn find_root_growth_toward_neighbor(
 }
 
 /// Trouve la cellule voisine d'une racine la plus alignee avec la direction souhaitee.
-fn find_root_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos> {
+fn find_root_growth_target(plant: &dyn PlantEntity, dir_x: f32, dir_y: f32) -> Option<Pos> {
     let mut best: Option<(Pos, f32)> = None;
 
     for root_pos in plant.roots() {
@@ -904,6 +905,7 @@ fn find_root_growth_target(plant: &Plant, dir_x: f32, dir_y: f32) -> Option<Pos>
 }
 
 /// Moyenne d'une ressource sur les cellules racines.
+#[allow(dead_code)]
 fn avg_resource(world: &World, roots: &[Pos], getter: fn(&Cell) -> f32) -> f32 {
     if roots.is_empty() {
         return 0.0;
@@ -919,6 +921,7 @@ fn avg_resource(world: &World, roots: &[Pos], getter: fn(&Cell) -> f32) -> f32 {
 /// Transfere une ressource du sol d'un groupe de cellules vers un autre.
 /// transfer > 0 : de `from_roots` vers `to_roots`
 /// transfer < 0 : de `to_roots` vers `from_roots`
+#[allow(dead_code)]
 fn apply_transfer(
     world: &mut World,
     from_roots: &[Pos],
@@ -1002,7 +1005,7 @@ mod tests {
         let state = SimState::from_raw(
             world,
             island,
-            vec![plant],
+            vec![Box::new(plant) as Box<dyn PlantEntity>],
             HashMap::new(), // pas de brains necessaires pour les tests unitaires
             SymbiosisNetwork::new(),
             SeedBank::new(10),
@@ -1117,7 +1120,7 @@ mod tests {
         let mut state = SimState::from_raw(
             world,
             island,
-            vec![plant],
+            vec![Box::new(plant) as Box<dyn PlantEntity>],
             HashMap::new(),
             SymbiosisNetwork::new(),
             SeedBank::new(10),
@@ -1198,7 +1201,7 @@ mod tests {
         let mut state = SimState::from_raw(
             world,
             island,
-            vec![plant_a, plant_b],
+            vec![Box::new(plant_a) as Box<dyn PlantEntity>, Box::new(plant_b)],
             HashMap::new(),
             SymbiosisNetwork::new(),
             SeedBank::new(10),
@@ -1313,7 +1316,7 @@ mod tests {
         let mut state = SimState::from_raw(
             world,
             island,
-            vec![plant_a, plant_b],
+            vec![Box::new(plant_a) as Box<dyn PlantEntity>, Box::new(plant_b)],
             HashMap::new(),
             SymbiosisNetwork::new(),
             SeedBank::new(10),
@@ -1403,7 +1406,7 @@ mod tests {
         let mut state = SimState::from_raw(
             world,
             island,
-            vec![plant_a, plant_b],
+            vec![Box::new(plant_a) as Box<dyn PlantEntity>, Box::new(plant_b)],
             HashMap::new(),
             symbiosis,
             SeedBank::new(10),

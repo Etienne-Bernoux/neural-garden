@@ -49,7 +49,7 @@ fn add_germinated(state: &mut SimState, rng: &mut crate::TestRng) {
     state
         .plant_stats
         .insert(state.next_plant_id, PlantStats::default());
-    state.plants.push(plant);
+    state.plants.push(Box::new(plant));
     state.next_plant_id += 1;
 }
 
@@ -217,7 +217,7 @@ async fn plante_avec_peu_energie(world: &mut GardenWorld) {
     state
         .plant_stats
         .insert(state.next_plant_id, PlantStats::default());
-    state.plants.push(plant);
+    state.plants.push(Box::new(plant));
     state.next_plant_id += 1;
 }
 

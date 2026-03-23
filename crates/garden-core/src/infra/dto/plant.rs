@@ -6,6 +6,7 @@ use super::PosDto;
 use crate::application::evolution::{Genome, PlantStats};
 use crate::domain::brain::Brain;
 use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, PlantState};
+use crate::domain::traits::PlantEntity;
 
 // --- ExudateType ---
 
@@ -183,8 +184,8 @@ pub struct PlantDto {
     pub seed_progress: f32,
 }
 
-impl From<&Plant> for PlantDto {
-    fn from(p: &Plant) -> Self {
+impl From<&dyn PlantEntity> for PlantDto {
+    fn from(p: &dyn PlantEntity) -> Self {
         Self {
             id: p.id(),
             state: p.state().into(),

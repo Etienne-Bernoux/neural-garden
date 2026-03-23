@@ -68,7 +68,7 @@ fn add_seed(world: &mut GardenWorld) {
     state
         .plant_stats
         .insert(state.next_plant_id, PlantStats::default());
-    state.plants.push(plant);
+    state.plants.push(Box::new(plant));
     state.next_plant_id += 1;
 }
 
@@ -131,7 +131,7 @@ fn add_germinated_plant_with_growth(
     state
         .plant_stats
         .insert(state.next_plant_id, PlantStats::default());
-    state.plants.push(plant);
+    state.plants.push(Box::new(plant));
     state.next_plant_id += 1;
 }
 

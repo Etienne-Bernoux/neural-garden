@@ -16,6 +16,7 @@ use crate::domain::brain::Brain;
 use crate::domain::events::DomainEvent;
 use crate::domain::island::Island;
 use crate::domain::plant::{Lineage, Plant, PlantState};
+use crate::domain::traits::PlantEntity;
 use crate::domain::rng::Rng;
 use crate::domain::symbiosis::SymbiosisNetwork;
 use crate::domain::world::World;
@@ -24,7 +25,7 @@ use crate::domain::world::World;
 pub struct SimState {
     pub world: World,
     pub island: Island,
-    pub plants: Vec<Plant>,
+    pub plants: Vec<Box<dyn PlantEntity>>,
     pub brains: HashMap<u64, Brain>,
     pub symbiosis: SymbiosisNetwork,
     pub seed_bank: SeedBank,
@@ -84,7 +85,7 @@ impl SimState {
         let mut seed_bank = SeedBank::new(config.seed_bank_capacity);
         seed_bank.initialize(config.seed_bank_capacity, rng);
 
-        let mut plants = Vec::new();
+        let mut plants: Vec<Box<dyn PlantEntity>> = Vec::new();
         let mut brains = HashMap::new();
         let mut plant_stats = HashMap::new();
         let mut next_plant_id = 1_u64;
@@ -99,7 +100,7 @@ impl SimState {
             let pos = land_cells[idx];
 
             // Verifier que la cellule n'est pas deja occupee
-            let occupied = plants.iter().any(|p: &Plant| p.footprint().contains(&pos));
+            let occupied = plants.iter().any(|p| p.footprint().contains(&pos));
             if occupied {
                 continue;
             }
@@ -109,7 +110,7 @@ impl SimState {
             let plant = Plant::new(next_plant_id, pos, genome.traits, lineage);
             brains.insert(next_plant_id, genome.brain);
             plant_stats.insert(next_plant_id, PlantStats::default());
-            plants.push(plant);
+            plants.push(Box::new(plant));
             next_plant_id += 1;
         }
 
@@ -136,7 +137,7 @@ impl SimState {
     pub(crate) fn from_raw(
         world: World,
         island: Island,
-        plants: Vec<Plant>,
+        plants: Vec<Box<dyn PlantEntity>>,
         brains: HashMap<u64, Brain>,
         symbiosis: SymbiosisNetwork,
         seed_bank: SeedBank,
@@ -246,18 +247,24 @@ pub fn run_tick(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
 
 fn phase_perception_decision(state: &SimState) -> Vec<(u64, [f32; 8])> {
     // Collecter les plantes vivantes non-graines avec leur brain
-    let candidates: Vec<(u64, &Plant, &Brain)> = state
+    // Collecter les plantes vivantes non-graines avec leur brain
+    let candidates: Vec<(u64, &(dyn PlantEntity + Sync), &Brain)> = state
         .plants
         .iter()
         .filter(|p| !p.is_dead() && p.state() != PlantState::Seed)
-        .filter_map(|p| state.find_brain(p.id()).map(|brain| (p.id(), p, brain)))
+        .filter_map(|p| {
+            let plant_id = p.id();
+            state
+                .find_brain(plant_id)
+                .map(|brain| (plant_id, p.as_ref() as &(dyn PlantEntity + Sync), brain))
+        })
         .collect();
 
     // Paralléliser le calcul des inputs + forward pass (read-only sur le World)
     candidates
         .par_iter()
         .map(|(id, plant, brain)| {
-            let inputs = compute_inputs(plant, &state.world);
+            let inputs = compute_inputs(*plant, &state.world);
             let outputs = brain.forward(&inputs);
             (*id, outputs)
         })
@@ -268,6 +275,8 @@ fn phase_perception_decision(state: &SimState) -> Vec<(u64, [f32; 8])> {
 mod tests {
     use super::*;
 
+    use crate::domain::fixture::FixturePlant;
+    use crate::domain::plant::{ExudateType, Pos};
     use crate::domain::rng::test_utils::MockRng;
 
     fn make_state(rng: &mut dyn Rng) -> SimState {
@@ -338,7 +347,7 @@ mod tests {
         let plant = Plant::new(1, pos, genome.traits, lineage);
         state.brains.insert(1, genome.brain);
         state.plant_stats.insert(1, PlantStats::default());
-        state.plants.push(plant);
+        state.plants.push(Box::new(plant));
 
         // La plante est une graine
         assert_eq!(state.plants[0].state(), PlantState::Seed);
@@ -381,7 +390,7 @@ mod tests {
 
         state.brains.insert(1, genome.brain);
         state.plant_stats.insert(1, PlantStats::default());
-        state.plants.push(plant);
+        state.plants.push(Box::new(plant));
 
         let _events = run_tick(&mut state, &mut rng);
 
@@ -427,7 +436,7 @@ mod tests {
 
         state.brains.insert(1, genome.brain);
         state.plant_stats.insert(1, PlantStats::default());
-        state.plants.push(plant);
+        state.plants.push(Box::new(plant));
 
         // Mesurer le carbone initial sous la plante
         let carbon_before = state.world.get(&pos).map(|c| c.carbon()).unwrap_or(0.0);
@@ -594,5 +603,46 @@ mod tests {
             // Smoke test reussi : la simulation n'a pas crashe
             // La reproduction depend de positions aleatoires et de terrain libre
         }
+    }
+
+    #[test]
+    fn simstate_avec_fixture_et_plant() {
+        // Verifier que SimState gere un mix de Plant et FixturePlant sans crash
+        let mut rng = MockRng::new(0.3, 0.07);
+        let mut state = SimState::new(0.5, 1, &mut rng);
+
+        // Ajouter une FixturePlant sur une cellule terrestre libre
+        let land_cells = state.island.land_cells();
+        if land_cells.is_empty() {
+            return;
+        }
+        // Trouver une cellule non occupee par la Plant existante
+        let occupied: Vec<Pos> = state
+            .plants
+            .iter()
+            .flat_map(|p| p.footprint().to_vec())
+            .collect();
+        let fixture_pos = land_cells
+            .iter()
+            .find(|p| !occupied.contains(p))
+            .copied();
+        let Some(pos) = fixture_pos else { return };
+
+        let fixture = FixturePlant::new(999, pos, ExudateType::Carbon, 3);
+        state.plants.push(Box::new(fixture));
+
+        // Faire tourner 10 ticks — aucun crash attendu
+        for _ in 0..10 {
+            run_tick(&mut state, &mut rng);
+        }
+
+        // La fixture doit toujours etre vivante
+        let fixture_alive = state
+            .plants
+            .iter()
+            .find(|p| p.id() == 999)
+            .map(|p| !p.is_dead())
+            .unwrap_or(false);
+        assert!(fixture_alive, "la fixture doit toujours etre vivante apres 10 ticks");
     }
 }

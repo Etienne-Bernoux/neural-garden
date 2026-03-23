@@ -66,7 +66,7 @@ mod tests {
         plant.damage(2.0);
 
         // Plant → PlantDto → JSON → PlantDto → Plant
-        let dto = PlantDto::from(&plant);
+        let dto = PlantDto::from(&plant as &dyn crate::domain::traits::PlantEntity);
         let json = serde_json::to_string(&dto).expect("serialisation echouee");
         let dto2: PlantDto = serde_json::from_str(&json).expect("deserialisation echouee");
         let plant2 = dto2.to_domain();

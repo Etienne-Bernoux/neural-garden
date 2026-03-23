@@ -171,6 +171,10 @@ Algorithme génétique en bacs isolés. Chaque génome est testé individuelleme
 | Exsudation | Normal | Partenaire exsudateur | Opportuniste ("lierre") |
 | Mixte | Normal | Fixatrice + compétiteur | Adaptable ("hêtre") |
 
+#### Phase 9a-R0 — Refactoring Plant en traits ✅
+
+5 sous-traits (PlantIdentity, PlantVitals, PlantSpatial, PlantGenetics, PlantReproduction) + super-trait PlantEntity. SimState migré vers Vec<Box<dyn PlantEntity>>. FixturePlant (immortelle, déterministe) pour la pépinière.
+
 #### Phase 9a — Infra pépinière
 
 | Tâche | Critère de done |

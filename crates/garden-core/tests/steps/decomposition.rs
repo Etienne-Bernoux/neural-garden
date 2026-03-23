@@ -54,7 +54,7 @@ fn setup_decomposing_plant(world: &mut GardenWorld, carbon: f32, nitrogen: f32) 
     state
         .plant_stats
         .insert(state.next_plant_id, PlantStats::default());
-    state.plants.push(plant);
+    state.plants.push(Box::new(plant));
     state.next_plant_id += 1;
 
     // Capturer le carbone avant
@@ -114,7 +114,7 @@ async fn plante_morte_decomposition_sur_sol(world: &mut GardenWorld) {
     state
         .plant_stats
         .insert(state.next_plant_id, PlantStats::default());
-    state.plants.push(plant);
+    state.plants.push(Box::new(plant));
     state.next_plant_id += 1;
 
     // Capturer le carbone du sol avant decomposition

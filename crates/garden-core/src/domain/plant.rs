@@ -666,6 +666,176 @@ impl Plant {
     }
 }
 
+// --- Implementations des traits PlantEntity pour Plant ---
+
+use super::traits::{
+    PlantEntity, PlantGenetics, PlantIdentity, PlantReproduction, PlantSpatial, PlantVitals,
+};
+
+impl PlantIdentity for Plant {
+    fn id(&self) -> u64 {
+        self.id()
+    }
+
+    fn lineage(&self) -> &Lineage {
+        self.lineage()
+    }
+
+    fn ancestors(&self) -> &[u64] {
+        self.ancestors()
+    }
+
+    fn parent_id(&self) -> Option<u64> {
+        self.parent_id()
+    }
+
+    fn generation_depth(&self) -> usize {
+        self.generation_depth()
+    }
+}
+
+impl PlantVitals for Plant {
+    fn vitality(&self) -> &Vitality {
+        self.vitality()
+    }
+
+    fn energy(&self) -> &Energy {
+        self.energy()
+    }
+
+    fn biomass(&self) -> &Biomass {
+        self.biomass()
+    }
+
+    fn state(&self) -> PlantState {
+        self.state()
+    }
+
+    fn is_dead(&self) -> bool {
+        self.is_dead()
+    }
+
+    fn age(&self) -> u32 {
+        self.age()
+    }
+
+    fn damage(&mut self, amount: f32) {
+        self.damage(amount);
+    }
+
+    fn heal(&mut self, amount: f32) {
+        self.heal(amount);
+    }
+
+    fn consume_energy(&mut self, amount: f32) {
+        self.consume_energy(amount);
+    }
+
+    fn gain_energy(&mut self, amount: f32) {
+        self.gain_energy(amount);
+    }
+
+    fn tick(&mut self) {
+        self.tick();
+    }
+
+    fn update_state(&mut self) -> Option<DomainEvent> {
+        self.update_state()
+    }
+
+    fn start_decomposition(&mut self, ticks: u32) {
+        self.start_decomposition(ticks);
+    }
+
+    fn decompose_tick(&mut self, total_ticks: u32) -> (f32, f32) {
+        self.decompose_tick(total_ticks)
+    }
+
+    fn is_fully_decomposed(&self) -> bool {
+        self.is_fully_decomposed()
+    }
+
+    fn decomposition_remaining(&self) -> u32 {
+        self.decomposition_remaining()
+    }
+
+    fn carbon_to_release(&self) -> f32 {
+        self.carbon_to_release()
+    }
+
+    fn nitrogen_to_release(&self) -> f32 {
+        self.nitrogen_to_release()
+    }
+}
+
+impl PlantSpatial for Plant {
+    fn footprint(&self) -> &[Pos] {
+        self.footprint()
+    }
+
+    fn canopy(&self) -> &[Pos] {
+        self.canopy()
+    }
+
+    fn roots(&self) -> &[Pos] {
+        self.roots()
+    }
+
+    fn max_canopy(&self) -> usize {
+        self.max_canopy()
+    }
+
+    fn max_roots(&self) -> usize {
+        self.max_roots()
+    }
+
+    fn grow_footprint(&mut self, pos: Pos) -> DomainEvent {
+        self.grow_footprint(pos)
+    }
+
+    fn grow_canopy(&mut self, pos: Pos) -> Option<DomainEvent> {
+        self.grow_canopy(pos)
+    }
+
+    fn grow_roots(&mut self, pos: Pos) -> Option<DomainEvent> {
+        self.grow_roots(pos)
+    }
+
+    fn shrink(&mut self) -> Option<DomainEvent> {
+        self.shrink()
+    }
+
+    fn remove_footprint_cell(&mut self, pos: &Pos) -> bool {
+        self.remove_footprint_cell(pos)
+    }
+
+    fn germinate(&mut self) -> Option<DomainEvent> {
+        self.germinate()
+    }
+}
+
+impl PlantGenetics for Plant {
+    fn genetics(&self) -> &GeneticTraits {
+        self.genetics()
+    }
+}
+
+impl PlantReproduction for Plant {
+    fn seed_progress(&self) -> f32 {
+        self.seed_progress()
+    }
+
+    fn add_seed_progress(&mut self, amount: f32) {
+        self.add_seed_progress(amount);
+    }
+
+    fn consume_seed_progress(&mut self, amount: f32) {
+        self.consume_seed_progress(amount);
+    }
+}
+
+impl PlantEntity for Plant {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
