@@ -192,7 +192,7 @@ Algorithme génétique en bacs isolés. Chaque génome est testé individuelleme
 
 **Done** ✅ — 10 environnements avec régénération sol variable. Scoring multi-env. 6 tests nursery.
 
-#### Phase 9c — Boucle génétique + multi-thread
+#### Phase 9c — Boucle génétique + multi-thread ✅
 
 | Tâche | Critère de done |
 |---|---|
@@ -200,6 +200,8 @@ Algorithme génétique en bacs isolés. Chaque génome est testé individuelleme
 | Parallélisation rayon (génome × env indépendants) | Multi-cœurs utilisés |
 | Sauvegarde auto : `nursery/gen_042_best.json` à chaque génération | Persistance + reprise possible |
 | `garden nursery --resume nursery/` | Reprise d'entraînement |
+
+**Done** ✅ — `run_nursery_env` (boucle génétique mono-env), `run_nursery_all` (parallèle rayon sur tous les envs), `save_generation` / `export_champions` / `load_champions` (persistance + roundtrip). 161 tests, 0 clippy warning.
 
 #### Phase 9d — CLI TUI + headless + commit
 
