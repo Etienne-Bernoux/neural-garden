@@ -203,16 +203,16 @@ Algorithme génétique en bacs isolés. Chaque génome est testé individuelleme
 
 **Done** ✅ — `run_nursery_env` (boucle génétique mono-env), `run_nursery_all` (parallèle rayon sur tous les envs), `save_generation` / `export_champions` / `load_champions` (persistance + roundtrip). 161 tests, 0 clippy warning.
 
-#### Phase 9d — CLI headless + commit (TUI reportée)
+#### Phase 9d — CLI headless + commit + TUI ✅
 
 | Tâche | Critère de done | Statut |
 |---|---|---|
 | `garden nursery --no-tui` — logs texte (gen, best, avg, worst, temps) + mode verbose | Mode agent/scripting | ✅ |
 | `garden nursery commit --output seeds/v1.json` — figer les meilleurs | Banque versionnable dans git | ✅ |
 | `garden nursery --bank seeds/v1.json` — reprise d'entraînement avec banque pré-entraînée | Intégration complète | ✅ |
-| `garden nursery` — TUI ratatui (gen, scores, distribution, contrôles) | Dashboard interactif | ⏳ reportée |
+| `garden nursery` — TUI ratatui (gen, scores, distribution, contrôles) | Dashboard interactif | ✅ |
 
-**Done partiel** ✅ — Mode headless (`--no-tui` normal + verbose), commit (`nursery commit --output`), et reprise (`nursery --bank`) fonctionnels. TUI ratatui reportée.
+**Done** ✅ — Mode headless (`--no-tui` normal + verbose), commit (`nursery commit --output`), reprise (`nursery --bank`), et TUI ratatui fonctionnels.
 
 ### Phase 10 — Stades de croissance (8 stades)
 

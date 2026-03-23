@@ -8,6 +8,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
+use crate::nursery_snapshot::{NurserySnapshot, NurseryViewMode};
 use crate::snapshot::SimSnapshot;
 use crate::ui;
 use crate::ui::AppMode;
@@ -32,6 +33,18 @@ impl Tui {
     pub fn draw(&mut self, snapshot: &SimSnapshot, mode: AppMode) -> io::Result<()> {
         self.terminal.draw(|frame| {
             ui::render(frame, snapshot, mode);
+        })?;
+        Ok(())
+    }
+
+    /// Dessine le TUI nursery a partir d'un snapshot et du mode d'affichage.
+    pub fn draw_nursery(
+        &mut self,
+        snapshot: &NurserySnapshot,
+        mode: &NurseryViewMode,
+    ) -> io::Result<()> {
+        self.terminal.draw(|frame| {
+            ui::render_nursery(frame, snapshot, mode);
         })?;
         Ok(())
     }

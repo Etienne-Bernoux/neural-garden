@@ -1,6 +1,8 @@
 // CLI pour Neural Garden — lance la simulation ou gere la configuration.
 
 mod live;
+mod nursery_runner;
+mod nursery_snapshot;
 mod runner;
 mod server;
 mod snapshot;
@@ -25,6 +27,8 @@ use garden_core::infra::persistence::{
 use garden_core::infra::replay::{ReplayConfig, ReplayRecorder};
 use garden_core::infra::rng::SeededRng;
 
+use crate::nursery_runner::{spawn_nursery, NurseryControls};
+use crate::nursery_snapshot::{NurserySnapshot, NurseryViewMode};
 use crate::runner::{spawn_simulation, SimControls};
 use crate::snapshot::SimSnapshot;
 use crate::tui::Tui;
@@ -107,6 +111,10 @@ enum Commands {
         #[arg(long)]
         bank: Option<String>,
 
+        /// Mode sans interface — logs texte
+        #[arg(long)]
+        no_tui: bool,
+
         /// Action optionnelle (commit)
         #[command(subcommand)]
         action: Option<NurseryAction>,
@@ -154,8 +162,30 @@ fn main() {
             seed,
             verbose,
             bank,
+            no_tui,
             action,
-        } => cmd_nursery(&config, generations, population, seed, verbose, bank.as_deref(), action),
+        } => {
+            if no_tui {
+                cmd_nursery_headless(
+                    &config,
+                    generations,
+                    population,
+                    seed,
+                    verbose,
+                    bank.as_deref(),
+                    action,
+                )
+            } else {
+                cmd_nursery_tui(
+                    &config,
+                    generations,
+                    population,
+                    seed,
+                    bank.as_deref(),
+                    action,
+                )
+            }
+        }
     };
 
     if let Err(e) = result {
@@ -454,8 +484,165 @@ fn cmd_config_init() -> Result<(), String> {
     Ok(())
 }
 
-/// Pepiniere — pre-entrainement genetique des graines.
-fn cmd_nursery(
+/// Pepiniere TUI — pre-entrainement genetique avec interface ratatui.
+fn cmd_nursery_tui(
+    config_path: &str,
+    generations: u32,
+    population: usize,
+    seed: u64,
+    bank: Option<&str>,
+    action: Option<NurseryAction>,
+) -> Result<(), String> {
+    // 1. Charger les environnements
+    let path = Path::new(config_path);
+    let envs = garden_core::load_nursery_environments(path)
+        .map_err(|e| format!("Erreur chargement config: {e}"))?;
+
+    // 2. Charger la banque si --bank fourni
+    let initial_genomes = if let Some(bank_path) = bank {
+        let bank_file = Path::new(bank_path);
+        let (dto, genomes) = garden_core::load_seed_bank(bank_file)
+            .map_err(|e| format!("Erreur chargement banque: {e}"))?;
+        let best = dto
+            .champions
+            .iter()
+            .map(|c| c.fitness)
+            .fold(0.0_f32, f32::max);
+        eprintln!(
+            "Reprise depuis {} ({} champions, best: {:.4})",
+            bank_path,
+            genomes.len(),
+            best
+        );
+        Some(genomes)
+    } else {
+        None
+    };
+
+    // 3. Initialiser le snapshot
+    let mut snapshot = NurserySnapshot::new(&envs, generations, population, seed);
+    let mut view_mode = NurseryViewMode::Recap;
+
+    // 4. Channel + controls
+    let (tx, rx) = mpsc::channel();
+    let controls = NurseryControls::new();
+
+    // 5. Spawner le thread nursery
+    let handle = spawn_nursery(
+        envs.clone(),
+        generations,
+        population,
+        seed,
+        initial_genomes,
+        controls.clone(),
+        tx,
+    );
+
+    // 6. Initialiser le TUI
+    let mut tui = Tui::new().map_err(|e| e.to_string())?;
+
+    // 7. Event loop
+    loop {
+        // Poll clavier (33ms ~ 30fps)
+        if event::poll(Duration::from_millis(33)).unwrap_or(false) {
+            if let Ok(Event::Key(key)) = event::read() {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') => {
+                            controls.request_quit();
+                            break;
+                        }
+                        KeyCode::Char('p') => {
+                            controls.toggle_pause();
+                            snapshot.paused = controls.is_paused();
+                        }
+                        KeyCode::Char('s') => {
+                            // Save seulement si termine
+                            if snapshot.finished {
+                                if let Some(results) = &snapshot.results {
+                                    let save_path = Path::new("seeds/latest.json");
+                                    if let Err(e) =
+                                        garden_core::export_seed_bank(results, save_path)
+                                    {
+                                        eprintln!("Erreur save: {e}");
+                                    }
+                                }
+                            }
+                        }
+                        KeyCode::Up => {
+                            if let NurseryViewMode::Recap = &view_mode {
+                                if snapshot.selected_env > 0 {
+                                    snapshot.selected_env -= 1;
+                                } else {
+                                    snapshot.selected_env =
+                                        snapshot.envs.len().saturating_sub(1);
+                                }
+                            }
+                        }
+                        KeyCode::Down => {
+                            if let NurseryViewMode::Recap = &view_mode {
+                                snapshot.selected_env =
+                                    (snapshot.selected_env + 1) % snapshot.envs.len().max(1);
+                            }
+                        }
+                        KeyCode::Enter => {
+                            if let NurseryViewMode::Recap = &view_mode {
+                                view_mode = NurseryViewMode::Zoom(snapshot.selected_env);
+                            }
+                        }
+                        KeyCode::Esc => {
+                            view_mode = NurseryViewMode::Recap;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Drainer les updates du channel
+        while let Ok(update) = rx.try_recv() {
+            snapshot.apply_update(update);
+        }
+
+        // Dessiner
+        tui.draw_nursery(&snapshot, &view_mode)
+            .map_err(|e| format!("Erreur draw: {e}"))?;
+    }
+
+    // 8. Attendre la fin du thread nursery
+    let _ = handle.join();
+
+    // 9. Restaurer le terminal
+    tui.restore().map_err(|e| e.to_string())?;
+
+    // 10. Afficher le resume en mode texte apres la TUI
+    if let Some(results) = &snapshot.results {
+        println!("\n--- Resume ---");
+        for r in results {
+            println!(
+                "{:20} | fitness: {:.4} | {} generations",
+                r.env_name, r.fitness, r.generations_run
+            );
+        }
+
+        // Commit si demande
+        if let Some(NurseryAction::Commit { output }) = &action {
+            let output_path = Path::new(output);
+            garden_core::export_seed_bank(results, output_path)
+                .map_err(|e| format!("Erreur export: {e}"))?;
+            println!(
+                "Seed bank exportee vers {} ({} champions)",
+                output,
+                results.len()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// Pepiniere headless — pre-entrainement genetique des graines (mode texte).
+fn cmd_nursery_headless(
     config_path: &str,
     generations: u32,
     population: usize,

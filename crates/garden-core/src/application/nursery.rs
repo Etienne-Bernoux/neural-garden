@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use crate::domain::brain::Brain;
-use crate::domain::plant::{ExudateType, Lineage, Plant, Pos};
+use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, Pos};
 use crate::domain::rng::Rng;
 use crate::domain::traits::PlantEntity;
 use crate::domain::world::World;
@@ -18,6 +18,7 @@ use crate::domain::fixture::FixturePlant;
 // --- Configuration ---
 
 /// Configuration d'un bac de pepiniere.
+#[derive(Clone)]
 pub struct BedConfig {
     pub grid_size: u16,
     pub initial_carbon: f32,
@@ -35,6 +36,7 @@ pub struct BedConfig {
 }
 
 /// Configuration d'une fixture dans un bac.
+#[derive(Clone)]
 pub struct FixtureConfig {
     pub position: Pos,
     pub exudate_type: ExudateType,
@@ -43,6 +45,7 @@ pub struct FixtureConfig {
 }
 
 /// Comportement deterministe d'une fixture.
+#[derive(Clone)]
 pub enum FixtureBehavior {
     /// Exsude une ressource autour d'elle chaque tick
     Exuder { rate: f32 },
@@ -762,6 +765,7 @@ pub fn evaluate_genome_multi(
 // --- Boucle genetique ---
 
 /// Resultat d'un entrainement pour un environnement.
+#[derive(Clone)]
 pub struct NurseryResult {
     pub env_name: String,
     pub champion: Genome,
@@ -771,6 +775,7 @@ pub struct NurseryResult {
 
 /// Rapport de progression d'une generation dans la pepiniere.
 /// Transmis via le callback pour le reporting en temps reel.
+#[derive(Clone)]
 pub struct GenerationReport {
     /// Numero de la generation (0-indexed)
     pub generation: u32,
@@ -784,6 +789,8 @@ pub struct GenerationReport {
     pub elapsed_secs: f64,
     /// Stats detaillees du champion (pour le mode verbose)
     pub champion_stats: Option<PlantStats>,
+    /// Traits genetiques du champion (pour le mode TUI)
+    pub champion_traits: Option<GeneticTraits>,
 }
 
 /// Lance la boucle genetique pour un seul environnement.
@@ -854,6 +861,7 @@ pub fn run_nursery_env(
                 let (_, stats) = evaluate_genome(&scored[0].0, bed_config, rng);
                 Some(stats)
             };
+            let champion_traits = Some(scored[0].0.traits.clone());
             cb(&GenerationReport {
                 generation: gen,
                 best_fitness: gen_best,
@@ -861,6 +869,7 @@ pub fn run_nursery_env(
                 worst_fitness: gen_worst,
                 elapsed_secs: elapsed,
                 champion_stats,
+                champion_traits,
             });
         }
 

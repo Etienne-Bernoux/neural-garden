@@ -4,6 +4,8 @@ pub mod cooperation;
 pub mod evolution;
 pub mod island;
 pub mod logs;
+pub mod nursery_recap;
+pub mod nursery_zoom;
 pub mod population;
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -12,6 +14,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
+use crate::nursery_snapshot::{NurserySnapshot, NurseryViewMode};
 use crate::snapshot::SimSnapshot;
 
 /// Mode d'affichage du TUI : dashboard compact ou deep dive sur un panneau.
@@ -237,5 +240,14 @@ fn format_compact(value: f32) -> String {
         format!("{:.0}K", value / 1_000.0)
     } else {
         format!("{:.0}", value)
+    }
+}
+
+/// Rend le TUI nursery selon le mode d'affichage.
+pub fn render_nursery(frame: &mut Frame, snapshot: &NurserySnapshot, mode: &NurseryViewMode) {
+    let area = frame.area();
+    match mode {
+        NurseryViewMode::Recap => nursery_recap::render(frame, snapshot, area),
+        NurseryViewMode::Zoom(idx) => nursery_zoom::render(frame, snapshot, *idx, area),
     }
 }
