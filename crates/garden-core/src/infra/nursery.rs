@@ -1,4 +1,5 @@
 // Chargement des environnements nursery depuis un fichier YAML.
+// Persistance intermediaire et export/import des champions.
 // Les structs YAML intermediaires vivent ici (infra) pour ne pas polluer
 // application/ avec des derives serde.
 
@@ -115,6 +116,82 @@ pub fn load_nursery_environments(path: &Path) -> Result<Vec<(String, BedConfig)>
     Ok(envs)
 }
 
+// --- Persistance intermediaire ---
+
+use crate::application::evolution::Genome;
+use crate::application::nursery::NurseryResult;
+use crate::infra::dto::GenomeDto;
+use serde::Serialize;
+use std::fs;
+
+/// Struct intermediaire pour sauvegarder un genome avec sa fitness.
+#[derive(Serialize, Deserialize)]
+struct ScoredGenomeDto {
+    genome: GenomeDto,
+    fitness: f32,
+}
+
+/// Sauvegarde les top genomes d'une generation dans un fichier JSON.
+pub fn save_generation(
+    dir: &Path,
+    env_name: &str,
+    gen: u32,
+    top: &[(Genome, f32)],
+) -> Result<(), String> {
+    let env_dir = dir.join(env_name.replace(' ', "_"));
+    fs::create_dir_all(&env_dir).map_err(|e| e.to_string())?;
+
+    let path = env_dir.join(format!("gen_{:04}.json", gen));
+
+    let dtos: Vec<ScoredGenomeDto> = top
+        .iter()
+        .map(|(g, f)| ScoredGenomeDto {
+            genome: GenomeDto::from(g),
+            fitness: *f,
+        })
+        .collect();
+
+    let json = serde_json::to_string_pretty(&dtos).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+/// Exporte les champions (1 par env) dans des fichiers JSON individuels.
+pub fn export_champions(results: &[NurseryResult], output_dir: &Path) -> Result<(), String> {
+    fs::create_dir_all(output_dir).map_err(|e| e.to_string())?;
+
+    for result in results {
+        let filename = result.env_name.to_lowercase().replace(' ', "_") + ".json";
+        let path = output_dir.join(filename);
+
+        let dto = GenomeDto::from(&result.champion);
+        let json = serde_json::to_string_pretty(&dto).map_err(|e| e.to_string())?;
+        fs::write(&path, json).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/// Charge les champions depuis un dossier contenant des fichiers JSON de genomes.
+pub fn load_champions(dir: &Path) -> Result<Vec<Genome>, String> {
+    let mut genomes = Vec::new();
+
+    let entries = fs::read_dir(dir).map_err(|e| e.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.extension().map(|e| e == "json").unwrap_or(false) {
+            let json = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+            let dto: GenomeDto = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+            let genome = dto
+                .to_domain()
+                .ok_or_else(|| format!("Genome invalide dans {}", path.display()))?;
+            genomes.push(genome);
+        }
+    }
+
+    Ok(genomes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +228,44 @@ mod tests {
             .find(|(n, _)| n == "Mixte")
             .expect("Mixte should exist");
         assert_eq!(mixte.1.fixtures.len(), 2);
+    }
+
+    #[test]
+    fn export_et_reload_champions() {
+        use crate::application::nursery::{run_nursery_env, BedConfig};
+
+        let config = BedConfig::default();
+        let result = run_nursery_env("test_export", &config, 3, 10, 42, None);
+
+        let dir = std::env::temp_dir().join("neural_garden_test_seeds");
+        let _ = fs::remove_dir_all(&dir);
+
+        export_champions(&[result], &dir).expect("export devrait fonctionner");
+        let loaded = load_champions(&dir).expect("load devrait fonctionner");
+
+        assert_eq!(loaded.len(), 1, "devrait charger 1 champion");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_generation_cree_le_fichier() {
+        use crate::application::evolution::SeedBank;
+        use crate::domain::rng::test_utils::MockRng;
+
+        let dir = std::env::temp_dir().join("neural_garden_test_gen");
+        let _ = fs::remove_dir_all(&dir);
+
+        let mut rng = MockRng::new(0.42, 0.07);
+        let g1 = SeedBank::produce_fresh_seed(&mut rng);
+        let g2 = SeedBank::produce_fresh_seed(&mut rng);
+        let top = vec![(g1, 100.0), (g2, 80.0)];
+
+        save_generation(&dir, "Solo riche", 3, &top).expect("save devrait fonctionner");
+
+        let path = dir.join("Solo_riche").join("gen_0003.json");
+        assert!(path.exists(), "le fichier gen_0003.json devrait exister");
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

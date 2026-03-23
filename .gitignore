@@ -6,6 +6,7 @@
 garden.toml
 saves/
 replays/
+nursery/
 
 # Web viewer
 web/node_modules/

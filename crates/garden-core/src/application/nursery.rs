@@ -10,9 +10,14 @@ use crate::domain::rng::Rng;
 use crate::domain::traits::PlantEntity;
 use crate::domain::world::World;
 
-use crate::application::evolution::{evaluate_fitness, Genome, PlantStats};
+use rayon::prelude::*;
+
+use crate::application::evolution::{
+    evaluate_fitness, mutate_genome, Genome, PlantStats, SeedBank,
+};
 use crate::application::perception::compute_inputs;
 use crate::domain::fixture::FixturePlant;
+use crate::infra::rng::SeededRng;
 
 // --- Configuration ---
 
@@ -754,10 +759,117 @@ pub fn evaluate_genome_multi(
     (total, scores)
 }
 
+// --- Boucle genetique ---
+
+/// Resultat d'un entrainement pour un environnement.
+pub struct NurseryResult {
+    pub env_name: String,
+    pub champion: Genome,
+    pub fitness: f32,
+    pub generations_run: u32,
+}
+
+/// Lance la boucle genetique pour un seul environnement.
+/// Retourne le meilleur genome apres `generations` iterations.
+/// Chaque appel cree son propre rng a partir du seed fourni.
+pub fn run_nursery_env(
+    env_name: &str,
+    bed_config: &BedConfig,
+    generations: u32,
+    population: usize,
+    seed: u64,
+    on_generation: Option<&(dyn Fn(u32, f32, f32) + Sync)>,
+) -> NurseryResult {
+    let mut rng = SeededRng::new(seed);
+
+    // 1. Generer la population initiale
+    let mut genomes: Vec<Genome> = (0..population)
+        .map(|_| SeedBank::produce_fresh_seed(&mut rng))
+        .collect();
+
+    let mut best_genome = genomes[0].clone();
+    let mut best_fitness = 0.0_f32;
+
+    for gen in 0..generations {
+        // 2. Evaluer chaque genome
+        let mut scored: Vec<(Genome, f32)> = genomes
+            .into_iter()
+            .map(|g| {
+                let fitness = evaluate_genome(&g, bed_config, &mut rng);
+                (g, fitness)
+            })
+            .collect();
+
+        // 3. Trier par fitness decroissante
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        // 4. Stats de la generation
+        let gen_best = scored[0].1;
+        let gen_avg = scored.iter().map(|(_, f)| f).sum::<f32>() / scored.len() as f32;
+
+        if gen_best > best_fitness {
+            best_fitness = gen_best;
+            best_genome = scored[0].0.clone();
+        }
+
+        // Callback optionnel
+        if let Some(cb) = &on_generation {
+            cb(gen, gen_best, gen_avg);
+        }
+
+        // 5. Garder les top 10 (ou moins si population < 10)
+        let top: Vec<Genome> = scored
+            .into_iter()
+            .take(10.min(population))
+            .map(|(g, _)| g)
+            .collect();
+
+        // 6. Produire la nouvelle generation par mutations des parents
+        let mutations_per_parent = population / top.len().max(1);
+        genomes = Vec::with_capacity(population);
+        for parent in &top {
+            for _ in 0..mutations_per_parent {
+                let mut child = parent.clone();
+                mutate_genome(&mut child, &mut rng);
+                genomes.push(child);
+            }
+        }
+        // Completer si arrondi insuffisant
+        while genomes.len() < population {
+            let mut child = top[0].clone();
+            mutate_genome(&mut child, &mut rng);
+            genomes.push(child);
+        }
+    }
+
+    NurseryResult {
+        env_name: env_name.to_string(),
+        champion: best_genome,
+        fitness: best_fitness,
+        generations_run: generations,
+    }
+}
+
+/// Lance la pepiniere sur tous les environnements en parallele.
+/// Chaque environnement recoit un seed distinct derive du seed de base.
+pub fn run_nursery_all(
+    envs: &[(String, BedConfig)],
+    generations: u32,
+    population: usize,
+    seed: u64,
+) -> Vec<NurseryResult> {
+    envs.par_iter()
+        .enumerate()
+        .map(|(i, (name, config))| {
+            // Chaque env a son propre seed pour la reproductibilite
+            run_nursery_env(name, config, generations, population, seed + i as u64, None)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::evolution::SeedBank;
     use crate::domain::rng::test_utils::MockRng;
 
     fn make_test_genome(rng: &mut dyn Rng) -> Genome {
@@ -856,5 +968,38 @@ mod tests {
             fitness > 0.0,
             "avec une fixture fixatrice, la plante devrait survivre, got {fitness}"
         );
+    }
+
+    #[test]
+    fn boucle_genetique_ameliore_fitness() {
+        let config = BedConfig::default();
+        let result = run_nursery_env("test", &config, 5, 20, 42, None);
+        assert!(
+            result.fitness > 0.0,
+            "fitness apres 5 generations devrait etre > 0, got {}",
+            result.fitness
+        );
+        assert_eq!(result.generations_run, 5);
+        assert_eq!(result.env_name, "test");
+    }
+
+    #[test]
+    fn run_nursery_all_retourne_un_resultat_par_env() {
+        let envs = vec![
+            ("env_a".to_string(), BedConfig::default()),
+            (
+                "env_b".to_string(),
+                BedConfig {
+                    light_level: 0.5,
+                    ..BedConfig::default()
+                },
+            ),
+        ];
+        let results = run_nursery_all(&envs, 2, 10, 42);
+        assert_eq!(results.len(), 2);
+        // Chaque resultat a le bon nom d'environnement
+        let names: Vec<&str> = results.iter().map(|r| r.env_name.as_str()).collect();
+        assert!(names.contains(&"env_a"));
+        assert!(names.contains(&"env_b"));
     }
 }
