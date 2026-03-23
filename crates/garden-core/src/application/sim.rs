@@ -245,7 +245,7 @@ pub fn run_tick(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEvent> {
 
 // --- Phase 2 : Perception et decision ---
 
-fn phase_perception_decision(state: &SimState) -> Vec<(u64, [f32; 8])> {
+pub(crate) fn phase_perception_decision(state: &SimState) -> Vec<(u64, [f32; 8])> {
     // Collecter les plantes vivantes non-graines avec leur brain
     // Collecter les plantes vivantes non-graines avec leur brain
     let candidates: Vec<(u64, &(dyn PlantEntity + Sync), &Brain)> = state

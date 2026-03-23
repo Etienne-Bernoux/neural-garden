@@ -574,8 +574,7 @@ fn cmd_nursery_tui(
                                 if snapshot.selected_env > 0 {
                                     snapshot.selected_env -= 1;
                                 } else {
-                                    snapshot.selected_env =
-                                        snapshot.envs.len().saturating_sub(1);
+                                    snapshot.selected_env = snapshot.envs.len().saturating_sub(1);
                                 }
                             }
                         }
@@ -620,8 +619,10 @@ fn cmd_nursery_tui(
         println!("\n--- Resume ---");
         for r in results {
             println!(
-                "{:20} | fitness: {:.4} | {} generations",
-                r.env_name, r.fitness, r.generations_run
+                "{:20} | fitness: {:.4} | {} gen | max_size={} type={:?}",
+                r.env_name, r.fitness, r.generations_run,
+                r.champion.traits.max_size(),
+                r.champion.traits.exudate_type(),
             );
         }
 
@@ -712,13 +713,17 @@ fn cmd_nursery_headless(
                 if multi {
                     print!("{:18}", "");
                 }
+                let traits_info = report.champion_traits.as_ref()
+                    .map(|t| format!("max_size={} type={:?}", t.max_size(), t.exudate_type()))
+                    .unwrap_or_default();
                 println!(
-                    "  champion: biomass={} territory={} seeds={} symbiosis={} cn_exchanges={:.1}",
+                    "  champion: biomass={} territory={} seeds={} symbiosis={} cn_exchanges={:.1} {}",
                     stats.max_biomass,
                     stats.max_territory,
                     stats.seeds_produced,
                     stats.symbiotic_connections,
                     stats.cn_exchanges,
+                    traits_info,
                 );
             }
         }
@@ -738,8 +743,10 @@ fn cmd_nursery_headless(
     println!("\n--- Resume ---");
     for r in &results {
         println!(
-            "{:20} | fitness: {:.4} | {} generations",
-            r.env_name, r.fitness, r.generations_run
+            "{:20} | fitness: {:.4} | {} gen | max_size={} type={:?}",
+            r.env_name, r.fitness, r.generations_run,
+            r.champion.traits.max_size(),
+            r.champion.traits.exudate_type(),
         );
     }
 

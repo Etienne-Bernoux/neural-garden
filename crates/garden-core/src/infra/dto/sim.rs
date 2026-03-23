@@ -154,6 +154,8 @@ pub struct SimConfigDto {
     pub seed_energy_threshold: f32,
     #[serde(default = "default_ticks_per_season")]
     pub ticks_per_season: u32,
+    #[serde(default)]
+    pub nursery_mode: bool,
 }
 
 fn default_aging_base_rate() -> f32 {
@@ -237,6 +239,7 @@ impl From<&SimConfig> for SimConfigDto {
             seed_energy_cost: c.seed_energy_cost,
             seed_energy_threshold: c.seed_energy_threshold,
             ticks_per_season: c.ticks_per_season,
+            nursery_mode: c.nursery_mode,
         }
     }
 }
@@ -286,6 +289,7 @@ impl SimConfigDto {
             seed_energy_cost: self.seed_energy_cost,
             seed_energy_threshold: self.seed_energy_threshold,
             ticks_per_season: self.ticks_per_season,
+            nursery_mode: self.nursery_mode,
         }
     }
 }

@@ -5,7 +5,7 @@ use crate::application::evolution::{
     evaluate_fitness, mutate_genome, Genome, PlantStats, SeedBank,
 };
 use crate::domain::events::DomainEvent;
-use crate::domain::plant::{Lineage, Plant, PlantState, Pos};
+use crate::domain::plant::{ExudateType, Lineage, Plant, PlantState, Pos};
 use crate::domain::rng::Rng;
 
 /// Phase 4 : reproduction, verification des morts, pluie de graines, dormance/germination et GC.
@@ -91,16 +91,19 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
                 state.plants[i].ancestors(),
             );
 
-            new_seeds.push((Box::new(child), genome.brain));
+            // En mode nursery, on ne disperse pas la graine sur la map
+            if !state.config.nursery_mode {
+                new_seeds.push((Box::new(child), genome.brain));
 
-            events.push(DomainEvent::Born {
-                plant_id: child_id,
-                parent_id: Some(parent_id),
-                position: target,
-                lineage,
-            });
+                events.push(DomainEvent::Born {
+                    plant_id: child_id,
+                    parent_id: Some(parent_id),
+                    position: target,
+                    lineage,
+                });
+            }
 
-            // Stats
+            // Stats — toujours compter pour la fitness, meme en nursery
             if let Some(stats) = state.find_stats_mut(parent_id) {
                 stats.seeds_produced += 1;
             }
@@ -192,6 +195,7 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
     // Filet de securite : pluie de graines seulement si tres peu de plantes germees
     if state.tick_count > 0
         && germinated_count < 10
+        && !state.config.nursery_mode
         && state
             .tick_count
             .is_multiple_of(state.config.seed_rain_interval)
@@ -281,13 +285,20 @@ pub fn phase_lifecycle(state: &mut SimState, rng: &mut dyn Rng) -> Vec<DomainEve
         }
 
         // Germination si sol assez riche
+        // Les specialistes s'affranchissent de leur ressource :
+        // - fixatrice N (exudate=Nitrogen) : pas besoin de N dans le sol
+        // - capteur C (exudate=Carbon) : pas besoin de C dans le sol
         let pos = plant.footprint()[0];
+        let exudate_type = plant.genetics().exudate_type();
         let can_germinate = state
             .world
             .get(&pos)
             .map(|cell| {
-                cell.carbon() > state.config.germination_carbon_min
-                    && cell.nitrogen() > state.config.germination_nitrogen_min
+                let c_ok = exudate_type == ExudateType::Carbon
+                    || cell.carbon() > state.config.germination_carbon_min;
+                let n_ok = exudate_type == ExudateType::Nitrogen
+                    || cell.nitrogen() > state.config.germination_nitrogen_min;
+                c_ok && n_ok
             })
             .unwrap_or(false);
 

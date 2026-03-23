@@ -25,8 +25,11 @@ pub fn render(frame: &mut Frame, snapshot: &NurserySnapshot, env_index: usize, a
         " {} — Gen {}/{}",
         env.name, env.current_gen, snapshot.total_generations,
     );
-    let header = Paragraph::new(header_text)
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD));
+    let header = Paragraph::new(header_text).style(
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    );
     frame.render_widget(header, chunks[0]);
 
     // Split horizontal : historique (gauche) + details (droite)
@@ -91,10 +94,8 @@ fn render_champion_detail(
     env: &crate::nursery_snapshot::EnvSnapshot,
     area: Rect,
 ) {
-    let mut lines = vec![
-        Line::from(format!(" Fitness: {:.4}", env.best_fitness))
-            .style(Style::default().fg(Color::Yellow)),
-    ];
+    let mut lines = vec![Line::from(format!(" Fitness: {:.4}", env.best_fitness))
+        .style(Style::default().fg(Color::Yellow))];
 
     if let Some(stats) = &env.champion_stats {
         lines.push(Line::from(""));

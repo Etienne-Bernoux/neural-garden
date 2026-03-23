@@ -119,7 +119,7 @@ fn render_table(frame: &mut Frame, snapshot: &NurserySnapshot, area: Rect) {
     let table = Table::new(
         rows,
         [
-            Constraint::Min(20),   // Env
+            Constraint::Min(20),    // Env
             Constraint::Length(10), // Best
             Constraint::Length(10), // Avg
             Constraint::Length(10), // Worst

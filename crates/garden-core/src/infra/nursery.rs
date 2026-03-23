@@ -8,6 +8,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::application::nursery::{BedConfig, FixtureBehavior, FixtureConfig};
+use crate::application::season::Season;
 use crate::domain::plant::{ExudateType, Pos};
 
 // --- Structs YAML intermediaires ---
@@ -30,6 +31,8 @@ struct YamlBedConfig {
     humidity_regen_rate: f32,
     max_ticks: u32,
     fixtures: Vec<YamlFixtureConfig>,
+    #[serde(default)]
+    locked_season: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -69,6 +72,16 @@ fn parse_exudate_type(s: &str) -> ExudateType {
     }
 }
 
+fn parse_season(s: &str) -> Option<Season> {
+    match s {
+        "Spring" => Some(Season::Spring),
+        "Summer" => Some(Season::Summer),
+        "Autumn" => Some(Season::Autumn),
+        "Winter" => Some(Season::Winter),
+        _ => None,
+    }
+}
+
 impl From<YamlFixtureConfig> for FixtureConfig {
     fn from(yaml: YamlFixtureConfig) -> Self {
         FixtureConfig {
@@ -96,6 +109,7 @@ impl From<YamlBedConfig> for (String, BedConfig) {
             humidity_regen_rate: yaml.humidity_regen_rate,
             max_ticks: yaml.max_ticks,
             fixtures: yaml.fixtures.into_iter().map(Into::into).collect(),
+            locked_season: yaml.locked_season.as_deref().and_then(parse_season),
         };
         (yaml.name, config)
     }
@@ -143,13 +157,12 @@ pub fn run_nursery_all(
             let mut rng = SeededRng::new(seed + i as u64);
             // Adapter le callback : ajouter le nom d'env
             #[allow(clippy::type_complexity)]
-            let env_cb: Option<Box<dyn Fn(&GenerationReport) + Sync>> =
-                on_generation.map(|cb| {
-                    let name = name.clone();
-                    Box::new(move |report: &GenerationReport| {
-                        cb(&name, report);
-                    }) as Box<dyn Fn(&GenerationReport) + Sync>
-                });
+            let env_cb: Option<Box<dyn Fn(&GenerationReport) + Sync>> = on_generation.map(|cb| {
+                let name = name.clone();
+                Box::new(move |report: &GenerationReport| {
+                    cb(&name, report);
+                }) as Box<dyn Fn(&GenerationReport) + Sync>
+            });
             run_nursery_env(
                 name,
                 config,
@@ -278,8 +291,8 @@ pub fn export_seed_bank(results: &[NurseryResult], output: &Path) -> Result<(), 
 /// Charge une banque de graines depuis un fichier JSON.
 /// Retourne le DTO complet et les genomes extraits.
 pub fn load_seed_bank(path: &Path) -> Result<(SeedBankExportDto, Vec<Genome>), String> {
-    let content =
-        fs::read_to_string(path).map_err(|e| format!("Erreur lecture {}: {}", path.display(), e))?;
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("Erreur lecture {}: {}", path.display(), e))?;
 
     let export: SeedBankExportDto = serde_json::from_str(&content)
         .map_err(|e| format!("Erreur parsing {}: {}", path.display(), e))?;

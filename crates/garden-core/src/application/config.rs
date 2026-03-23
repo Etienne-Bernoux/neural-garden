@@ -61,6 +61,9 @@ pub struct SimConfig {
 
     // Saisons
     pub ticks_per_season: u32,
+
+    // Mode nursery (pas de dispersion, pas de seed rain)
+    pub nursery_mode: bool,
 }
 
 impl Default for SimConfig {
@@ -116,6 +119,8 @@ impl Default for SimConfig {
             seed_energy_threshold: 15.0,
 
             ticks_per_season: 360, // 250 → 360 (1 an = 1440 ticks)
+
+            nursery_mode: false,
         }
     }
 }
