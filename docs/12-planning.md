@@ -152,18 +152,57 @@ Caméra FPS (ZQSD + WASD, pointer lock, saut, taille humaine 1.7m). 4 archétype
 
 ### Phase 9 — Pépinière (pre-training)
 
-Étape CLI séparée qui forge une banque de graines diversifiée et qualitative avant la simulation principale.
+Algorithme génétique en bacs isolés. Chaque génome est testé individuellement dans 10 environnements. Les meilleurs sont sélectionnés, mutés, et re-testés. Multi-threadé via rayon.
+
+**Boucle** : 100 génomes → évaluer chacun dans 10 envs → trier → top 10 → 100 graines mutées → itérer.
+
+**Environnements** (cibles théoriques — l'évolution trouvera peut-être mieux) :
+
+| Env | Setup | Fixture | Cible potentielle |
+|---|---|---|---|
+| Solo riche | C+N abondant | Aucune | Généraliste robuste ("chêne") |
+| Carence N | Zéro N | Aucune | Fixatrice pionnière ("trèfle") |
+| Carence C | C faible | Aucune | Optimiseur solaire ("fougère") |
+| Avec fixatrice | Pauvre N | Fixatrice artificielle | Coopérateur ("bouleau") |
+| Avec arbre | Normal | Arbre ombrageur | Plante d'ombre ("mousse") |
+| Hiver permanent | Hivernal | Aucune | Résistant froid ("pin") |
+| Sécheresse | Humidité basse | Aucune | Xérophyte ("cactus") |
+| Compétiteur | Normal | Plante agressive | Défenseur ("ronce") |
+| Exsudation | Normal | Partenaire exsudateur | Opportuniste ("lierre") |
+| Mixte | Normal | Fixatrice + compétiteur | Adaptable ("hêtre") |
+
+#### Phase 9a — Infra pépinière
 
 | Tâche | Critère de done |
 |---|---|
-| 10 micro-environnements variés (sol, lumière, humidité, taille) | Environnements différents qui sélectionnent des stratégies différentes |
-| Simulation courte (~5000 ticks) dans chaque environnement | Les génomes s'adaptent à leur environnement |
-| Collecte et fusion des meilleurs génomes | Banque diversifiée avec des spécialistes de chaque milieu |
-| CLI `garden nursery --environments 10 --ticks 5000 --output bank.json` | Commande fonctionnelle |
-| Intégration : `garden run --bank bank.json` | La simulation démarre avec des génomes pré-entraînés |
+| Micro-grille isolée (8×8), sol configurable | Bac fonctionnel |
+| Plantes artificielles (fixtures) déterministes | Fixtures placables dans un bac |
+| Fonction d'évaluation mono-génome (place, tourne, score) | Évaluer un génome dans un bac |
 
-L'avantage : les brains de départ ont déjà appris les bases (survivre, pousser, fixer N) dans des conditions variées. L'évolution sur l'île part d'un meilleur niveau.
-À brainstormer en profondeur avant implémentation.
+#### Phase 9b — 10 environnements + scoring
+
+| Tâche | Critère de done |
+|---|---|
+| 10 configs d'environnement avec fixtures | Chaque env sélectionne une stratégie |
+| Score multi-env pondéré | Score global pour un génome |
+
+#### Phase 9c — Boucle génétique + multi-thread
+
+| Tâche | Critère de done |
+|---|---|
+| Boucle évaluer → trier → top 10 → muter × 10 → répéter | La boucle tourne |
+| Parallélisation rayon (génome × env indépendants) | Multi-cœurs utilisés |
+| Sauvegarde auto : `nursery/gen_042_best.json` à chaque génération | Persistance + reprise possible |
+| `garden nursery --resume nursery/` | Reprise d'entraînement |
+
+#### Phase 9d — CLI TUI + headless + commit
+
+| Tâche | Critère de done |
+|---|---|
+| `garden nursery` — TUI ratatui (gen, scores, distribution, contrôles) | Dashboard interactif |
+| `garden nursery --no-tui` — logs texte (gen, best, avg, worst, temps) | Mode agent/scripting |
+| `garden nursery commit --output seeds/v1.json` — figer les meilleurs | Banque versionnable dans git |
+| `garden run --bank seeds/v1.json` — charger une banque pré-entraînée | Intégration complète |
 
 ### Phase 10 — Stades de croissance (8 stades)
 
