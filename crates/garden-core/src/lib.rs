@@ -27,4 +27,5 @@ pub use infra::persistence::{
     auto_save, get_auto_save_slot, load_state, save_state, should_auto_save,
 };
 pub use infra::replay::{ReplayConfig, ReplayRecorder};
+pub use infra::nursery::load_nursery_environments;
 pub use infra::rng::SeededRng;

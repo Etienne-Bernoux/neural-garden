@@ -1,0 +1,154 @@
+environments:
+  - name: Solo riche
+    grid_size: 16
+    initial_carbon: 0.5
+    initial_nitrogen: 0.3
+    initial_humidity: 0.5
+    light_level: 0.8
+    carbon_regen_rate: 0.002
+    nitrogen_regen_rate: 0.001
+    humidity_regen_rate: 0.01
+    max_ticks: 2000
+    fixtures: []
+
+  - name: Carence N
+    grid_size: 16
+    initial_carbon: 0.5
+    initial_nitrogen: 0.0
+    initial_humidity: 0.5
+    light_level: 0.8
+    carbon_regen_rate: 0.002
+    nitrogen_regen_rate: 0.0
+    humidity_regen_rate: 0.01
+    max_ticks: 2000
+    fixtures: []
+
+  - name: Carence C
+    grid_size: 16
+    initial_carbon: 0.05
+    initial_nitrogen: 0.3
+    initial_humidity: 0.5
+    light_level: 0.8
+    carbon_regen_rate: 0.0
+    nitrogen_regen_rate: 0.001
+    humidity_regen_rate: 0.01
+    max_ticks: 2000
+    fixtures: []
+
+  - name: Avec fixatrice
+    grid_size: 16
+    initial_carbon: 0.5
+    initial_nitrogen: 0.0
+    initial_humidity: 0.5
+    light_level: 0.8
+    carbon_regen_rate: 0.001
+    nitrogen_regen_rate: 0.0
+    humidity_regen_rate: 0.01
+    max_ticks: 2000
+    fixtures:
+      - position: [10, 8]
+        exudate_type: Nitrogen
+        biomass: 3
+        behavior:
+          type: Exuder
+          rate: 0.05
+
+  - name: Avec arbre
+    grid_size: 16
+    initial_carbon: 0.5
+    initial_nitrogen: 0.3
+    initial_humidity: 0.5
+    light_level: 0.8
+    carbon_regen_rate: 0.002
+    nitrogen_regen_rate: 0.001
+    humidity_regen_rate: 0.005
+    max_ticks: 2000
+    fixtures:
+      - position: [8, 10]
+        exudate_type: Carbon
+        biomass: 8
+        behavior:
+          type: Ombrager
+          radius: 4
+
+  - name: Hiver
+    grid_size: 16
+    initial_carbon: 0.3
+    initial_nitrogen: 0.1
+    initial_humidity: 0.3
+    light_level: 0.3
+    carbon_regen_rate: 0.0005
+    nitrogen_regen_rate: 0.0002
+    humidity_regen_rate: 0.005
+    max_ticks: 2000
+    fixtures: []
+
+  - name: Secheresse
+    grid_size: 16
+    initial_carbon: 0.5
+    initial_nitrogen: 0.2
+    initial_humidity: 0.05
+    light_level: 1.0
+    carbon_regen_rate: 0.001
+    nitrogen_regen_rate: 0.0005
+    humidity_regen_rate: 0.0
+    max_ticks: 2000
+    fixtures: []
+
+  - name: Competiteur
+    grid_size: 16
+    initial_carbon: 0.5
+    initial_nitrogen: 0.3
+    initial_humidity: 0.5
+    light_level: 0.8
+    carbon_regen_rate: 0.002
+    nitrogen_regen_rate: 0.001
+    humidity_regen_rate: 0.01
+    max_ticks: 2000
+    fixtures:
+      - position: [10, 8]
+        exudate_type: Carbon
+        biomass: 5
+        behavior:
+          type: Envahir
+
+  - name: Exsudation
+    grid_size: 16
+    initial_carbon: 0.3
+    initial_nitrogen: 0.1
+    initial_humidity: 0.5
+    light_level: 0.8
+    carbon_regen_rate: 0.0
+    nitrogen_regen_rate: 0.0
+    humidity_regen_rate: 0.005
+    max_ticks: 2000
+    fixtures:
+      - position: [10, 8]
+        exudate_type: Carbon
+        biomass: 3
+        behavior:
+          type: Exuder
+          rate: 0.03
+
+  - name: Mixte
+    grid_size: 16
+    initial_carbon: 0.4
+    initial_nitrogen: 0.1
+    initial_humidity: 0.4
+    light_level: 0.7
+    carbon_regen_rate: 0.001
+    nitrogen_regen_rate: 0.0
+    humidity_regen_rate: 0.008
+    max_ticks: 2000
+    fixtures:
+      - position: [10, 8]
+        exudate_type: Nitrogen
+        biomass: 3
+        behavior:
+          type: Exuder
+          rate: 0.03
+      - position: [6, 8]
+        exudate_type: Carbon
+        biomass: 4
+        behavior:
+          type: Envahir
