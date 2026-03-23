@@ -150,6 +150,39 @@ Caméra FPS (ZQSD + WASD, pointer lock, saut, taille humaine 1.7m). 4 archétype
 
 **Done** ✅ — Dashboard compact + 5 deep dives plein écran (Évolution, Population, Coopération, Île, Logs). Barres d'état et raccourcis permanentes. Toggle 1-5 + Esc. Nouvelles métriques (naissances/morts, âges, C/N, coopérateurs, sol, échanges, banque).
 
+### Phase 9 — Stades de croissance (8 stades)
+
+Refonte du cycle de vie : 8 stades avec avantages/inconvénients distincts. Le max_size du génome détermine le stade plafond. La maturité (reproduction) commence au stade Arbuste.
+
+| Stade | Biomasse | Avantage | Inconvénient |
+|---|---|---|---|
+| Germe | 1 | Invisible, 0 maintenance | Fragile, 0 photosynthèse |
+| Pousse | 2-3 | Croissance rapide, faible coût | Pas de reproduction |
+| Plantule | 4-6 | Début racines, résistant | Encore petit |
+| Arbuste | 7-10 | Première reproduction, couvert | Maintenance croissante |
+| Jeune arbre | 11-15 | Canopée, ombre | Coût énergie élevé |
+| Arbre | 16-22 | Photosynthèse forte, graines | Gros drain N |
+| Arbre mature | 23-30 | Peak reproduction, réseau racinaire | Vieillissement accéléré |
+| Vénérable | 31+ | Résilient, enrichit le sol | Croissance arrêtée, sénescence |
+
+Chaque stade influence : taux photosynthèse, coût maintenance, capacité reproduction, résistance, rendu visuel (archétypes).
+À brainstormer en profondeur avant implémentation.
+
+### Phase 10 — Pépinière (pre-training)
+
+Étape CLI séparée qui forge une banque de graines diversifiée et qualitative avant la simulation principale.
+
+| Tâche | Critère de done |
+|---|---|
+| 10 micro-environnements variés (sol, lumière, humidité, taille) | Environnements différents qui sélectionnent des stratégies différentes |
+| Simulation courte (~5000 ticks) dans chaque environnement | Les génomes s'adaptent à leur environnement |
+| Collecte et fusion des meilleurs génomes | Banque diversifiée avec des spécialistes de chaque milieu |
+| CLI `garden nursery --environments 10 --ticks 5000 --output bank.json` | Commande fonctionnelle |
+| Intégration : `garden run --bank bank.json` | La simulation démarre avec des génomes pré-entraînés |
+
+L'avantage : les brains de départ ont déjà appris les bases (survivre, pousser, fixer N) dans des conditions variées. L'évolution sur l'île part d'un meilleur niveau.
+À brainstormer en profondeur avant implémentation.
+
 ## Commandes CLI
 
 | Commande | Description | Exemple |
