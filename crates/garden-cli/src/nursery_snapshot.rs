@@ -104,13 +104,16 @@ impl NurserySnapshot {
                 if let Some(env) = self.envs.iter_mut().find(|e| e.name == env_name) {
                     let prev_best = env.best_fitness;
                     env.current_gen = report.generation + 1; // 0-indexed -> affichage 1-indexed
-                    env.best_fitness = report.best_fitness;
                     env.avg_fitness = report.avg_fitness;
                     env.worst_fitness = report.worst_fitness;
                     env.delta_best = report.best_fitness - prev_best;
                     env.elapsed_secs = report.elapsed_secs;
-                    env.champion_stats = report.champion_stats.clone();
-                    env.champion_traits = report.champion_traits.clone();
+                    // Le champion n'est mis a jour que si on a un nouveau record
+                    if report.best_fitness >= env.best_fitness {
+                        env.best_fitness = report.best_fitness;
+                        env.champion_stats = report.champion_stats.clone();
+                        env.champion_traits = report.champion_traits.clone();
+                    }
                     env.history.push(GenHistoryEntry {
                         generation: report.generation,
                         best: report.best_fitness,
