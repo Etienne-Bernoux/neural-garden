@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use super::absorption::action_absorption;
 use super::photosynthesis::photosynthesis_batch;
 use super::season::SeasonModifiers;
 use super::sim::SimState;
@@ -511,32 +512,7 @@ fn action_exudates(state: &mut SimState, plant_id: u64, plant_idx: usize, exudat
     }
 }
 
-/// d) Absorption — extrait les nutriments du sol sous les racines.
-fn action_absorption(state: &mut SimState, plant_id: u64, plant_idx: usize) {
-    let root_cells: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
-    let mut total_absorbed = 0.0_f32;
-    for pos in &root_cells {
-        if let Some(cell) = state.world.get_mut(pos) {
-            let c_absorbed = cell.carbon().min(state.config.absorption_rate);
-            let n_absorbed = cell.nitrogen().min(state.config.absorption_rate);
-            let h_absorbed = cell.humidity().min(state.config.absorption_rate);
-
-            let c = cell.carbon();
-            cell.set_carbon(c - c_absorbed);
-            let n = cell.nitrogen();
-            cell.set_nitrogen(n - n_absorbed);
-            let h = cell.humidity();
-            cell.set_humidity(h - h_absorbed);
-
-            total_absorbed += c_absorbed + n_absorbed + h_absorbed;
-        }
-    }
-    state.plants[plant_idx].gain_energy(total_absorbed);
-
-    if let Some(stats) = state.find_stats_mut(plant_id) {
-        stats.soil_depleted += total_absorbed;
-    }
-}
+// d) Absorption — logique extraite dans le module absorption.rs
 
 /// e) Photosynthese batch — chaque couche de canopee filtre la lumiere.
 /// Triees par taille (footprint) decroissante : la plus grande capte la lumiere pleine,

@@ -1,3 +1,4 @@
+pub mod absorption;
 pub mod actions;
 pub mod config;
 pub mod environment;
