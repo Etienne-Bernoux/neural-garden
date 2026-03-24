@@ -13,16 +13,16 @@ pub fn phase_environment(state: &mut SimState) -> Option<super::season::Season> 
 
     let grid_size = state.world.size();
 
-    // Construire un ensemble des cellules occupees par l'emprise physique (footprint)
-    // L'ombrage est lie a l'emprise au sol pour l'instant (T4 ajoutera l'ombre de la canopee aerienne)
-    let mut occupied = vec![false; grid_size as usize * grid_size as usize];
+    // Construire un ensemble des cellules sous canopee (ombre aerienne)
+    // C'est la canopee qui projette l'ombre, pas le footprint au sol
+    let mut under_canopy_map = vec![false; grid_size as usize * grid_size as usize];
     for plant in &state.plants {
         if plant.is_dead() {
             continue;
         }
-        for pos in plant.footprint() {
+        for pos in plant.canopy() {
             if pos.x < grid_size && pos.y < grid_size {
-                occupied[pos.y as usize * grid_size as usize + pos.x as usize] = true;
+                under_canopy_map[pos.y as usize * grid_size as usize + pos.x as usize] = true;
             }
         }
     }
@@ -32,7 +32,7 @@ pub fn phase_environment(state: &mut SimState) -> Option<super::season::Season> 
             let pos = Pos { x, y };
             let is_land = state.island.is_land(&pos);
             let idx = y as usize * grid_size as usize + x as usize;
-            let under_canopy = occupied[idx];
+            let under_canopy = under_canopy_map[idx];
 
             if let Some(cell) = state.world.get_mut(&pos) {
                 // Pluie : cellules terrestres

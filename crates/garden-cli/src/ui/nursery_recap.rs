@@ -32,10 +32,15 @@ fn render_header(frame: &mut Frame, snapshot: &NurserySnapshot, area: Rect) {
         "En cours"
     };
 
+    let gen_limit = if snapshot.total_generations == u32::MAX {
+        "inf".to_string()
+    } else {
+        snapshot.total_generations.to_string()
+    };
     let text = format!(
         " Pepiniere — Gen {}/{} | {} envs | Pop {} | Seed {} | {}",
         snapshot.max_gen(),
-        snapshot.total_generations,
+        gen_limit,
         snapshot.envs.len(),
         snapshot.population,
         snapshot.seed,

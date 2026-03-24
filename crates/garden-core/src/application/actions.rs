@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use super::photosynthesis::photosynthesis_batch;
 use super::season::SeasonModifiers;
 use super::sim::SimState;
 use crate::domain::events::DomainEvent;
@@ -43,6 +44,10 @@ pub fn phase_actions(
             root_map.entry(pos).or_default().push(plant.id());
         }
     }
+
+    // Photosynthese batch AVANT la boucle per-plant
+    // Chaque couche de canopee filtre la lumiere pour les plantes en dessous
+    photosynthesis_batch(state);
 
     // Construire l'ordre aleatoire d'iteration (Fisher-Yates shuffle)
     let mut indices: Vec<usize> = (0..decisions.len()).collect();
@@ -103,8 +108,7 @@ pub fn phase_actions(
         // d) Absorption
         action_absorption(state, plant_id, plant_idx);
 
-        // e) Photosynthese
-        action_photosynthesis(state, plant_idx);
+        // e) Photosynthese — traitee en batch avant la boucle (photosynthesis_batch)
 
         // f+g) Symbiose (echanges + creation de liens)
         let mut symbiosis_events = action_symbiosis(
@@ -123,6 +127,16 @@ pub fn phase_actions(
     }
 
     events
+}
+
+/// Diviseur pour le cout de croissance proportionnel.
+const GROWTH_COST_DIVISOR: f32 = 20.0;
+
+/// Calcule le cout de croissance proportionnel au nombre de cellules existantes.
+/// Les premieres cellules coutent quasi rien, les dernieres coutent cher.
+/// Formule : base_cost × (nb_cellules_existantes + 1) / GROWTH_COST_DIVISOR
+fn growth_cost(base_cost: f32, existing_cells: usize) -> f32 {
+    base_cost * (existing_cells as f32 + 1.0) / GROWTH_COST_DIVISOR
 }
 
 /// Type de croissance choisi par le brain.
@@ -166,8 +180,16 @@ fn action_growth(
     if grow_intensity <= state.config.growth_threshold {
         return events;
     }
-    if needs_energy && state.plants[plant_idx].energy().value() <= state.config.growth_energy_cost {
-        return events;
+    if needs_energy {
+        let existing = match growth_type {
+            GrowthType::Footprint => state.plants[plant_idx].footprint().len(),
+            GrowthType::Canopy => state.plants[plant_idx].canopy().len(),
+            GrowthType::Roots => 0, // racines gratuites en energie
+        };
+        let energy_cost = growth_cost(state.config.growth_energy_cost, existing);
+        if state.plants[plant_idx].energy().value() <= energy_cost {
+            return events;
+        }
     }
 
     // Trouver la cellule cible selon le type de croissance
@@ -276,9 +298,18 @@ fn action_growth(
                 // Les fixatrices d'azote n'ont PAS besoin de N du sol (elles le fabriquent)
                 let is_fixer =
                     state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
+
+                // Couts proportionnels : footprint = bois = C dominant, peu de N
+                let fp_count = state.plants[plant_idx].footprint().len();
+                let energy_cost = growth_cost(state.config.growth_energy_cost, fp_count);
+                let carbon_cost =
+                    growth_cost(state.config.growth_carbon_cost * 2.0, fp_count); // C dominant pour le bois
+                let nitrogen_cost =
+                    growth_cost(state.config.growth_nitrogen_cost * 0.3, fp_count); // peu de N pour le bois
+
                 let can_grow = if let Some(cell) = state.world.get(&target_pos) {
-                    cell.carbon() >= state.config.growth_carbon_cost
-                        && (is_fixer || cell.nitrogen() >= state.config.growth_nitrogen_cost)
+                    cell.carbon() >= carbon_cost
+                        && (is_fixer || cell.nitrogen() >= nitrogen_cost)
                 } else {
                     false
                 };
@@ -287,7 +318,7 @@ fn action_growth(
                     let event = state.plants[plant_idx].grow_footprint(target_pos);
                     events.push(event);
                     state.plants[plant_idx]
-                        .consume_energy(state.config.growth_energy_cost / modifiers.growth);
+                        .consume_energy(energy_cost / modifiers.growth);
 
                     // Bonus croissance : la plante qui grandit gagne de l'energie
                     state.plants[plant_idx].gain_energy(2.0);
@@ -297,10 +328,10 @@ fn action_growth(
                     // Deduire les ressources du sol (les fixatrices ne consomment pas de N)
                     if let Some(cell) = state.world.get_mut(&target_pos) {
                         let c = cell.carbon();
-                        cell.set_carbon(c - state.config.growth_carbon_cost);
+                        cell.set_carbon(c - carbon_cost);
                         if !is_fixer {
                             let n = cell.nitrogen();
-                            cell.set_nitrogen(n - state.config.growth_nitrogen_cost);
+                            cell.set_nitrogen(n - nitrogen_cost);
                         }
                     }
                 }
@@ -315,9 +346,18 @@ fn action_growth(
             // Verifier les ressources du sol (fixatrices n'ont pas besoin de N)
             let is_fixer =
                 state.plants[plant_idx].genetics().exudate_type() == ExudateType::Nitrogen;
+
+            // Couts proportionnels : canopee = feuilles = C standard, N dominant (chlorophylle)
+            let canopy_count = state.plants[plant_idx].canopy().len();
+            let energy_cost = growth_cost(state.config.growth_energy_cost, canopy_count);
+            let carbon_cost =
+                growth_cost(state.config.growth_carbon_cost, canopy_count); // C standard pour les feuilles
+            let nitrogen_cost =
+                growth_cost(state.config.growth_nitrogen_cost * 2.0, canopy_count); // N dominant pour la chlorophylle
+
             let can_grow = if let Some(cell) = state.world.get(&target_pos) {
-                cell.carbon() >= state.config.growth_carbon_cost
-                    && (is_fixer || cell.nitrogen() >= state.config.growth_nitrogen_cost)
+                cell.carbon() >= carbon_cost
+                    && (is_fixer || cell.nitrogen() >= nitrogen_cost)
             } else {
                 false
             };
@@ -326,15 +366,15 @@ fn action_growth(
                     events.push(event);
                 }
                 state.plants[plant_idx]
-                    .consume_energy(state.config.growth_energy_cost / modifiers.growth);
+                    .consume_energy(energy_cost / modifiers.growth);
 
                 // Deduire les ressources du sol (fixatrices ne consomment pas de N)
                 if let Some(cell) = state.world.get_mut(&target_pos) {
                     let c = cell.carbon();
-                    cell.set_carbon(c - state.config.growth_carbon_cost);
+                    cell.set_carbon(c - carbon_cost);
                     if !is_fixer {
                         let n = cell.nitrogen();
-                        cell.set_nitrogen(n - state.config.growth_nitrogen_cost);
+                        cell.set_nitrogen(n - nitrogen_cost);
                     }
                 }
             }
@@ -344,8 +384,28 @@ fn action_growth(
             if state.plants[plant_idx].roots().len() >= state.plants[plant_idx].max_roots() {
                 return events;
             }
-            if let Some(event) = state.plants[plant_idx].grow_roots(target_pos) {
-                events.push(event);
+
+            // Couts proportionnels : racines = tres peu de C, pas de N
+            let root_count = state.plants[plant_idx].roots().len();
+            let carbon_cost =
+                growth_cost(state.config.growth_carbon_cost * 0.2, root_count); // tres peu de C
+
+            let can_grow = if let Some(cell) = state.world.get(&target_pos) {
+                cell.carbon() >= carbon_cost
+            } else {
+                false
+            };
+
+            if can_grow {
+                if let Some(event) = state.plants[plant_idx].grow_roots(target_pos) {
+                    events.push(event);
+                }
+
+                // Deduire le carbone du sol
+                if let Some(cell) = state.world.get_mut(&target_pos) {
+                    let c = cell.carbon();
+                    cell.set_carbon(c - carbon_cost);
+                }
             }
         }
     }
@@ -478,37 +538,9 @@ fn action_absorption(state: &mut SimState, plant_id: u64, plant_idx: usize) {
     }
 }
 
-/// e) Photosynthese — gain d'energie proportionnel a la lumiere sur la canopee.
-/// Ombre dynamique : si plusieurs plantes ont de la canopee sur une meme cellule,
-/// la plante avec la plus grande emprise au sol (= la plus haute) recoit la lumiere pleine,
-/// les autres recoivent la lumiere ombragee (canopy_light).
-fn action_photosynthesis(state: &mut SimState, plant_idx: usize) {
-    let plant_id = state.plants[plant_idx].id();
-    let my_fp_size = state.plants[plant_idx].footprint().len();
-    let canopy_cells: Vec<Pos> = state.plants[plant_idx].canopy().to_vec();
-    let mut photo_gain = 0.0_f32;
-
-    for pos in &canopy_cells {
-        let base_light = state.world.get(pos).map(|c| c.light()).unwrap_or(0.0);
-
-        // Verifier si une autre plante plus grande a de la canopee sur cette cellule
-        let is_shaded = state.plants.iter().any(|other| {
-            other.id() != plant_id
-                && !other.is_dead()
-                && other.footprint().len() > my_fp_size
-                && other.canopy().contains(pos)
-        });
-
-        if is_shaded {
-            // Lumiere reduite sous la canopee d'une plante plus grande
-            photo_gain += state.config.canopy_light * state.config.photosynthesis_rate;
-        } else {
-            photo_gain += base_light * state.config.photosynthesis_rate;
-        }
-    }
-    state.plants[plant_idx].gain_energy(photo_gain);
-}
-
+/// e) Photosynthese batch — chaque couche de canopee filtre la lumiere.
+/// Triees par taille (footprint) decroissante : la plus grande capte la lumiere pleine,
+/// chaque couche traversee attenue la lumiere restante par canopy_light (transmittance).
 /// f+g) Symbiose — echanges mycorhiziens et creation de liens.
 fn action_symbiosis(
     state: &mut SimState,
@@ -1056,6 +1088,28 @@ mod tests {
         (state, 1)
     }
 
+    // --- Tests : cout de croissance proportionnel ---
+
+    #[test]
+    fn cout_croissance_proportionnel_a_la_taille() {
+        // 1 cellule existante : base × 2/20 = base × 0.1
+        assert!((growth_cost(5.0, 1) - 0.5).abs() < 1e-5);
+        // 10 cellules : base × 11/20 = base × 0.55
+        assert!((growth_cost(5.0, 10) - 2.75).abs() < 1e-5);
+        // 20 cellules : base × 21/20 = base × 1.05
+        assert!((growth_cost(5.0, 20) - 5.25).abs() < 1e-5);
+    }
+
+    #[test]
+    fn premiere_cellule_coute_presque_rien() {
+        // 0 cellules existantes : base × 1/20 = 0.25
+        let cost = growth_cost(5.0, 0);
+        assert!(
+            cost < 0.3,
+            "premiere cellule devrait etre quasi gratuite, got {cost}"
+        );
+    }
+
     // --- Test 1 : la fixation d'azote enrichit le sol ---
 
     #[test]
@@ -1372,12 +1426,14 @@ mod tests {
             config,
         );
 
-        // Vider l'energie de B pour mesurer le gain net
+        // Vider l'energie des deux plantes pour mesurer le gain net
+        let energy_a = state.plants[0].energy().value();
+        state.plants[0].consume_energy(energy_a);
         let energy_b = state.plants[1].energy().value();
         state.plants[1].consume_energy(energy_b);
 
-        // Photosynthese pour B (ombragee par A qui a un footprint plus grand)
-        action_photosynthesis(&mut state, 1); // plant_idx = 1 pour B
+        // Photosynthese batch (ombre calculee pour toutes les plantes)
+        photosynthesis_batch(&mut state);
 
         let energy_b_shaded = state.plants[1].energy().value();
 

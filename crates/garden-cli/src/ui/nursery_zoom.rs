@@ -21,9 +21,14 @@ pub fn render(frame: &mut Frame, snapshot: &NurserySnapshot, env_index: usize, a
         .split(area);
 
     // Header
+    let gen_limit = if snapshot.total_generations == u32::MAX {
+        "inf".to_string()
+    } else {
+        snapshot.total_generations.to_string()
+    };
     let header_text = format!(
         " {} — Gen {}/{}",
-        env.name, env.current_gen, snapshot.total_generations,
+        env.name, env.current_gen, gen_limit,
     );
     let header = Paragraph::new(header_text).style(
         Style::default()

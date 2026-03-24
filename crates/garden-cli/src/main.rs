@@ -91,8 +91,8 @@ enum Commands {
         #[arg(short, long, default_value = "configs/nursery/environments.yaml")]
         config: String,
 
-        /// Nombre de generations
-        #[arg(long, default_value_t = 50)]
+        /// Nombre de generations (sans limite par defaut)
+        #[arg(long, default_value_t = u32::MAX)]
         generations: u32,
 
         /// Taille de la population par generation

@@ -7,5 +7,6 @@ pub mod lifecycle;
 pub mod metrics;
 pub mod nursery;
 pub mod perception;
+pub mod photosynthesis;
 pub mod season;
 pub mod sim;
