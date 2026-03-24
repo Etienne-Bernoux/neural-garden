@@ -29,19 +29,46 @@ impl FixturePlant {
         let genetics = GeneticTraits::new(40, 0.5, exudate_type, 8, 10.0, 10.0);
         let lineage = Lineage::new(id, 0);
 
-        // Generer un footprint simple autour de la position
+        // Generer un footprint et des racines en etoile autour de la position.
+        // Les racines s'etendent dans toutes les directions pour faciliter la symbiose.
         let mut footprint = vec![position];
         let mut canopy = vec![position];
         let mut roots = vec![position];
 
-        for i in 1..biomass_size.min(10) {
-            let p = Pos {
-                x: position.x + (i % 3),
-                y: position.y + (i / 3),
-            };
+        // Pattern en spirale : voisins directs puis diagonales puis rayon 2
+        let offsets: [(i16, i16); 24] = [
+            // Rayon 1 — croix
+            (-1, 0), (1, 0), (0, -1), (0, 1),
+            // Rayon 1 — diagonales
+            (-1, -1), (1, -1), (-1, 1), (1, 1),
+            // Rayon 2 — croix
+            (-2, 0), (2, 0), (0, -2), (0, 2),
+            // Rayon 2 — diagonales proches
+            (-2, -1), (-1, -2), (1, -2), (2, -1),
+            (-2, 1), (-1, 2), (1, 2), (2, 1),
+            // Rayon 2 — diagonales
+            (-2, -2), (2, -2), (-2, 2), (2, 2),
+        ];
+
+        for i in 0..(biomass_size as usize - 1).min(offsets.len()) {
+            let (dx, dy) = offsets[i];
+            let px = (position.x as i16 + dx).max(0) as u16;
+            let py = (position.y as i16 + dy).max(0) as u16;
+            let p = Pos { x: px, y: py };
             footprint.push(p);
             canopy.push(p);
-            roots.push(p);
+        }
+
+        // Les racines s'etendent plus loin que le footprint (toutes les offsets)
+        let root_count = ((biomass_size as usize - 1) * 2).min(offsets.len());
+        for i in 0..root_count {
+            let (dx, dy) = offsets[i];
+            let px = (position.x as i16 + dx).max(0) as u16;
+            let py = (position.y as i16 + dy).max(0) as u16;
+            let p = Pos { x: px, y: py };
+            if !roots.contains(&p) {
+                roots.push(p);
+            }
         }
 
         Self {
