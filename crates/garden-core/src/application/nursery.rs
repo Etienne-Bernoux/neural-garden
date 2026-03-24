@@ -119,6 +119,60 @@ impl BedConfig {
     }
 }
 
+// --- Variation inter-generation ---
+
+/// Variations appliquees a un bac pour une generation donnee.
+/// Tous les genomes d'une meme generation voient le meme scenario.
+struct GenVariation {
+    /// Decalage angulaire pour les fixtures (en radians)
+    fixture_angle: f32,
+    /// Multiplicateurs sur les taux initiaux du sol
+    carbon_mult: f32,
+    nitrogen_mult: f32,
+    humidity_mult: f32,
+}
+
+/// Calcule la variation pour une generation donnee.
+/// Consomme 4 valeurs du rng — deterministe car le rng est seede.
+fn compute_variation(rng: &mut dyn Rng) -> GenVariation {
+    GenVariation {
+        fixture_angle: rng.next_f32() * std::f32::consts::TAU,
+        carbon_mult: 0.8 + rng.next_f32() * 0.4,
+        nitrogen_mult: 0.8 + rng.next_f32() * 0.4,
+        humidity_mult: 0.8 + rng.next_f32() * 0.4,
+    }
+}
+
+/// Applique une variation a une config de bac.
+/// Les fixtures tournent autour du centre (distance conservee).
+/// Les taux initiaux du sol sont multiplies.
+fn apply_variation(base: &BedConfig, variation: &GenVariation) -> BedConfig {
+    let center = base.grid_size / 2;
+    let mut config = base.clone();
+
+    // Varier les taux initiaux du sol
+    config.initial_carbon *= variation.carbon_mult;
+    config.initial_nitrogen *= variation.nitrogen_mult;
+    config.initial_humidity *= variation.humidity_mult;
+
+    // Faire tourner les fixtures autour du centre
+    for fixture in &mut config.fixtures {
+        let dx = fixture.position.x as f32 - center as f32;
+        let dy = fixture.position.y as f32 - center as f32;
+        let distance = (dx * dx + dy * dy).sqrt();
+        let base_angle = dy.atan2(dx);
+        let new_angle = base_angle + variation.fixture_angle;
+        let new_x = (center as f32 + distance * new_angle.cos()).round().max(0.0) as u16;
+        let new_y = (center as f32 + distance * new_angle.sin()).round().max(0.0) as u16;
+        fixture.position = Pos {
+            x: new_x.min(base.grid_size - 1),
+            y: new_y.min(base.grid_size - 1),
+        };
+    }
+
+    config
+}
+
 // --- Keepalive des fixtures ---
 
 /// Applique le comportement des fixtures a chaque tick (keepalive + effets).
@@ -578,11 +632,15 @@ pub fn run_nursery_env(
     for gen in 0..generations {
         let gen_start = std::time::Instant::now();
 
+        // Variation inter-generation : chaque generation voit un scenario legerement different
+        let variation = compute_variation(rng);
+        let varied_config = apply_variation(bed_config, &variation);
+
         // 2. Evaluer chaque genome
         let mut scored: Vec<(Genome, f32)> = genomes
             .into_iter()
             .map(|g| {
-                let (fitness, _) = evaluate_genome(&g, bed_config, rng);
+                let (fitness, _) = evaluate_genome(&g, &varied_config, rng);
                 (g, fitness)
             })
             .collect();
@@ -605,7 +663,7 @@ pub fn run_nursery_env(
         if let Some(cb) = &on_generation {
             // Stats du champion (un seul re-calcul)
             let champion_stats = {
-                let (_, stats) = evaluate_genome(&scored[0].0, bed_config, rng);
+                let (_, stats) = evaluate_genome(&scored[0].0, &varied_config, rng);
                 Some(stats)
             };
             let champion_traits = Some(scored[0].0.traits.clone());
@@ -812,5 +870,91 @@ mod tests {
         let (fitness, _stats) = evaluate_genome(&genome, &config, &mut rng);
         // La fitness doit etre >= 0
         assert!(fitness >= 0.0);
+    }
+
+    #[test]
+    fn compute_variation_donne_des_valeurs_dans_les_bornes() {
+        let mut rng = crate::infra::rng::SeededRng::new(42);
+        for _ in 0..100 {
+            let v = compute_variation(&mut rng);
+            assert!(v.carbon_mult >= 0.8 && v.carbon_mult <= 1.2);
+            assert!(v.nitrogen_mult >= 0.8 && v.nitrogen_mult <= 1.2);
+            assert!(v.humidity_mult >= 0.8 && v.humidity_mult <= 1.2);
+            assert!(v.fixture_angle >= 0.0 && v.fixture_angle < std::f32::consts::TAU);
+        }
+    }
+
+    #[test]
+    fn apply_variation_conserve_la_distance_au_centre() {
+        let config = BedConfig {
+            grid_size: 16,
+            fixtures: vec![FixtureConfig {
+                position: Pos { x: 10, y: 8 },
+                exudate_type: ExudateType::Nitrogen,
+                biomass: 3,
+                behavior: FixtureBehavior::Exuder { rate: 0.05 },
+            }],
+            ..BedConfig::default()
+        };
+        let center = config.grid_size / 2; // 8
+
+        // Distance originale
+        let dx0 = config.fixtures[0].position.x as f32 - center as f32;
+        let dy0 = config.fixtures[0].position.y as f32 - center as f32;
+        let dist0 = (dx0 * dx0 + dy0 * dy0).sqrt();
+
+        let mut rng = crate::infra::rng::SeededRng::new(42);
+        for _ in 0..20 {
+            let v = compute_variation(&mut rng);
+            let varied = apply_variation(&config, &v);
+            let dx = varied.fixtures[0].position.x as f32 - center as f32;
+            let dy = varied.fixtures[0].position.y as f32 - center as f32;
+            let dist = (dx * dx + dy * dy).sqrt();
+            // La distance doit etre proche (erreur d'arrondi entier)
+            assert!(
+                (dist - dist0).abs() < 1.5,
+                "distance devrait etre ~{dist0}, got {dist} (angle={:.2})",
+                v.fixture_angle
+            );
+        }
+    }
+
+    #[test]
+    fn apply_variation_deplace_la_fixture() {
+        let config = BedConfig {
+            grid_size: 16,
+            fixtures: vec![FixtureConfig {
+                position: Pos { x: 10, y: 8 },
+                exudate_type: ExudateType::Nitrogen,
+                biomass: 3,
+                behavior: FixtureBehavior::Exuder { rate: 0.05 },
+            }],
+            ..BedConfig::default()
+        };
+        let variation = GenVariation {
+            fixture_angle: std::f32::consts::FRAC_PI_2, // 90 degres
+            carbon_mult: 1.0,
+            nitrogen_mult: 1.0,
+            humidity_mult: 1.0,
+        };
+        let varied = apply_variation(&config, &variation);
+        // Avec 90° de rotation, la position devrait avoir changé
+        assert_ne!(
+            varied.fixtures[0].position,
+            config.fixtures[0].position,
+            "la fixture devrait avoir bouge apres une rotation de 90°"
+        );
+    }
+
+    #[test]
+    fn variations_differentes_entre_generations() {
+        let mut rng = crate::infra::rng::SeededRng::new(42);
+        let v1 = compute_variation(&mut rng);
+        let v2 = compute_variation(&mut rng);
+        // Les angles devraient etre differents
+        assert!(
+            (v1.fixture_angle - v2.fixture_angle).abs() > 0.01,
+            "les variations successives devraient etre differentes"
+        );
     }
 }
