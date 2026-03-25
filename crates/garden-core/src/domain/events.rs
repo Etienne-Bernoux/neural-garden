@@ -1,4 +1,5 @@
 use super::plant::{Lineage, PlantState, Pos};
+use super::stages::GrowthStage;
 
 /// Couche de croissance pour l'event Grew.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +61,17 @@ pub enum DomainEvent {
     },
     /// Une plante a retreci (perdu une cellule).
     Shrank { plant_id: u64, cell: Pos },
+    /// Une plante a atteint un nouveau stade de croissance.
+    StageReached { plant_id: u64, stage: GrowthStage },
+    /// Une case a ete amelioree (niveau augmente).
+    CellUpgraded {
+        plant_id: u64,
+        cell: Pos,
+        layer: GrowthLayer,
+        new_level: u8,
+    },
+    /// Un venerable est mort — evenement ecologique majeur.
+    VenerableDied { plant_id: u64, pos: Pos },
 }
 
 #[cfg(test)]

@@ -2,8 +2,9 @@
 
 use super::events::{DomainEvent, GrowthLayer};
 use super::plant::{
-    Biomass, Energy, ExudateType, GeneticTraits, Lineage, PlantState, Pos, Vitality,
+    Biomass, CellSlot, Energy, ExudateType, GeneticTraits, Lineage, PlantState, Pos, Vitality,
 };
+use super::stages::GrowthStage;
 use super::traits::{
     PlantEntity, PlantGenetics, PlantIdentity, PlantReproduction, PlantSpatial, PlantVitals,
 };
@@ -15,8 +16,8 @@ pub struct FixturePlant {
     #[allow(dead_code)]
     position: Pos,
     footprint: Vec<Pos>,
-    canopy: Vec<Pos>,
-    roots: Vec<Pos>,
+    canopy: Vec<CellSlot>,
+    roots: Vec<CellSlot>,
     genetics: GeneticTraits,
     lineage: Lineage,
     vitality: Vitality,
@@ -32,42 +33,67 @@ impl FixturePlant {
         // Generer un footprint et des racines en etoile autour de la position.
         // Les racines s'etendent dans toutes les directions pour faciliter la symbiose.
         let mut footprint = vec![position];
-        let mut canopy = vec![position];
-        let mut roots = vec![position];
+        let mut canopy = vec![CellSlot {
+            pos: position,
+            level: 0,
+        }];
+        let mut roots = vec![CellSlot {
+            pos: position,
+            level: 0,
+        }];
 
         // Pattern en spirale : voisins directs puis diagonales puis rayon 2
         let offsets: [(i16, i16); 24] = [
             // Rayon 1 — croix
-            (-1, 0), (1, 0), (0, -1), (0, 1),
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
             // Rayon 1 — diagonales
-            (-1, -1), (1, -1), (-1, 1), (1, 1),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
             // Rayon 2 — croix
-            (-2, 0), (2, 0), (0, -2), (0, 2),
+            (-2, 0),
+            (2, 0),
+            (0, -2),
+            (0, 2),
             // Rayon 2 — diagonales proches
-            (-2, -1), (-1, -2), (1, -2), (2, -1),
-            (-2, 1), (-1, 2), (1, 2), (2, 1),
+            (-2, -1),
+            (-1, -2),
+            (1, -2),
+            (2, -1),
+            (-2, 1),
+            (-1, 2),
+            (1, 2),
+            (2, 1),
             // Rayon 2 — diagonales
-            (-2, -2), (2, -2), (-2, 2), (2, 2),
+            (-2, -2),
+            (2, -2),
+            (-2, 2),
+            (2, 2),
         ];
 
-        for i in 0..(biomass_size as usize - 1).min(offsets.len()) {
-            let (dx, dy) = offsets[i];
+        for &(dx, dy) in offsets
+            .iter()
+            .take((biomass_size as usize).saturating_sub(1).min(offsets.len()))
+        {
             let px = (position.x as i16 + dx).max(0) as u16;
             let py = (position.y as i16 + dy).max(0) as u16;
             let p = Pos { x: px, y: py };
             footprint.push(p);
-            canopy.push(p);
+            canopy.push(CellSlot { pos: p, level: 0 });
         }
 
         // Les racines s'etendent plus loin que le footprint (toutes les offsets)
-        let root_count = ((biomass_size as usize - 1) * 2).min(offsets.len());
-        for i in 0..root_count {
-            let (dx, dy) = offsets[i];
+        let root_count = ((biomass_size as usize).saturating_sub(1) * 2).min(offsets.len());
+        for &(dx, dy) in offsets.iter().take(root_count) {
             let px = (position.x as i16 + dx).max(0) as u16;
             let py = (position.y as i16 + dy).max(0) as u16;
             let p = Pos { x: px, y: py };
-            if !roots.contains(&p) {
-                roots.push(p);
+            if !roots.iter().any(|s| s.pos == p) {
+                roots.push(CellSlot { pos: p, level: 0 });
             }
         }
 
@@ -174,12 +200,25 @@ impl PlantSpatial for FixturePlant {
         &self.footprint
     }
 
-    fn canopy(&self) -> &[Pos] {
+    fn canopy(&self) -> Vec<Pos> {
+        self.canopy.iter().map(|s| s.pos).collect()
+    }
+
+    fn roots(&self) -> Vec<Pos> {
+        self.roots.iter().map(|s| s.pos).collect()
+    }
+
+    fn canopy_slots(&self) -> &[CellSlot] {
         &self.canopy
     }
 
-    fn roots(&self) -> &[Pos] {
+    fn root_slots(&self) -> &[CellSlot] {
         &self.roots
+    }
+
+    fn growth_stage(&self) -> GrowthStage {
+        // Les fixtures sont des plantes artificielles — toujours en stade Mature.
+        GrowthStage::ArbreMature
     }
 
     fn max_canopy(&self) -> usize {

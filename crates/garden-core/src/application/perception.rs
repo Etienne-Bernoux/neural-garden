@@ -89,7 +89,7 @@ pub fn compute_inputs(plant: &dyn PlantEntity, world: &World) -> [f32; 18] {
         let mut grad_x = 0.0_f32;
         let mut grad_y = 0.0_f32;
 
-        for root in roots {
+        for root in &roots {
             if let Some(cell) = world.get(root) {
                 let value = field_fn(cell);
                 grad_x += value * sign(root.x as f32 - cx);

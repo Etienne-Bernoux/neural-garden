@@ -5,3 +5,4 @@ pub mod nursery;
 pub mod persistence;
 pub mod replay;
 pub mod rng;
+pub mod stages;

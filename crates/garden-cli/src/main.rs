@@ -620,7 +620,9 @@ fn cmd_nursery_tui(
         for r in results {
             println!(
                 "{:20} | fitness: {:.4} | {} gen | max_size={} type={:?}",
-                r.env_name, r.fitness, r.generations_run,
+                r.env_name,
+                r.fitness,
+                r.generations_run,
                 r.champion.traits.max_size(),
                 r.champion.traits.exudate_type(),
             );
@@ -713,7 +715,9 @@ fn cmd_nursery_headless(
                 if multi {
                     print!("{:18}", "");
                 }
-                let traits_info = report.champion_traits.as_ref()
+                let traits_info = report
+                    .champion_traits
+                    .as_ref()
                     .map(|t| format!("max_size={} type={:?}", t.max_size(), t.exudate_type()))
                     .unwrap_or_default();
                 println!(
@@ -744,7 +748,9 @@ fn cmd_nursery_headless(
     for r in &results {
         println!(
             "{:20} | fitness: {:.4} | {} gen | max_size={} type={:?}",
-            r.env_name, r.fitness, r.generations_run,
+            r.env_name,
+            r.fitness,
+            r.generations_run,
             r.champion.traits.max_size(),
             r.champion.traits.exudate_type(),
         );

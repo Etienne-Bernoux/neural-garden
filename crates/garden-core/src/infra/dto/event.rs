@@ -142,6 +142,43 @@ impl DomainEventDto {
                     "y": cell.y,
                 }),
             },
+            DomainEvent::StageReached { plant_id, stage } => Self {
+                tick,
+                event_type: "StageReached".to_string(),
+                data: json!({
+                    "plant_id": plant_id,
+                    "stage": format!("{:?}", stage),
+                }),
+            },
+            DomainEvent::CellUpgraded {
+                plant_id,
+                cell,
+                layer,
+                new_level,
+            } => Self {
+                tick,
+                event_type: "CellUpgraded".to_string(),
+                data: json!({
+                    "plant_id": plant_id,
+                    "x": cell.x,
+                    "y": cell.y,
+                    "layer": match layer {
+                        GrowthLayer::Footprint => "footprint",
+                        GrowthLayer::Canopy => "canopy",
+                        GrowthLayer::Roots => "roots",
+                    },
+                    "new_level": new_level,
+                }),
+            },
+            DomainEvent::VenerableDied { plant_id, pos } => Self {
+                tick,
+                event_type: "VenerableDied".to_string(),
+                data: json!({
+                    "plant_id": plant_id,
+                    "x": pos.x,
+                    "y": pos.y,
+                }),
+            },
         }
     }
 }

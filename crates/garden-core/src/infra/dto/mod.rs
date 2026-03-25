@@ -8,8 +8,8 @@ mod world;
 
 pub use event::DomainEventDto;
 pub use plant::{
-    BrainDto, ExudateTypeDto, GeneticTraitsDto, GenomeDto, LineageDto, PlantDto, PlantStateDto,
-    PlantStatsDto,
+    BrainDto, CellSlotDto, ExudateTypeDto, GeneticTraitsDto, GenomeDto, GrowthStageDto, LineageDto,
+    PlantDto, PlantStateDto, PlantStatsDto,
 };
 pub use sim::{SeasonCycleDto, SeasonDto, SeedBankDto, SimConfigDto, SimStateDto};
 pub use world::{CellDto, IslandDto, MycorrhizalLinkDto, SymbiosisNetworkDto, WorldDto};
@@ -47,6 +47,7 @@ mod tests {
     use crate::domain::events::DomainEvent;
     use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant};
     use crate::domain::rng::test_utils::MockRng;
+    use crate::domain::traits::PlantSpatial;
     use crate::domain::world::{World, DEFAULT_GRID_SIZE};
 
     fn test_genetics() -> GeneticTraits {
