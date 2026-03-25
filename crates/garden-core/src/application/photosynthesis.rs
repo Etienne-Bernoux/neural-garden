@@ -19,7 +19,7 @@ pub fn photosynthesis_batch(state: &mut SimState) {
         }
         let size = plant.footprint().len();
         for pos in plant.canopy() {
-            canopy_map.entry(*pos).or_default().push((idx, size));
+            canopy_map.entry(pos).or_default().push((idx, size));
         }
     }
 
@@ -61,10 +61,7 @@ mod tests {
     use std::collections::HashMap;
 
     /// Cree un SimState minimal avec un world 8x8, light uniforme.
-    fn make_state_with_plants(
-        light: f32,
-        plants: Vec<Box<dyn PlantEntity>>,
-    ) -> SimState {
+    fn make_state_with_plants(light: f32, plants: Vec<Box<dyn PlantEntity>>) -> SimState {
         let mut world = World::new(8);
         for y in 0..8u16 {
             for x in 0..8u16 {
@@ -116,10 +113,8 @@ mod tests {
         let initial_energy = plant.energy().value();
         plant.consume_energy(initial_energy);
 
-        let mut state = make_state_with_plants(
-            light,
-            vec![Box::new(plant) as Box<dyn PlantEntity>],
-        );
+        let mut state =
+            make_state_with_plants(light, vec![Box::new(plant) as Box<dyn PlantEntity>]);
 
         photosynthesis_batch(&mut state);
 
@@ -187,9 +182,7 @@ mod tests {
         //   couche 1 : light * rate
         //   couche 2 : light * t * rate
         //   couche 3 : light * t^2 * rate
-        let gains: Vec<f32> = (0..3)
-            .map(|i| state.plants[i].energy().value())
-            .collect();
+        let gains: Vec<f32> = (0..3).map(|i| state.plants[i].energy().value()).collect();
 
         // Chaque plante a gagne au moins sa propre cellule (light * rate)
         let base_gain = light * rate;
@@ -257,10 +250,7 @@ mod tests {
 
         let mut state = make_state_with_plants(
             light,
-            vec![
-                Box::new(plant_a) as Box<dyn PlantEntity>,
-                Box::new(plant_b),
-            ],
+            vec![Box::new(plant_a) as Box<dyn PlantEntity>, Box::new(plant_b)],
         );
 
         photosynthesis_batch(&mut state);
@@ -312,10 +302,7 @@ mod tests {
 
         let mut state = make_state_with_plants(
             light,
-            vec![
-                Box::new(plant_a) as Box<dyn PlantEntity>,
-                Box::new(plant_b),
-            ],
+            vec![Box::new(plant_a) as Box<dyn PlantEntity>, Box::new(plant_b)],
         );
 
         photosynthesis_batch(&mut state);
@@ -366,10 +353,7 @@ mod tests {
 
         let mut state = make_state_with_plants(
             light,
-            vec![
-                Box::new(plant_a) as Box<dyn PlantEntity>,
-                Box::new(plant_b),
-            ],
+            vec![Box::new(plant_a) as Box<dyn PlantEntity>, Box::new(plant_b)],
         );
 
         photosynthesis_batch(&mut state);

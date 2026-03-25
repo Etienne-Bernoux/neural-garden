@@ -162,8 +162,12 @@ fn apply_variation(base: &BedConfig, variation: &GenVariation) -> BedConfig {
         let distance = (dx * dx + dy * dy).sqrt();
         let base_angle = dy.atan2(dx);
         let new_angle = base_angle + variation.fixture_angle;
-        let new_x = (center as f32 + distance * new_angle.cos()).round().max(0.0) as u16;
-        let new_y = (center as f32 + distance * new_angle.sin()).round().max(0.0) as u16;
+        let new_x = (center as f32 + distance * new_angle.cos())
+            .round()
+            .max(0.0) as u16;
+        let new_y = (center as f32 + distance * new_angle.sin())
+            .round()
+            .max(0.0) as u16;
         fixture.position = Pos {
             x: new_x.min(base.grid_size - 1),
             y: new_y.min(base.grid_size - 1),
@@ -940,8 +944,7 @@ mod tests {
         let varied = apply_variation(&config, &variation);
         // Avec 90° de rotation, la position devrait avoir changé
         assert_ne!(
-            varied.fixtures[0].position,
-            config.fixtures[0].position,
+            varied.fixtures[0].position, config.fixtures[0].position,
             "la fixture devrait avoir bouge apres une rotation de 90°"
         );
     }

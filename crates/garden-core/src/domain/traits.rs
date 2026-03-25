@@ -2,7 +2,8 @@
 // Chaque sous-trait isole une responsabilite ; le super-trait PlantEntity les regroupe.
 
 use super::events::DomainEvent;
-use super::plant::{Biomass, Energy, GeneticTraits, Lineage, PlantState, Pos, Vitality};
+use super::plant::{Biomass, CellSlot, Energy, GeneticTraits, Lineage, PlantState, Pos, Vitality};
+use super::stages::GrowthStage;
 
 /// Identite d'une plante — id, lignee, genealogie.
 pub trait PlantIdentity {
@@ -40,8 +41,16 @@ pub trait PlantVitals {
 /// Presence spatiale — 3 couches (footprint, canopy, roots).
 pub trait PlantSpatial {
     fn footprint(&self) -> &[Pos];
-    fn canopy(&self) -> &[Pos];
-    fn roots(&self) -> &[Pos];
+    /// Positions de la canopee (extraites des CellSlots).
+    fn canopy(&self) -> Vec<Pos>;
+    /// Positions des racines (extraites des CellSlots).
+    fn roots(&self) -> Vec<Pos>;
+    /// CellSlots de la canopee avec niveaux.
+    fn canopy_slots(&self) -> &[CellSlot];
+    /// CellSlots des racines avec niveaux.
+    fn root_slots(&self) -> &[CellSlot];
+    /// Stade de croissance actuel.
+    fn growth_stage(&self) -> GrowthStage;
     fn max_canopy(&self) -> usize;
     fn max_roots(&self) -> usize;
 

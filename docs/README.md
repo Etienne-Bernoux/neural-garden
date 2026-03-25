@@ -21,7 +21,7 @@ Neural Garden est un simulateur d'écosystème où des plantes, pilotées par de
 - **Perception par gradients** : les plantes perçoivent des gradients chimiques/lumineux (pas d'individus), 18 inputs
 - **Double modèle de symbiose** : exsudats racinaires (coopération diffuse, publique) + connexion mycorhizienne directe (privée)
 - **Invasion = croissance agressive** : pas de mode spécial, pousser ses racines dans une cellule occupée suffit
-- **Réseau 18→H→H→8** : petit, rapide, lisible. ~340 paramètres par cerveau
+- **Réseau 18→H→H→8** : petit, rapide, lisible. 212 à 596 paramètres selon H (6-14)
 - **Event sourcing** : le replay stocke les événements, pas la grille. Le viewer JS reconstruit l'état
 - **2 crates Rust** : garden-core (tout) + garden-cli (CLI + TUI)
 - **Diversité du sol** plutôt que bonus biodiversité artificiel
@@ -42,3 +42,4 @@ Neural Garden est un simulateur d'écosystème où des plantes, pilotées par de
 | [10-tui.md](10-tui.md) | Interface terminal, layout, hotkeys |
 | [11-web-viewer.md](11-web-viewer.md) | Viewer JS, Canvas, modules *(à retravailler)* |
 | [12-planning.md](12-planning.md) | Roadmap, risques, évolutions post-v1, CLI |
+| [13-nursery.md](13-nursery.md) | Pépinière, environnements de test, variation inter-génération |

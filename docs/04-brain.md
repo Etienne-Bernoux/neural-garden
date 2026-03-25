@@ -45,9 +45,16 @@ Calculés sur la zone d'influence (rayon scale avec la biomasse, voir 03-percept
 
 **2 couches de `hidden_size` neurones** (6-14). Activation : `tanh`. Seuls les poids évoluent (topologie fixe hors mutation de taille).
 
-Taille mémoire (pour hidden_size = 10) : 18×10 + 10×10 + 10×8 = **360 poids + 28 biais = 388 paramètres ≈ 1.6 Ko** par cerveau.
+**Nombre total de paramètres** = `18×H + H×H + H×8 + H + H + 8` (poids + biais).
 
-Plage : de 252 paramètres (H=6) à 724 paramètres (H=14).
+| H | Poids (18H + H² + 8H) | Biais (H + H + 8) | **Total** |
+|---|---|---|---|
+| 6 | 204 | 20 | **212** |
+| 8 | 272 | 24 | **296** |
+| 10 | 360 | 28 | **388** |
+| 14 | 560 | 36 | **596** |
+
+Taille mémoire : de 212 paramètres (H=6, ~0.8 Ko) à 596 paramètres (H=14, ~2.3 Ko) par cerveau.
 
 ## Couche de sortie — 8 neurones
 
@@ -61,6 +68,27 @@ Plage : de 252 paramètres (H=6) à 724 paramètres (H=14).
 | defense | 5 | sigmoid → [0, 1] | Durcir les racines (> 0.5). Augmente le seuil d'invasion de +10 à +20 énergie. Coûte 3 énergie/tick. |
 | connect_signal | 6 | sigmoid → [0, 1] | Accepter une connexion mycorhizienne directe (> 0.5 = oui) |
 | connect_generosity | 7 | sigmoid → [0, 1] | Volume de l'échange C↔N + énergie via le lien direct. Chaque plante donne son surplus proportionnellement à ce curseur. 0 = parasitisme (reçoit sans donner). |
+
+## Forward pass — diagramme
+
+```plantuml
+@startuml
+start
+:18 inputs\n(état interne, sol local, gradients);
+note right: [f32; 18]
+
+:Couche cachée H1\nsum = W_ih · inputs + biases_h1\nactivation **tanh**;
+note right: 18×H poids + H biais
+
+:Couche cachée H2\nsum = W_hh · h1 + biases_h2\nactivation **tanh**;
+note right: H×H poids + H biais
+
+:8 outputs\nsum = W_ho · h2 + biases_o\nactivation **sigmoid** → [0, 1];
+note right: H×8 poids + 8 biais
+
+stop
+@enduml
+```
 
 ## Traits génétiques liés au cerveau
 

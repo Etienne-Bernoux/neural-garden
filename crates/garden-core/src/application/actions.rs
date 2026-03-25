@@ -41,7 +41,7 @@ pub fn phase_actions(
         if plant.is_dead() {
             continue;
         }
-        for &pos in plant.roots() {
+        for pos in plant.roots() {
             root_map.entry(pos).or_default().push(plant.id());
         }
     }
@@ -303,14 +303,11 @@ fn action_growth(
                 // Couts proportionnels : footprint = bois = C dominant, peu de N
                 let fp_count = state.plants[plant_idx].footprint().len();
                 let energy_cost = growth_cost(state.config.growth_energy_cost, fp_count);
-                let carbon_cost =
-                    growth_cost(state.config.growth_carbon_cost * 2.0, fp_count); // C dominant pour le bois
-                let nitrogen_cost =
-                    growth_cost(state.config.growth_nitrogen_cost * 0.3, fp_count); // peu de N pour le bois
+                let carbon_cost = growth_cost(state.config.growth_carbon_cost * 2.0, fp_count); // C dominant pour le bois
+                let nitrogen_cost = growth_cost(state.config.growth_nitrogen_cost * 0.3, fp_count); // peu de N pour le bois
 
                 let can_grow = if let Some(cell) = state.world.get(&target_pos) {
-                    cell.carbon() >= carbon_cost
-                        && (is_fixer || cell.nitrogen() >= nitrogen_cost)
+                    cell.carbon() >= carbon_cost && (is_fixer || cell.nitrogen() >= nitrogen_cost)
                 } else {
                     false
                 };
@@ -318,8 +315,7 @@ fn action_growth(
                 if can_grow {
                     let event = state.plants[plant_idx].grow_footprint(target_pos);
                     events.push(event);
-                    state.plants[plant_idx]
-                        .consume_energy(energy_cost / modifiers.growth);
+                    state.plants[plant_idx].consume_energy(energy_cost / modifiers.growth);
 
                     // Bonus croissance : la plante qui grandit gagne de l'energie
                     state.plants[plant_idx].gain_energy(2.0);
@@ -351,14 +347,11 @@ fn action_growth(
             // Couts proportionnels : canopee = feuilles = C standard, N dominant (chlorophylle)
             let canopy_count = state.plants[plant_idx].canopy().len();
             let energy_cost = growth_cost(state.config.growth_energy_cost, canopy_count);
-            let carbon_cost =
-                growth_cost(state.config.growth_carbon_cost, canopy_count); // C standard pour les feuilles
-            let nitrogen_cost =
-                growth_cost(state.config.growth_nitrogen_cost * 2.0, canopy_count); // N dominant pour la chlorophylle
+            let carbon_cost = growth_cost(state.config.growth_carbon_cost, canopy_count); // C standard pour les feuilles
+            let nitrogen_cost = growth_cost(state.config.growth_nitrogen_cost * 2.0, canopy_count); // N dominant pour la chlorophylle
 
             let can_grow = if let Some(cell) = state.world.get(&target_pos) {
-                cell.carbon() >= carbon_cost
-                    && (is_fixer || cell.nitrogen() >= nitrogen_cost)
+                cell.carbon() >= carbon_cost && (is_fixer || cell.nitrogen() >= nitrogen_cost)
             } else {
                 false
             };
@@ -366,8 +359,7 @@ fn action_growth(
                 if let Some(event) = state.plants[plant_idx].grow_canopy(target_pos) {
                     events.push(event);
                 }
-                state.plants[plant_idx]
-                    .consume_energy(energy_cost / modifiers.growth);
+                state.plants[plant_idx].consume_energy(energy_cost / modifiers.growth);
 
                 // Deduire les ressources du sol (fixatrices ne consomment pas de N)
                 if let Some(cell) = state.world.get_mut(&target_pos) {
@@ -388,8 +380,7 @@ fn action_growth(
 
             // Couts proportionnels : racines = tres peu de C, pas de N
             let root_count = state.plants[plant_idx].roots().len();
-            let carbon_cost =
-                growth_cost(state.config.growth_carbon_cost * 0.2, root_count); // tres peu de C
+            let carbon_cost = growth_cost(state.config.growth_carbon_cost * 0.2, root_count); // tres peu de C
 
             let can_grow = if let Some(cell) = state.world.get(&target_pos) {
                 cell.carbon() >= carbon_cost
@@ -834,11 +825,12 @@ pub fn find_canopy_growth_target(
     let mut best: Option<(Pos, f32)> = None;
 
     // Collecter toutes les positions sources (footprint + canopy)
+    let canopy_pos = plant.canopy();
     let sources: Vec<Pos> = plant
         .footprint()
         .iter()
-        .chain(plant.canopy().iter())
         .copied()
+        .chain(canopy_pos)
         .collect();
 
     for src_pos in &sources {

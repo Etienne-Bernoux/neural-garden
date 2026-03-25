@@ -26,10 +26,7 @@ pub fn render(frame: &mut Frame, snapshot: &NurserySnapshot, env_index: usize, a
     } else {
         snapshot.total_generations.to_string()
     };
-    let header_text = format!(
-        " {} — Gen {}/{}",
-        env.name, env.current_gen, gen_limit,
-    );
+    let header_text = format!(" {} — Gen {}/{}", env.name, env.current_gen, gen_limit,);
     let header = Paragraph::new(header_text).style(
         Style::default()
             .fg(Color::Cyan)

@@ -1,0 +1,116 @@
+# Définitions des 9 stades de croissance
+# Chargé au démarrage, injecté dans SimState via StageTable
+
+stages:
+  - name: Graine
+    biomass_min: 0
+    biomass_max: 0
+    cell_level_cap: 0
+    maintenance_multiplier: 0.0
+    can_photosynthesize: false
+    can_reproduce: false
+    can_symbiose: false
+    bonuses: {}
+
+  - name: Germe
+    biomass_min: 1
+    biomass_max: 1
+    cell_level_cap: 0
+    maintenance_multiplier: 0.2
+    can_photosynthesize: false
+    can_reproduce: false
+    can_symbiose: false
+    bonuses:
+      invisibility: true
+
+  - name: Pousse
+    biomass_min: 2
+    biomass_max: 3
+    cell_level_cap: 1
+    maintenance_multiplier: 0.5
+    can_photosynthesize: true
+    can_reproduce: false
+    can_symbiose: false
+    bonuses:
+      growth_speed: 1.5
+
+  - name: Plantule
+    biomass_min: 4
+    biomass_max: 6
+    cell_level_cap: 1
+    maintenance_multiplier: 0.7
+    can_photosynthesize: true
+    can_reproduce: false
+    can_symbiose: true
+    bonuses:
+      resilience: 1.2
+
+  - name: Arbuste
+    biomass_min: 7
+    biomass_max: 10
+    cell_level_cap: 2
+    maintenance_multiplier: 1.0
+    can_photosynthesize: true
+    can_reproduce: true
+    can_symbiose: true
+    bonuses:
+      ground_cover: true
+
+  - name: Jeune arbre
+    biomass_min: 11
+    biomass_max: 15
+    cell_level_cap: 3
+    maintenance_multiplier: 1.5
+    can_photosynthesize: true
+    can_reproduce: true
+    can_symbiose: true
+    bonuses:
+      canopy_shade: true
+      seed_distance: 1.5
+
+  - name: Arbre
+    biomass_min: 16
+    biomass_max: 22
+    cell_level_cap: 4
+    maintenance_multiplier: 2.0
+    can_photosynthesize: true
+    can_reproduce: true
+    can_symbiose: true
+    bonuses:
+      photosynthesis_multiplier: 1.5
+      root_network: true
+
+  - name: Arbre mature
+    biomass_min: 23
+    biomass_max: 30
+    cell_level_cap: 5
+    maintenance_multiplier: 2.5
+    can_photosynthesize: true
+    can_reproduce: true
+    can_symbiose: true
+    bonuses:
+      reproduction_multiplier: 2.0
+      symbiosis_hub: 1.5
+
+  - name: Vénérable
+    biomass_min: 31
+    biomass_max: 9999
+    cell_level_cap: 5
+    maintenance_multiplier: 3.0
+    can_photosynthesize: true
+    can_reproduce: true
+    can_symbiose: true
+    bonuses:
+      symbiosis_hub: 3.0
+      soil_enrichment: true
+      soil_enrichment_rate: 0.05
+      resistance: 2.0
+
+upgrade_costs:
+  base_cost: 3.0
+  level_multiplier: 1.0
+
+senescence:
+  start_stage: Arbre mature
+  vulnerability_rate: 0.002
+  max_vulnerability: 0.5

@@ -1,6 +1,7 @@
 // Value objects de l'entite Plant.
 
 use super::events::{DomainEvent, GrowthLayer};
+use super::stages::GrowthStage;
 
 /// Flottant borne dans [0.0, cap]. Base commune pour Vitalite et Energie.
 #[derive(Debug, Clone, PartialEq)]
@@ -181,6 +182,14 @@ pub struct Pos {
     pub y: u16,
 }
 
+/// Case avec niveau (racine ou canopee).
+/// Le niveau 0 correspond a la capacite de base, 5 au maximum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CellSlot {
+    pub pos: Pos,
+    pub level: u8,
+}
+
 /// Traits genetiques determinant les caracteristiques d'une plante.
 /// Les valeurs sont validees et clampees a la construction.
 #[derive(Debug, Clone)]
@@ -195,7 +204,7 @@ pub struct GeneticTraits {
 
 impl GeneticTraits {
     /// Constructeur avec validation et clamp des bornes.
-    /// - max_size: [15, 40]
+    /// - max_size: [2, 40]
     /// - carbon_nitrogen_ratio: [0.3, 0.9]
     /// - hidden_size: [6, 14]
     /// - vitality_factor et energy_factor: [0.1, 20.0]
@@ -208,7 +217,7 @@ impl GeneticTraits {
         energy_factor: f32,
     ) -> Self {
         Self {
-            max_size: max_size.clamp(15, 40),
+            max_size: max_size.clamp(2, 40),
             carbon_nitrogen_ratio: carbon_nitrogen_ratio.clamp(0.3, 0.9),
             exudate_type,
             hidden_size: hidden_size.clamp(6, 14),
@@ -258,8 +267,8 @@ pub struct Plant {
     energy: Energy,
     biomass: Biomass,
     footprint: Vec<Pos>,
-    canopy: Vec<Pos>,
-    roots: Vec<Pos>,
+    canopy: Vec<CellSlot>,
+    roots: Vec<CellSlot>,
     genetics: GeneticTraits,
     lineage: Lineage,
     decomposition_remaining: u32,
@@ -267,6 +276,8 @@ pub struct Plant {
     nitrogen_to_release: f32,
     ancestors: Vec<u64>,
     seed_progress: f32,
+    growth_stage: GrowthStage,
+    ticks_at_advanced_stage: u32,
 }
 
 impl Plant {
@@ -284,8 +295,14 @@ impl Plant {
             energy: Energy::new(e_cap, e_cap),
             biomass,
             footprint: vec![position],
-            canopy: vec![position],
-            roots: vec![position],
+            canopy: vec![CellSlot {
+                pos: position,
+                level: 0,
+            }],
+            roots: vec![CellSlot {
+                pos: position,
+                level: 0,
+            }],
             genetics,
             lineage,
             decomposition_remaining: 0,
@@ -293,6 +310,8 @@ impl Plant {
             nitrogen_to_release: 0.0,
             ancestors: Vec::new(),
             seed_progress: 0.0,
+            growth_stage: GrowthStage::Germe,
+            ticks_at_advanced_stage: 0,
         }
     }
 
@@ -345,14 +364,34 @@ impl Plant {
         &self.footprint
     }
 
-    /// Canopee aerienne — cellules partagees.
-    pub fn canopy(&self) -> &[Pos] {
+    /// Canopee aerienne — positions extraites des CellSlots.
+    pub fn canopy_positions(&self) -> Vec<Pos> {
+        self.canopy.iter().map(|s| s.pos).collect()
+    }
+
+    /// Racines sous-sol — positions extraites des CellSlots.
+    pub fn root_positions(&self) -> Vec<Pos> {
+        self.roots.iter().map(|s| s.pos).collect()
+    }
+
+    /// Canopee aerienne — CellSlots avec niveaux.
+    pub fn canopy_slots(&self) -> &[CellSlot] {
         &self.canopy
     }
 
-    /// Racines sous-sol — cellules partagees.
-    pub fn roots(&self) -> &[Pos] {
+    /// Racines sous-sol — CellSlots avec niveaux.
+    pub fn root_slots(&self) -> &[CellSlot] {
         &self.roots
+    }
+
+    /// Stade de croissance actuel.
+    pub fn growth_stage(&self) -> GrowthStage {
+        self.growth_stage
+    }
+
+    /// Nombre de ticks passes a un stade avance (pour senescence).
+    pub fn ticks_at_advanced_stage(&self) -> u32 {
+        self.ticks_at_advanced_stage
     }
 
     /// Nombre maximum de cellules de canopee (4x l'emprise).
@@ -417,7 +456,7 @@ impl Plant {
         if self.canopy.len() >= self.max_canopy() {
             return None;
         }
-        self.canopy.push(pos);
+        self.canopy.push(CellSlot { pos, level: 0 });
         Some(DomainEvent::Grew {
             plant_id: self.id,
             cell: pos,
@@ -431,7 +470,7 @@ impl Plant {
         if self.roots.len() >= self.max_roots() {
             return None;
         }
-        self.roots.push(pos);
+        self.roots.push(CellSlot { pos, level: 0 });
         Some(DomainEvent::Grew {
             plant_id: self.id,
             cell: pos,
@@ -582,8 +621,8 @@ impl Plant {
         energy: f32,
         biomass: u16,
         footprint: Vec<Pos>,
-        canopy: Vec<Pos>,
-        roots: Vec<Pos>,
+        canopy: Vec<CellSlot>,
+        roots: Vec<CellSlot>,
         genetics: GeneticTraits,
         lineage: Lineage,
         decomposition_remaining: u32,
@@ -591,6 +630,8 @@ impl Plant {
         nitrogen_to_release: f32,
         ancestors: Vec<u64>,
         seed_progress: f32,
+        growth_stage: GrowthStage,
+        ticks_at_advanced_stage: u32,
     ) -> Self {
         let v_cap = vitality_cap(
             &Biomass::new(biomass, genetics.max_size()),
@@ -617,6 +658,8 @@ impl Plant {
             nitrogen_to_release,
             ancestors,
             seed_progress,
+            growth_stage,
+            ticks_at_advanced_stage,
         }
     }
 
@@ -773,12 +816,24 @@ impl PlantSpatial for Plant {
         self.footprint()
     }
 
-    fn canopy(&self) -> &[Pos] {
-        self.canopy()
+    fn canopy(&self) -> Vec<Pos> {
+        self.canopy_positions()
     }
 
-    fn roots(&self) -> &[Pos] {
-        self.roots()
+    fn roots(&self) -> Vec<Pos> {
+        self.root_positions()
+    }
+
+    fn canopy_slots(&self) -> &[CellSlot] {
+        self.canopy_slots()
+    }
+
+    fn root_slots(&self) -> &[CellSlot] {
+        self.root_slots()
+    }
+
+    fn growth_stage(&self) -> GrowthStage {
+        self.growth_stage()
     }
 
     fn max_canopy(&self) -> usize {
@@ -1038,9 +1093,9 @@ mod tests {
 
     #[test]
     fn les_traits_genetiques_clampent_les_bornes() {
-        // max_size trop petit → clampe a 15
-        let g = GeneticTraits::new(5, 0.5, ExudateType::Carbon, 8, 10.0, 5.0);
-        assert_eq!(g.max_size(), 15);
+        // max_size trop petit → clampe a 2
+        let g = GeneticTraits::new(1, 0.5, ExudateType::Carbon, 8, 10.0, 5.0);
+        assert_eq!(g.max_size(), 2);
 
         // max_size trop grand → clampe a 40
         let g = GeneticTraits::new(50, 0.5, ExudateType::Carbon, 8, 10.0, 5.0);

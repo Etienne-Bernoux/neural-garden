@@ -22,11 +22,7 @@ pub fn absorption_rate_per_root(base_rate: f32, biomass: u16, root_count: usize)
 pub fn action_absorption(state: &mut SimState, plant_id: u64, plant_idx: usize) {
     let root_cells: Vec<Pos> = state.plants[plant_idx].roots().to_vec();
     let biomass = state.plants[plant_idx].biomass().value();
-    let rate = absorption_rate_per_root(
-        state.config.absorption_rate,
-        biomass,
-        root_cells.len(),
-    );
+    let rate = absorption_rate_per_root(state.config.absorption_rate, biomass, root_cells.len());
 
     let mut total_absorbed = 0.0_f32;
     for pos in &root_cells {
@@ -60,14 +56,20 @@ mod tests {
     fn taux_absorption_petite_plante() {
         // biomass=1, 1 racine : taux plein
         let rate = absorption_rate_per_root(0.03, 1, 1);
-        assert!((rate - 0.03).abs() < 1e-6, "bio=1, 1 racine devrait donner 0.03, got {rate}");
+        assert!(
+            (rate - 0.03).abs() < 1e-6,
+            "bio=1, 1 racine devrait donner 0.03, got {rate}"
+        );
     }
 
     #[test]
     fn taux_absorption_grande_plante_dilue() {
         // biomass=10, 20 racines : 0.03 × 10 / 20 = 0.015
         let rate = absorption_rate_per_root(0.03, 10, 20);
-        assert!((rate - 0.015).abs() < 1e-6, "bio=10, 20 racines devrait donner 0.015, got {rate}");
+        assert!(
+            (rate - 0.015).abs() < 1e-6,
+            "bio=10, 20 racines devrait donner 0.015, got {rate}"
+        );
     }
 
     #[test]

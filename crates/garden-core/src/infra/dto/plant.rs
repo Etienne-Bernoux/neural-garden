@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use super::PosDto;
 use crate::application::evolution::{Genome, PlantStats};
 use crate::domain::brain::Brain;
-use crate::domain::plant::{ExudateType, GeneticTraits, Lineage, Plant, PlantState};
+use crate::domain::plant::{CellSlot, ExudateType, GeneticTraits, Lineage, Plant, PlantState, Pos};
+use crate::domain::stages::GrowthStage;
 use crate::domain::traits::PlantEntity;
 
 // --- ExudateType ---
@@ -30,6 +31,85 @@ impl ExudateTypeDto {
         match self {
             Self::Carbon => ExudateType::Carbon,
             Self::Nitrogen => ExudateType::Nitrogen,
+        }
+    }
+}
+
+// --- CellSlot ---
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct CellSlotDto {
+    pub x: u16,
+    pub y: u16,
+    #[serde(default)]
+    pub level: u8,
+}
+
+impl From<&CellSlot> for CellSlotDto {
+    fn from(s: &CellSlot) -> Self {
+        Self {
+            x: s.pos.x,
+            y: s.pos.y,
+            level: s.level,
+        }
+    }
+}
+
+impl CellSlotDto {
+    pub fn to_domain(&self) -> CellSlot {
+        CellSlot {
+            pos: Pos {
+                x: self.x,
+                y: self.y,
+            },
+            level: self.level,
+        }
+    }
+}
+
+// --- GrowthStage ---
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum GrowthStageDto {
+    Graine,
+    Germe,
+    Pousse,
+    Plantule,
+    Arbuste,
+    JeuneArbre,
+    Arbre,
+    ArbreMature,
+    Venerable,
+}
+
+impl From<GrowthStage> for GrowthStageDto {
+    fn from(s: GrowthStage) -> Self {
+        match s {
+            GrowthStage::Graine => Self::Graine,
+            GrowthStage::Germe => Self::Germe,
+            GrowthStage::Pousse => Self::Pousse,
+            GrowthStage::Plantule => Self::Plantule,
+            GrowthStage::Arbuste => Self::Arbuste,
+            GrowthStage::JeuneArbre => Self::JeuneArbre,
+            GrowthStage::Arbre => Self::Arbre,
+            GrowthStage::ArbreMature => Self::ArbreMature,
+            GrowthStage::Venerable => Self::Venerable,
+        }
+    }
+}
+
+impl GrowthStageDto {
+    pub fn to_domain(&self) -> GrowthStage {
+        match self {
+            Self::Graine => GrowthStage::Graine,
+            Self::Germe => GrowthStage::Germe,
+            Self::Pousse => GrowthStage::Pousse,
+            Self::Plantule => GrowthStage::Plantule,
+            Self::Arbuste => GrowthStage::Arbuste,
+            Self::JeuneArbre => GrowthStage::JeuneArbre,
+            Self::Arbre => GrowthStage::Arbre,
+            Self::ArbreMature => GrowthStage::ArbreMature,
+            Self::Venerable => GrowthStage::Venerable,
         }
     }
 }
@@ -171,8 +251,8 @@ pub struct PlantDto {
     pub energy: f32,
     pub biomass: u16,
     pub footprint: Vec<PosDto>,
-    pub canopy: Vec<PosDto>,
-    pub roots: Vec<PosDto>,
+    pub canopy: Vec<CellSlotDto>,
+    pub roots: Vec<CellSlotDto>,
     pub genetics: GeneticTraitsDto,
     pub lineage: LineageDto,
     pub decomposition_remaining: u32,
@@ -182,6 +262,14 @@ pub struct PlantDto {
     pub ancestors: Vec<u64>,
     #[serde(default)]
     pub seed_progress: f32,
+    #[serde(default = "default_growth_stage")]
+    pub growth_stage: GrowthStageDto,
+    #[serde(default)]
+    pub ticks_at_advanced_stage: u32,
+}
+
+fn default_growth_stage() -> GrowthStageDto {
+    GrowthStageDto::Germe
 }
 
 impl From<&dyn PlantEntity> for PlantDto {
@@ -194,8 +282,8 @@ impl From<&dyn PlantEntity> for PlantDto {
             energy: p.energy().value(),
             biomass: p.biomass().value(),
             footprint: p.footprint().iter().map(PosDto::from).collect(),
-            canopy: p.canopy().iter().map(PosDto::from).collect(),
-            roots: p.roots().iter().map(PosDto::from).collect(),
+            canopy: p.canopy_slots().iter().map(CellSlotDto::from).collect(),
+            roots: p.root_slots().iter().map(CellSlotDto::from).collect(),
             genetics: GeneticTraitsDto::from(p.genetics()),
             lineage: LineageDto::from(p.lineage()),
             decomposition_remaining: p.decomposition_remaining(),
@@ -203,6 +291,8 @@ impl From<&dyn PlantEntity> for PlantDto {
             nitrogen_to_release: p.nitrogen_to_release(),
             ancestors: p.ancestors().to_vec(),
             seed_progress: p.seed_progress(),
+            growth_stage: p.growth_stage().into(),
+            ticks_at_advanced_stage: 0, // serialise mais pas encore utilise (Phase 10b)
         }
     }
 }
@@ -218,8 +308,8 @@ impl PlantDto {
             self.energy,
             self.biomass,
             self.footprint.iter().map(|p| p.to_domain()).collect(),
-            self.canopy.iter().map(|p| p.to_domain()).collect(),
-            self.roots.iter().map(|p| p.to_domain()).collect(),
+            self.canopy.iter().map(|s| s.to_domain()).collect(),
+            self.roots.iter().map(|s| s.to_domain()).collect(),
             self.genetics.to_domain(),
             self.lineage.to_domain(),
             self.decomposition_remaining,
@@ -227,6 +317,8 @@ impl PlantDto {
             self.nitrogen_to_release,
             self.ancestors.clone(),
             self.seed_progress,
+            self.growth_stage.to_domain(),
+            self.ticks_at_advanced_stage,
         )
     }
 }
