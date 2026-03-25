@@ -40,7 +40,7 @@ Paramètres hérités du parent, mutés à la phase graine, soumis à la sélect
 | hidden_size | 6 – 14 | ±1 | Neurones par couche cachée. Contraint le crossover (même taille requise → spéciation). |
 | vitality_factor | 0.1 – 20.0 | gaussien | Multiplicateur du cap de vitalité (cap = biomasse × vitality_factor). |
 | energy_factor | 0.1 – 20.0 | gaussien | Multiplicateur du cap d'énergie (cap = biomasse × energy_factor). |
-| Poids du réseau | 252 – 724 floats | gaussien | Le cerveau qui pilote le comportement. Taille dépend de `hidden_size`. |
+| Poids du réseau | 212 – 596 floats | gaussien | Le cerveau qui pilote le comportement. Taille dépend de `hidden_size` (formule : 18×H + H² + 8H + 2H + 8). |
 
 ## Cycle de vie
 
@@ -56,6 +56,6 @@ Paramètres hérités du parent, mutés à la phase graine, soumis à la sélect
 
 ## Reproduction
 
-Quand une plante a assez d'énergie (>50) et de biomasse (>6 cellules), elle peut **lancer une graine** à 3-9 cellules de distance dans une direction aléatoire. Si la cellule cible est libre (y compris : pas submergée), un nouvel individu naît. Coût : 25 énergie. La plante mère reçoit un bonus de +5 vitalité à chaque reproduction.
+La reproduction fonctionne par **production continue de graines**. Conditions : la plante doit être à l'état **Mature**, son stade de croissance doit autoriser la reproduction (`can_reproduce`), et son énergie doit dépasser `seed_energy_threshold` (défaut : **15.0**). La biomasse influence le rythme de production via `seed_production_rate` (défaut : **0.01**) — plus la plante est grande, plus elle produit vite. Chaque graine coûte `seed_energy_cost` (défaut : **5.0** énergie). La dispersion suit un gradient de distance : 70 % proche (1-3 cellules), 20 % moyen (3-6), 10 % loin (6-15). Si la cellule cible est libre et sur terre, un nouvel individu naît. Clone exact (10 %) ou mutation du génome (90 %).
 
 La graine hérite du génome du parent. Les **mutations sont appliquées pendant la phase de dormance**, pas à la naissance. Les mutations inter-générationnelles classiques (gaussiennes sur les poids, perturbation des traits) s'appliquent ici.
